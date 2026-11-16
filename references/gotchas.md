@@ -38,6 +38,10 @@ reader.
 guards are a seatbelt; if you find yourself reaching for `waitHidden` on your own
 app, fix the app.
 
+The bundled fixture paints its own bar only when asked (`/?flash=1`), because a
+recorded demo otherwise opens on 400 ms of "Delete selected" that no reader of the
+app ever sees — the same reasoning, applied to the page the demo is shot from.
+
 ## Cookie banners
 
 Third-party pages carry consent banners that cover the bottom of the viewport in

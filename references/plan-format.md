@@ -21,7 +21,7 @@ Machine-readable version: [`../plans/schema.json`](../plans/schema.json).
 | `deviceScaleFactor` | `1` | Capture ratio. **Use 2 at minimum; 4 for figures a reader zooms into.** |
 | `pad` | `32` | Pixels kept around a trimmed frame. |
 | `maskColor` | `#0a0e14` | Fill for masked locators. |
-| `themeStorage` | — | One storage key a third-party app reads for its theme, pinned before any script runs: `{"cp-theme": "dark"}`. Use when the app ignores `prefers-color-scheme`. |
+| `themeStorage` | — | One storage key, pinned before any script runs: `{"cp-theme": "dark"}`. Use when the app ignores `prefers-color-scheme` for its theme, and for any first-paint chrome the site only suppresses from a stored dismissal — a locale switcher Apple keeps behind `ls-opt-out`. |
 | `reducedMotion` | `reduce` | `reduce` or `no-preference`. A recorded video forces `no-preference` — an app with every transition switched off records as a series of stills. |
 | `humanize` | on for `--video` | How the page is driven when recording. See below. |
 | `vars` | — | `${name}` values. See below. |

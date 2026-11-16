@@ -11,7 +11,7 @@
     "password": { "env": "FIXTURE_PASSWORD" }
   },
   "steps": [
-    { "name": "open the app", "goto": "/" },
+    { "name": "open the app", "goto": "/?flash=1" },
     { "name": "dismiss the cookie banner", "clickIfPresent": { "selector": "#cookie-deny" } },
     { "name": "let the first paint settle", "waitHidden": { "selector": "#flash-bar" } },
     {

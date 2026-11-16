@@ -7,7 +7,7 @@
   "colorScheme": "dark",
   "deviceScaleFactor": 2,
   "steps": [
-    { "name": "open the app", "goto": "/" },
+    { "name": "open the app", "goto": "/?flash=1" },
     { "name": "dismiss the cookie banner", "clickIfPresent": { "selector": "#cookie-deny" } },
     { "name": "let the first paint settle", "waitHidden": { "selector": "#flash-bar" } },
     { "name": "good figure", "expect": "Welcome back", "shot": { "id": "01-welcome", "clip": "#card", "pad": 16 } },

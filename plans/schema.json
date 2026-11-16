@@ -57,7 +57,7 @@
     },
     "themeStorage": {
       "type": "object",
-      "description": "A storage key a third-party app reads for its theme, pinned before any script runs. One entry: {\"cp-theme\": \"dark\"}.",
+      "description": "One storage key pinned before any script runs, for state a site applies after first paint: a theme it reads from storage rather than prefers-color-scheme ({\"cp-theme\": \"dark\"}), or a dismissal flag that hides chrome the site would otherwise paint and then remove.",
       "additionalProperties": { "type": "string" }
     },
     "reducedMotion": {
