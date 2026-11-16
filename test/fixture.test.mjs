@@ -240,7 +240,19 @@ test('--video records a walkthrough a reviewer can follow', async (t) => {
   assert.match(review, /#t=\d/);
   assert.match(review, /seed fixture-video-v1/);
 
-  // The figures are unchanged by any of it.
+  // The figures are unchanged by any of it. This is the claim that matters most
+  // for a *recording*: the pointer is drawn into the very page the figure is
+  // taken from, so "hidden before the capture" has to be proven, not asserted.
+  // The fixture paints no transitions, so the same plan without `--video` — and
+  // therefore without a humanizer at all — must produce the same bytes.
+  const plain = path.join(tmp, 'video-plain');
+  const baseline = await run([PLAN('fixture-video.plan.json'), '--out', plain]);
+  assert.equal(baseline.code, 0, baseline.stderr);
+  for (const id of ['01-welcome', '02-step2', '03-echo']) {
+    const [recorded, without] = await Promise.all([readFile(shotFile('video', id)), readFile(shotFile('video-plain', id))]);
+    assert.ok(recorded.equals(without), `${id} differs between a recorded run and a plain one — the pointer reached the figure`);
+  }
+  // Still the same picture it always was: a clipped card, not a viewport frame.
   assert.equal((await pngSize(shotFile('video', '01-welcome'))).width, 784);
 });
 
