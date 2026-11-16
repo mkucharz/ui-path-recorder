@@ -145,6 +145,11 @@ names those files after the page and deletes them unless they are moved out, whi
 is why the run captures `video.path()` before `context.close()` and renames them
 to their walkthrough position.
 
+Each recording starts when *its* page opened, so a chapter is a seek into its own
+tab's file, not into the first one: `.timeline.json` records `recordingStartMs`
+per video and a chapter subtracts it. Without that, the second tab's chapters seek
+seconds into a file that is only a second long.
+
 **A recording starts with the browser, not with the plan.** The first frames are
 the blank page or the app's loading state, so the video is a second or two longer
 than `.timeline.json` reports. That is why the poster defaults to nothing: the

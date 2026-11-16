@@ -77,6 +77,41 @@ test('chapters are the named steps that ran, with the tab they ran in', () => {
   for (let i = 1; i < chapters.length; i += 1) assert.ok(chapters[i].atMs >= chapters[i - 1].atMs);
 });
 
+test("a chapter in the second tab is timed from that tab's own recording", () => {
+  const startedAt = Date.now() - 5_000;
+  const pages = new Map([
+    [1, startedAt - 400], // recording 1 began before the run did
+    [2, startedAt + 4_000], // the second tab opened four seconds in
+  ]);
+  const timeline = createTimeline(
+    options({ startedAt, videoStartedAt: pages.get(1), pageStartedAt: (page) => pages.get(page) ?? null }),
+  );
+  timeline.begin({ index: 1, name: 'open', action: 'goto' }).page(1);
+  timeline.begin({ index: 2, name: 'in the new tab', action: 'click' }).page(2);
+  timeline.close();
+
+  const json = timeline.toJSON();
+  const [main, second] = timeline.chapters();
+  const secondStep = json.steps.find((step) => step.page === 2);
+
+  // Page one adds the recorder's head start; page two subtracts its own, because
+  // each tab is written as its own file starting when the tab opened. Without
+  // that, a chapter for tab two seeks seconds into a file that is that long.
+  assert.equal(main.atMs, Math.max(0, json.steps[0].startMs + 400));
+  assert.equal(second.atMs, Math.max(0, secondStep.startMs - 4_000));
+  assert.ok(second.atMs < secondStep.startMs, 'tab two is timed from its own zero point');
+  assert.equal(json.videos.length, 0);
+  timeline.setVideos([
+    { file: 'video/01-main.webm', page: 1 },
+    { file: 'video/02-tab-2.webm', page: 2 },
+  ]);
+  assert.deepEqual(
+    timeline.toJSON().videos.map((video) => video.recordingStartMs),
+    [-400, 4_000],
+    'each recording declares where it starts, so the file explains its own chapter times',
+  );
+});
+
 test('chapter times are relative to the start of the recording, not of the run', () => {
   const startedAt = Date.now();
   // The recorder started 1.5 s before the plan did.

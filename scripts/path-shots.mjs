@@ -432,9 +432,10 @@ function trackPage(opened) {
   const index = pageLog.length + 1;
   const label = `${String(index).padStart(2, '0')}-${index === 1 ? 'main' : `tab-${index}`}`;
   // The recording for a page starts with the page, so that is the zero point a
-  // chapter seek is measured from.
-  if (video && !videoStartedAt) videoStartedAt = Date.now();
-  pageLog.push({ page: opened, video: video ? opened.video() : null, label, index });
+  // chapter seek is measured from — per page, because each tab is its own file.
+  const openedAt = Date.now();
+  if (video && !videoStartedAt) videoStartedAt = openedAt;
+  pageLog.push({ page: opened, video: video ? opened.video() : null, label, index, openedAt });
   human.setPage(opened);
   return opened;
 }
@@ -606,6 +607,7 @@ const timeline = createTimeline({
   fps: video ? videoFps : null,
   startedAt,
   videoStartedAt,
+  pageStartedAt: (page) => pageLog.find((entry) => entry.index === page)?.openedAt ?? null,
   planned: human.plannedMsSince,
 });
 // The step being run, so a raw Playwright timeout (a click that never lands, a
@@ -693,7 +695,10 @@ try {
       page = trackPage(popup);
       page.setDefaultTimeout(20_000);
       masks = [];
-      record.page(pageLog.length);
+      // The step's chapter stays on the tab the click was dispatched in — that is
+      // where the click is visible. The new tab's content is the next step's
+      // subject, and its recording starts at zero, so seeking it here would land
+      // on a screen this step never showed.
       await human.arrive();
       console.log(`  new tab: ${page.url()}`);
     }

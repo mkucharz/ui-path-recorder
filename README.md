@@ -270,7 +270,7 @@ git clone https://github.com/mkucharz/ui-path-recorder ~/.config/opencode/skills
 npm test     # runs the real CLI against the bundled fixture app
 ```
 
-Thirty checks, no network, none that need a real application. The nine
+Thirty-one checks, no network, none that need a real application. The nine
 end-to-end ones drive the real CLI against the bundled fixture app: the happy
 path (three figures, exact clip widths, a scraped variable reaching a later step,
 a mode-600 vars file, the review sheet), `--no-trim`, and the refusals that must
@@ -280,10 +280,11 @@ plus the "missing env var" message. Four cover the video path: the recording and
 its `.timeline.json` (named files, chapters that only move forward, the pointer
 hidden for every figure), a *recorded* run's figures being byte-identical to a
 plain run's, `--no-humanize`, and the same seed reproducing the same scheduled
-delays. Seventeen are unit tests with no browser: twelve for the humanizer
+delays. Eighteen are unit tests with no browser: twelve for the humanizer
 (seeded replay, travel ending on the target, click order, long-value paste,
-hide/show) and five for the timeline (chapter order and tab, times relative to
-the recording, the file matching what it reported).
+hide/show) and six for the timeline (chapter order and tab, a chapter timed from
+its own tab's recording, times relative to the start of the recording, the file
+matching what it reported).
 
 ## Docs
 
