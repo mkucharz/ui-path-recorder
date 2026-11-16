@@ -26,8 +26,10 @@ jobs:
 
       - name: install a browser matching playwright-core
         # The revision has to match the version the runner imports, so it is read
-        # from the installed package rather than pinned twice.
-        run: npx --yes "playwright@$(node -p "require('playwright-core/package.json').version")" install --with-deps chromium
+        # from the installed package rather than pinned twice. ffmpeg is the
+        # separate download --video needs; without it those tests would skip and
+        # the video path would be untested on the only machine that runs CI.
+        run: npx --yes "playwright@$(node -p "require('playwright-core/package.json').version")" install --with-deps chromium ffmpeg
 
       - name: syntax
         run: npm run check

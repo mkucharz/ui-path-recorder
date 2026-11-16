@@ -9,7 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -154,12 +154,18 @@ test('a mistyped step key is refused before a browser opens', async () => {
   assert.ok(res.ms < 10_000, `refusing took ${res.ms}ms — it should not wait on a browser`);
 });
 
-test('--only names a figure that exists', async () => {
+test('--only and --poster name a figure that exists', async () => {
   const res = await run([PLAN('fixture.plan.json'), '--only', '99-nope', '--out', path.join(tmp, 'only')]);
   assert.equal(res.code, 2);
-  assert.match(res.stderr, /no shot named "99-nope"/);
+  assert.match(res.stderr, /--only names no figure "99-nope"/);
   // The message lists what it could have been, so a rename is a one-line fix.
   assert.match(res.stderr, /01-welcome, 02-step2, 03-echo/);
+
+  // A mistyped poster is a player showing a broken image, so it is refused the
+  // same way rather than rendering an empty frame.
+  const poster = await run([PLAN('fixture.plan.json'), '--poster', '99-nope', '--out', path.join(tmp, 'poster')]);
+  assert.equal(poster.code, 2);
+  assert.match(poster.stderr, /--poster names no figure "99-nope"/);
 });
 
 test('a var with no value says which environment variable to set', async () => {
@@ -179,6 +185,7 @@ test('a var with no value says which environment variable to set', async () => {
 test('the shipped example plans validate', async () => {
   const files = [
     PLAN('fixture.plan.json'),
+    PLAN('fixture-video.plan.json'),
     PLAN('fixture-stale.plan.json'),
     path.join(ROOT, 'plans', 'examples', 'railway-installer.plan.json'),
   ];
@@ -188,4 +195,105 @@ test('the shipped example plans validate', async () => {
   }
   const schema = JSON.parse(await readFile(path.join(ROOT, 'plans', 'schema.json'), 'utf8'));
   assert.equal(schema.$schema, 'https://json-schema.org/draft/2020-12/schema');
+});
+
+/**
+ * Video is the artefact with the least obvious failure mode: a recording that
+ * exists and contains nothing looks like success. These tests therefore read the
+ * run's own timeline and compare pictures, instead of trusting the file size.
+ */
+const FFMPEG_HINT = /needs Playwright's ffmpeg/;
+
+test('--video records a walkthrough a reviewer can follow', async (t) => {
+  const out = path.join(tmp, 'video');
+  const res = await run([PLAN('fixture-video.plan.json'), '--out', out, '--video', '--review', '--speed', '20']);
+  if (res.code !== 0 && FFMPEG_HINT.test(res.stderr)) return t.skip('Playwright ffmpeg is not installed here');
+  assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
+
+  // One deterministic file per page, named for the review sheet.
+  const videos = await readdir(path.join(out, 'video'));
+  assert.deepEqual(videos, ['01-main.webm']);
+  assert.ok((await stat(path.join(out, 'video', '01-main.webm'))).size > 10_000, 'the recording is not empty');
+
+  // The timeline is what makes the video reviewable: chapters with times, and a
+  // record that the pointer was hidden for every figure.
+  const timeline = JSON.parse(await readFile(path.join(out, '.timeline.json'), 'utf8'));
+  assert.equal(timeline.humanized, true);
+  assert.equal(timeline.seed, 'fixture-video-v1');
+  assert.equal(timeline.fps, 25);
+  assert.equal(timeline.videos[0].file, 'video/01-main.webm');
+  const shotSteps = timeline.steps.filter((step) => step.shot);
+  assert.deepEqual(shotSteps.map((step) => step.shot.id), ['01-welcome', '02-step2', '03-echo']);
+  for (const step of shotSteps) assert.equal(step.shot.cursorHidden, true, `${step.shot.id} was captured with the pointer hidden`);
+  // Pacing is recorded, not inferred: the recorded delays are what a re-run has
+  // to reproduce.
+  assert.ok(timeline.steps.reduce((sum, step) => sum + step.plannedMs, 0) > 0, 'the run scheduled human delays');
+  for (const step of shotSteps) assert.ok(step.plannedMs > 0, `the shot at ${step.shot.id} held its frame`);
+  // Times only ever move forward, or a chapter seek lands somewhere else.
+  for (let i = 1; i < timeline.steps.length; i += 1) {
+    assert.ok(timeline.steps[i].startMs >= timeline.steps[i - 1].startMs, `step ${i + 1} starts before the one before it`);
+  }
+
+  const review = await readFile(path.join(out, 'review.html'), 'utf8');
+  assert.match(review, /<video/);
+  assert.match(review, /video\/01-main\.webm/);
+  assert.match(review, /#t=\d/);
+  assert.match(review, /seed fixture-video-v1/);
+
+  // The figures are unchanged by any of it.
+  assert.equal((await pngSize(shotFile('video', '01-welcome'))).width, 784);
+});
+
+test('humanizing changes the pacing, not the picture — and replays the same path', async (t) => {
+  const plain = path.join(tmp, 'pace-plain');
+  const humanA = path.join(tmp, 'pace-human-a');
+  const humanB = path.join(tmp, 'pace-human-b');
+  const base = [PLAN('fixture.plan.json'), '--speed', '20'];
+
+  const first = await run([...base, '--out', plain]);
+  const second = await run([...base, '--out', humanA, '--humanize', '--seed', 'offline-test']);
+  const third = await run([...base, '--out', humanB, '--humanize', '--seed', 'offline-test']);
+  assert.equal(first.code, 0, first.stderr);
+  assert.equal(second.code, 0, second.stderr);
+  assert.equal(third.code, 0, third.stderr);
+
+  // A pointer inside a picture is the one thing a viewer would notice. The
+  // strongest proof available: the bytes are the same as without a pointer.
+  for (const id of ['01-welcome', '02-step2', '03-echo']) {
+    const [without, withHuman] = await Promise.all([readFile(shotFile('pace-plain', id)), readFile(shotFile('pace-human-a', id))]);
+    assert.ok(without.equals(withHuman), `${id} differs between a plain run and a humanized one — the pointer reached the figure`);
+  }
+
+  // Same seed, same scheduled delays: a video can be re-recorded, not guessed at.
+  const planned = async (dir) => JSON.parse(await readFile(path.join(dir, '.timeline.json'), 'utf8')).steps.map((step) => step.plannedMs);
+  assert.deepEqual(await planned(humanA), await planned(humanB));
+});
+
+test('--no-humanize records the raw machine-speed cut', async (t) => {
+  const out = path.join(tmp, 'video-raw');
+  const res = await run([PLAN('fixture-video.plan.json'), '--out', out, '--video', '--no-humanize', '--speed', '20']);
+  if (res.code !== 0 && FFMPEG_HINT.test(res.stderr)) return t.skip('Playwright ffmpeg is not installed here');
+  assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
+  const timeline = JSON.parse(await readFile(path.join(out, '.timeline.json'), 'utf8'));
+  assert.equal(timeline.humanized, false);
+  const shotSteps = timeline.steps.filter((step) => step.shot);
+  assert.equal(shotSteps.length, 3);
+  assert.ok(shotSteps.every((step) => step.shot.cursorHidden === false), 'nothing was hidden, because nothing was drawn');
+});
+
+test('a humanize block with a bad knob is refused before a browser opens', async () => {
+  const bad = (humanize) => ({ tutorial: 'bad-humanize', baseUrl: 'http://127.0.0.1:1', humanize, steps: [{ goto: '/' }] });
+  const cases = [
+    [{ speed: 0 }, /"humanize.speed" must be a positive number/],
+    [{ humanzie: true }, /unknown "humanize" key "humanzie"/],
+    [{ typing: { minMs: 200, maxMs: 100 } }, /typing.maxMs" must be >=/],
+  ];
+  for (const [humanize, expected] of cases) {
+    const file = path.join(tmp, `bad-${Object.keys(humanize)[0]}.plan.json`);
+    await writeFile(file, JSON.stringify(bad(humanize)));
+    const res = await run([file, '--out', path.join(tmp, 'never')]);
+    assert.equal(res.code, 2, `exit ${res.code}\n${res.stderr}`);
+    assert.match(res.stderr, expected);
+    assert.ok(res.ms < 10_000, `refusing took ${res.ms}ms — it should not wait on a browser`);
+  }
 });

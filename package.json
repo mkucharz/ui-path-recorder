@@ -1,6 +1,6 @@
 {
   "name": "ui-path-recorder",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Record a reproducible path through a live UI and publish documentation-quality figures from it.",
   "license": "MIT",
   "author": "Maciej Kucharz",
@@ -25,7 +25,7 @@
     "references/"
   ],
   "scripts": {
-    "test": "node --test test/fixture.test.mjs",
+    "test": "node --test test/*.test.mjs",
     "check": "for f in scripts/path-shots.mjs lib/*.mjs test/*.mjs; do node --check \"$f\" || exit 1; done; echo 'syntax ok'",
     "shots": "node scripts/path-shots.mjs",
     "ingest": "node lib/ingest.mjs",

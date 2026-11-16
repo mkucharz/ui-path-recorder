@@ -1,0 +1,47 @@
+{
+  "tutorial": "fixture-video",
+  "description": "Self-test for the video path: the same walkthrough as fixture.plan.json, driven like a person (pointer, travel, typing cadence) and recorded.",
+  "baseUrl": "${FIXTURE_URL}",
+  "locale": "en-US",
+  "viewport": { "width": 900, "height": 700 },
+  "colorScheme": "dark",
+  "deviceScaleFactor": 2,
+  "humanize": {
+    "seed": "fixture-video-v1",
+    "clickRipple": true,
+    "shotHoldMs": 600
+  },
+  "vars": {
+    "adminEmail": { "literal": "admin@example.com" },
+    "password": { "env": "FIXTURE_PASSWORD" }
+  },
+  "steps": [
+    { "name": "open the app", "goto": "/" },
+    { "name": "dismiss the cookie banner", "clickIfPresent": { "selector": "#cookie-deny" } },
+    { "name": "let the first paint settle", "waitHidden": { "selector": "#flash-bar" } },
+    {
+      "name": "sign-in card",
+      "expect": "Welcome back",
+      "shot": { "id": "01-welcome", "clip": "#card", "pad": 16 }
+    },
+    { "name": "the operator's email is typed in", "fill": { "selector": "#email", "value": "${adminEmail}" }, "hold": 200 },
+    { "name": "the password is typed in", "fill": { "selector": "#password", "value": "${password}" }, "hold": 200 },
+    { "name": "sign in", "click": "#submit" },
+    { "name": "the second screen replaces the first in place", "waitFor": { "text": "Step 2 — choose a target" } },
+    {
+      "name": "second screen, full frame",
+      "expect": "The installer will create four services",
+      "shot": { "id": "02-step2" }
+    },
+    { "name": "deploy", "click": "#next" },
+    { "name": "finished", "waitFor": { "selector": "#done" } },
+    { "name": "read the generated password", "setVar": { "name": "token", "from": { "selector": "#secret" } } },
+    {
+      "name": "a scraped value reaches a later step",
+      "goto": "/?token=${token}",
+      "waitFor": { "selector": "#echoed" },
+      "expect": "Signed in with ${token}",
+      "shot": { "id": "03-echo", "clip": "#card", "pad": 16 }
+    }
+  ]
+}

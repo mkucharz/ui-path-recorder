@@ -10,6 +10,10 @@
   },
   "colorScheme": "dark",
   "deviceScaleFactor": 4,
+  "humanize": {
+    "seed": "railway-v4",
+    "shotHoldMs": 2000
+  },
   "vars": {
     "adminEmail": {
       "literal": "admin@example.com"

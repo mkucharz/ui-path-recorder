@@ -8,14 +8,19 @@ keeps that path as a committed JSON file and executes it in a pinned browser, so
 the figures in your documentation stop depending on who held the screenshot
 tool.
 
-```
-node scripts/path-shots.mjs plans/railway-installer.plan.json --review
-```
+The same path records as a **walkthrough video a person can follow** — pointer,
+curved travel, typing cadence, chapters — because a recording of a script, left
+alone, is a cut of teleporting stills:
 
-```
+```bash
+node scripts/path-shots.mjs plans/railway-installer.plan.json --review
+node scripts/path-shots.mjs plans/railway-installer.plan.json --video --review
+
   01-choose-target           6016x3548   captures/railway-installer-…/01-choose-target.png
   02-authorize-railway       1676x2504   captures/railway-installer-…/02-authorize-railway.png
   …
+  video: video/01-main.webm (2418K)
+  seed:  railway-v4   (re-run with --seed railway-v4 to replay the same path)
   13 shot(s) written to captures/railway-installer-2026-01-01T10-00-00
   review: captures/railway-installer-2026-01-01T10-00-00/review.html
 ```
@@ -45,6 +50,7 @@ committing one.
 ```bash
 npm install                    # playwright-core, plus optional sharp
 npx playwright install chromium
+npx playwright install ffmpeg  # only for --video
 # or point at a browser you already have:
 export CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 ```
@@ -70,6 +76,17 @@ environment — a real plan names its own, usually `"${INSTANCE_URL}"` and
 `{"env": "SHOT_PASSWORD"}`. The password value here is arbitrary; the fixture
 accepts anything.
 
+The same flow is recorded as a walkthrough by `test/plans/fixture-video.plan.json`:
+
+```bash
+FIXTURE_URL=http://127.0.0.1:8099 FIXTURE_PASSWORD=correct-horse \
+  node scripts/path-shots.mjs test/plans/fixture-video.plan.json --video --review --speed 3
+open captures/fixture-video-*/review.html   # player + chapters, then the figures
+```
+
+`--speed 3` because a natural pace turns this 8-second flow into a 25-second one;
+drop it for the real thing.
+
 ## A plan
 
 ```json
@@ -80,6 +97,7 @@ accepts anything.
   "viewport": { "width": 1600, "height": 900 },
   "colorScheme": "dark",
   "deviceScaleFactor": 4,
+  "humanize": { "seed": "signin-v2" },
   "vars": { "email": { "literal": "admin@example.com" } },
   "steps": [
     { "name": "open", "goto": "/login" },
@@ -108,17 +126,59 @@ price and fails when Apple changes it:
 ```
 captures/signin-2026-01-01T10-00-00/
   review.html          ← open this: every figure, its size, the text it asserted
+                          (plus the video with chapter links, when there is one)
   01-signin.png        ← the figure, at the capture ratio
   02-app.png
   .shots.json          ← capture ratio per figure (real px → CSS px)
+  .timeline.json       ← where each step started/ended, and the video chapters
   .vars.json           ← values scraped off the page, mode 600 (only if setVar ran)
   failures/            ← only on failure: the page, its DOM, and its controls
-  trace.zip, video/    ← only with --trace / --video
+  trace.zip, video/    ← only with --trace / --video (video/01-main.webm, one per tab)
 ```
 
 A run directory is *reviewable before it touches a document*. That is the point
 of the default: nothing overwrites a published figure until a human has looked at
 `review.html`.
+
+## A video a reader can follow
+
+`--video` records the run — which on its own is not worth watching. Playwright's
+screencast draws no pointer and dispatches a click the instant the script asks,
+so what you get is a cut of teleporting stills. `--video` therefore also drives
+the page like a person:
+
+- **A pointer you can see.** An in-page overlay, placed at the coordinates the
+  runner actually dispatches. It is a *depiction*, not a capture: it cannot point
+  somewhere the plan did not. It is hidden before every screenshot and every
+  piece of failure evidence, so a figure is never "evidence with a mouse in it".
+- **Travel, not teleport.** A click moves along a curved path with eased velocity
+  — a hand does not travel down a ruler line — then dwells on the target before
+  pressing, and ripples where it landed.
+- **Typing with a cadence.** `fill` becomes click → select-all → one real key
+  event per character, with a longer pause after a delimiter and the occasional
+  stop to think. A long value (a token, a URL) is typed at the start and pasted,
+  which is also what a person does with it.
+- **Beats you can read.** A scroll animates, a navigation fades instead of
+  flashing white, and the frame a figure was taken from is held long enough to
+  read before the next action.
+
+All of it comes from a seeded generator, so a run is replayable: `--seed` (logged
+as `seed=…`, default `run-<stamp>`) reproduces the same path and the same typing
+rhythm. A video is documentation, so it has to be re-shootable rather than
+re-performed. `--speed N` scales every delay (1 natural, 20 a fast test run).
+
+Figures do not change: a humanized figure is byte-identical to a plain one, which
+the test suite asserts. `--no-humanize` records the raw machine-speed cut when
+that is what you want.
+
+Chapters come from `.timeline.json`, so a reviewer opens `review.html` and clicks
+"the password is typed in" instead of scrubbing a minute of video:
+
+```
+  5. the operator's email is typed in  01-welcome  1.6s · fill
+  6. the password is typed in                      3.1s · fill
+  7. sign in                                       4.6s · click
+```
 
 ## The guards
 
@@ -166,7 +226,12 @@ the script waits for that file instead of a keypress.
 | `--profile <dir>` | keep the session in a profile on this host (implies a visible window) |
 | `--login` | open that profile for a human, then exit |
 | `--login-done-file <f>` | an agent on another host signals "signed in" with `touch <f>` |
-| `--video` | record the walkthrough to `<out>/video/*.webm` (needs `npx playwright install ffmpeg`) |
+| `--video` | record the walkthrough to `<out>/video/01-main.webm` **and drive it like a person** (needs `npx playwright install ffmpeg`) |
+| `--no-humanize` | with `--video`, record the raw machine-speed cut instead |
+| `--seed <s>` | seed the humanizer (default `run-<stamp>`, logged as `seed=`) |
+| `--speed <n>` | scale every human delay: 1 natural, 20 a fast test run |
+| `--video-fps <n>` | video frame rate (default 25) |
+| `--poster <id>` | figure to show in the player before play (default: the first frame) |
 | `--trace` | write `<out>/trace.zip`; open with `npx playwright show-trace` |
 | `--vars-out <f>` | where `setVar` values go (default `<out>/.vars.json`, mode 600) |
 | `--no-trim` | do not crop dead space (needs no `sharp`) |
@@ -205,11 +270,17 @@ git clone https://github.com/mkucharz/ui-path-recorder ~/.config/opencode/skills
 npm test     # runs the real CLI against the bundled fixture app
 ```
 
-Nine checks, no network: the happy path (three figures, exact clip widths,
-scraped variable reaching a later step, mode-600 vars file, review sheet),
-`--no-trim`, and the five refusals that must happen — stale assertion, wrong
-language, unsettled theme, mistyped plan key, an `--only` that names nothing —
-plus the "missing env var" message.
+Twenty-five checks, no network. The nine end-to-end ones drive the real CLI
+against the bundled fixture app: the happy path (three figures, exact clip
+widths, a scraped variable reaching a later step, a mode-600 vars file, the
+review sheet), `--no-trim`, and the refusals that must happen — a stale
+assertion, the wrong language, an unsettled theme, a mistyped plan key, a
+mistyped `humanize` knob, an `--only` that names nothing — plus the "missing
+env var" message. Four cover the video path: the recording and its `.timeline.json`
+(named files, chapters that only move forward, the pointer hidden for every
+figure), a humanized figure being byte-identical to a plain one, `--no-humanize`,
+and the same seed reproducing the same scheduled delays. Twelve unit-test the
+humanizer without a browser.
 
 ## Docs
 

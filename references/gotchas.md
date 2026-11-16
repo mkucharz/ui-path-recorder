@@ -114,6 +114,49 @@ Most apps paint a narrow column on a full viewport. A full-frame capture becomes
 because a colour-distance test sees a soft radial gradient as content and never
 trims anything.
 
+## Video
+
+**The pointer in a recording is a depiction, not a capture.** Playwright's
+screencast draws no mouse at all — a real OS cursor is never in the frame, which is
+why a plain recording is so hard to follow. The pointer in `--video` output is an
+in-page overlay the runner places at the coordinates it dispatches, so it cannot
+point somewhere the plan did not go — and it cannot reach a figure either: it is
+hidden before every capture, and a humanized run's PNGs are byte-identical to a
+plain run's (asserted in the tests).
+
+**`--video` forces `prefers-reduced-motion: no-preference`.** A run without it
+captures a page whose every transition is switched off, which records as a series
+of stills — the recording reads as broken rather than calm. The reverse is also
+true: an app with a three-second intro animation now spends three seconds in the
+video, and the answer is `waitFor`/`hold`, not switching motion back off. Figures
+are unaffected — a shot disables animations for itself.
+
+**A video is recorded at the viewport in CSS pixels, never at
+`deviceScaleFactor`.** `2` gives crisp figures and a 900×700 video. For a sharper
+video, raise `viewport` (and accept more scrolling in the flow), not the capture
+ratio — scaling a small recording up in a document only enlarges its compression
+artefacts. Both video dimensions are rounded down to even numbers, because the
+encoder refuses odd ones.
+
+**One video per tab, and the file only appears when the context closes.** A
+`clickNewPage` flow writes `01-main.webm` and `02-tab-2.webm`; both are linked
+from `review.html`, and each chapter points at the tab it happened in. Playwright
+names those files after the page and deletes them unless they are moved out, which
+is why the run captures `video.path()` before `context.close()` and renames them
+to their walkthrough position.
+
+**A recording starts with the browser, not with the plan.** The first frames are
+the blank page or the app's loading state, so the video is a second or two longer
+than `.timeline.json` reports. That is why the poster defaults to nothing: the
+first frame is the honest thumbnail, whereas a figure used as a poster is a crop
+stretched across the whole player. `--poster <id>` overrides it deliberately.
+
+**Only the scheduled delays are reproducible.** `plannedMs` in `.timeline.json`
+comes from the seed and is identical on every re-run; `startMs`/`endMs` are wall
+clock and never are. `--speed` rescales every delay without changing the sampled
+path, so a fast test run and the final take share chapter *names*, not chapter
+seconds. Shoot at `--speed 1` with a pinned `--seed`; test at 20.
+
 ## What the runner cannot do
 
 - **Know a selector was right for the screen you meant.** `expect` text is the
@@ -124,6 +167,10 @@ trims anything.
   be one figure in the document and three in the plan.
 - **Fix prose drift.** A re-captured figure often disproves the caption next to
   it. Fix both, in the same change.
+- **Watch the recording for you.** A video can be forty seconds of correct
+  figures with the pointer resting on the wrong control, or a step that scrolled
+  the point of the screen out of frame. Watch it — `--speed 20` while iterating,
+  `--speed 1` before publishing — or extract frames and look at them.
 - **Guarantee a first run suceeds.** A cold start over an unseen third-party flow
   costs an iteration or two; budget for it, and use `--only` to keep the retries
   cheap.
