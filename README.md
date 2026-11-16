@@ -172,7 +172,8 @@ the test suite asserts. `--no-humanize` records the raw machine-speed cut when
 that is what you want.
 
 Chapters come from `.timeline.json`, so a reviewer opens `review.html` and clicks
-"the password is typed in" instead of scrubbing a minute of video:
+"the password is typed in" instead of scrubbing a minute of video — the player
+seeks in place, and the figure list stays on screen to compare against:
 
 ```
   5. the operator's email is typed in  01-welcome  1.6s · fill

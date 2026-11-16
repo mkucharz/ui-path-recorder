@@ -115,7 +115,8 @@ the size the app drew on screen, and **the text the plan asserted on that
 screen**. If a figure is stale you can see it by reading.
 
 When the run recorded a video, the same page carries the player and a chapter
-list built from `.timeline.json` — each chapter a seek (`01-main.webm#t=4.6`), so
+list built from `.timeline.json` — clicking a chapter seeks the player in place
+(`01-main.webm#t=4.6`, and a second tab's chapters seek that tab's recording), so
 checking that the pointer follows the flow is a click, not a scrub. Also in the
 run: `.timeline.json` with every step's start/end, its action and its scheduled
 delay.
