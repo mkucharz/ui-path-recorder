@@ -34,7 +34,7 @@
       "additionalProperties": false,
       "required": ["width", "height"],
       "properties": { "width": { "type": "integer" }, "height": { "type": "integer" } },
-      "default": { "width": 1600, "height": 827 }
+      "default": { "width": 1600, "height": 900 }
     },
     "colorScheme": {
       "enum": ["dark", "light", "no-preference"],

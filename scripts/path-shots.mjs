@@ -71,7 +71,7 @@ const USAGE = `usage:
   node scripts/path-shots.mjs <plan.json> [--only <shot-id>] [--out <dir>] [--review]
                                         [--profile <dir>] [--video] [--trace]
                                         [--humanize] [--no-humanize] [--seed <s>] [--speed <n>]
-                                        [--video-fps <n>] [--poster <shot-id>]
+                                        [--video-fps <n>] [--video-size <WxH>] [--poster <shot-id>]
                                         [--vars-out <file>] [--no-trim] [--headed] [--channel <name>]
   node scripts/path-shots.mjs --login --login-url <url> [--profile <dir>] [--login-done-file <path>]
 
@@ -88,6 +88,10 @@ const USAGE = `usage:
   --seed <s>        seed the humanizer (default: derived from the run stamp; logged as seed=)
   --speed <n>       scale every human delay (1 = natural, 20 = a fast test run)
   --video-fps <n>   video frame rate (default: 25)
+  --video-size <WxH> shrink the video canvas (default: the viewport, so a plan that
+                    pins a 1920x1080 viewport records 1080p). It must have the
+                    viewport's shape and be no larger than it: Playwright never
+                    scales a recording up, it pads the canvas with a band
   --poster <id>     figure to show in the player before play (default: the first frame)
   --trace           write <out>/trace.zip (open it with: npx playwright show-trace)
   --vars-out <file> keep values read by setVar (default: <out>/.vars.json, mode 600)
@@ -109,6 +113,7 @@ const VALUE_FLAGS = new Set([
   '--seed',
   '--speed',
   '--video-fps',
+  '--video-size',
   '--poster',
 ]);
 
@@ -137,6 +142,7 @@ const humanizeFlag = has('--no-humanize') ? false : has('--humanize') ? true : n
 const seedFlag = flag('--seed');
 const speedFlag = flag('--speed');
 const videoFps = Number(flag('--video-fps') ?? 25);
+const videoSizeFlag = flag('--video-size');
 const posterFlag = flag('--poster');
 
 if (has('--help') || has('-h')) {
@@ -188,7 +194,10 @@ const FAILED = path.join(OUT, 'failures');
 const metaPath = path.join(OUT, '.shots.json');
 
 const scale = plan?.deviceScaleFactor ?? 1;
-const viewport = plan?.viewport ?? { width: 1600, height: 827 };
+// 1600×900, not 1600×827: a video is 16:9 (YouTube, a deck, a README embed), and
+// a plan that pins no viewport inherits this frame. A plan that pins one keeps it
+// — its figures were composed for that height.
+const viewport = plan?.viewport ?? { width: 1600, height: 900 };
 const locale = plan?.locale ?? 'en-US';
 const primary = locale.split('-')[0];
 
@@ -272,15 +281,56 @@ function launchCandidates() {
 const baseLaunch = { headless: !headed };
 
 /**
- * Playwright records the page at CSS resolution and refuses nothing politely:
- * a video is written for `size`, and video encoders want even dimensions. The
- * viewport is what a document reads, so the video is normalized to it rather
- * than the other way round — a 1 px difference nobody can see.
+ * The video canvas.
+ *
+ * Playwright fits the recorded frame *inside* the canvas without stretching it —
+ * a circle stays a circle — and never scales it up. Whatever the frame does not
+ * cover is filled with a solid band. So the canvas may only be the viewport's own
+ * size (the default), or a *smaller* box with the viewport's exact aspect: that is
+ * how a 16:9 page becomes a lighter 720p file. A larger canvas, or one of another
+ * shape, is not a bigger picture — it is the page in the corner of a grey field —
+ * and is refused before a browser opens, because the bad file looks like a pass.
+ *
+ * A 1080p upload therefore comes from the viewport, not from this flag: pin the
+ * plan at 1920×1080 (16:9) and keep `deviceScaleFactor: 2` so the recording is a
+ * downscale of a 2× raster. Encoders also want even dimensions, and the viewport
+ * is what a document reads, so the default canvas is normalized to it.
  */
-const videoSize = {
-  width: Math.max(2, viewport.width - (viewport.width % 2)),
-  height: Math.max(2, viewport.height - (viewport.height % 2)),
-};
+const even = (value) => Math.max(2, Math.round(value) - (Math.round(value) % 2));
+const aspect = (box) => box.width / box.height;
+
+let videoSize = { width: even(viewport.width), height: even(viewport.height) };
+if (videoSizeFlag !== null) {
+  const match = /^(\d+)x(\d+)$/.exec(String(videoSizeFlag).trim());
+  if (!match) {
+    console.error(`--video-size must be <width>x<height>, e.g. 1920x1080 (got ${JSON.stringify(videoSizeFlag)})`);
+    process.exit(2);
+  }
+  const wanted = { width: even(Number(match[1])), height: even(Number(match[2])) };
+  const drift = Math.abs(aspect(wanted) - aspect(viewport)) / aspect(viewport);
+  if (drift > 0.005) {
+    console.error(
+      `\n  --video-size ${wanted.width}x${wanted.height} is ${aspect(wanted).toFixed(3)}:1 and the viewport is ` +
+        `${viewport.width}x${viewport.height} (${aspect(viewport).toFixed(3)}:1).\n\n` +
+        `  Playwright fits the page inside the canvas and fills the rest with a band, so this\n` +
+        `  file would carry a stripe beside the page instead of a bigger picture.\n\n` +
+        `  Give the plan a viewport of the video's shape (1920x1080 for 16:9), or pass\n` +
+        `  --video-size ${even(viewport.width)}x${even(viewport.height)} to record the page as it is.\n`,
+    );
+    process.exit(2);
+  }
+  if (wanted.width > viewport.width || wanted.height > viewport.height) {
+    console.error(
+      `\n  --video-size ${wanted.width}x${wanted.height} is larger than the ${viewport.width}x${viewport.height} viewport.\n\n` +
+        `  Playwright does not scale a recording up: the page would sit in the corner of the\n` +
+        `  canvas with a band beside it, not fill it. Pin the plan's viewport at the size you\n` +
+        `  want ("viewport": { "width": ${Math.max(wanted.width, viewport.width)}, "height": ${Math.max(wanted.height, viewport.height)} }),\n` +
+        `  or pass --video-size at most ${even(viewport.width)}x${even(viewport.height)} to shrink the file.\n`,
+    );
+    process.exit(2);
+  }
+  videoSize = wanted;
+}
 
 const contextOpts = {
   locale,
@@ -389,6 +439,7 @@ async function logVideo() {
     videoFiles.map(async (v) => `${v.file} (${Math.round((await stat(path.join(OUT, v.file))).size / 1024)}K)`),
   );
   console.log(`  video: ${sizes.join(', ')}`);
+  console.log(`  canvas: ${videoSize.width}x${videoSize.height} @ ${videoFps}fps   (viewport ${viewport.width}x${viewport.height})`);
   console.log(`  seed:  ${humanSeed}   (re-run with --seed ${humanSeed} to replay the same path)`);
 }
 
@@ -605,6 +656,7 @@ const timeline = createTimeline({
   humanized: human.enabled,
   viewport,
   fps: video ? videoFps : null,
+  videoSize: video ? videoSize : null,
   startedAt,
   videoStartedAt,
   pageStartedAt: (page) => pageLog.find((entry) => entry.index === page)?.openedAt ?? null,

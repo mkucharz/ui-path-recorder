@@ -98,6 +98,14 @@ same path, and use `--speed 20` while iterating on selectors (a natural pace
 turns a 30-second flow into four minutes). `--no-humanize` records the raw
 machine-speed cut.
 
+A recording is **16:9 by default** — YouTube, a deck, a README embed — because the
+frame comes from the plan and a plan that pins no viewport gets 1600×900. For a
+1080p upload pin the plan's viewport at `{ "width": 1920, "height": 1080 }` and
+keep `"deviceScaleFactor": 2`: the canvas is then a downscale of a 2× raster.
+`--video-size` only shrinks (a 1440p plan shipped at 1080p); a larger canvas, or
+one of another shape, is refused before the browser opens, because Playwright
+never scales a recording up — it fills the rest of the canvas with a band.
+
 ### 4. Read the evidence, not the error
 
 A first run over an unseen page is wrong about a selector. When it fails, the
@@ -106,7 +114,8 @@ run writes `failures/<stamp>--<step>.{png,html,txt}`; the `.txt` ends with
 plan from that, not from a description of the page.
 
 Other useful flags: `--trace` (open with `npx playwright show-trace`),
-`--profile <dir>` (see step 6), `--video-fps`, `--poster <shot-id>`.
+`--profile <dir>` (see step 6), `--video-fps`, `--video-size <WxH>`,
+`--poster <shot-id>`.
 
 ### 5. Sign off, then ingest
 

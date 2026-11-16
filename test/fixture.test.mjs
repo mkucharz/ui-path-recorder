@@ -56,6 +56,64 @@ function pngSize(file) {
   return readFile(file).then((b) => ({ width: b.readUInt32BE(16), height: b.readUInt32BE(20) }));
 }
 
+/**
+ * WebM dimensions straight off the container — the same hand-parsing the PNG
+ * check above does, for the other format the runner writes. `--video-size` is
+ * only worth a flag if the *file* has that shape: the console line is a report,
+ * and Playwright silently pads a canvas it cannot fill.
+ *
+ * An element is an ID, a size, then its payload; the TrackEntry carries
+ * PixelWidth (0xB0) and PixelHeight (0xBA). Clusters are skipped whole, because
+ * descending into every frame is how this stops being a fast test.
+ */
+function webmSize(buffer) {
+  const MASTERS = new Set([
+    0x18538067 /* Segment */,
+    0x1654ae6b /* Tracks */,
+    0xae /* TrackEntry */,
+    0xe0 /* Video — PixelWidth/Height live here, not in the entry */,
+  ]);
+  const readVint = (at) => {
+    const first = buffer[at];
+    let length = 1;
+    while (length <= 8 && !(first & (0x80 >> (length - 1)))) length += 1;
+    let value = first & (0xff >> length);
+    for (let i = 1; i < length; i += 1) value = value * 256 + buffer[at + i];
+    return { value, length, unknown: value === 2 ** (7 * length) - 1 };
+  };
+  const readId = (at) => {
+    const first = buffer[at];
+    let length = 1;
+    while (length <= 4 && !(first & (0x80 >> (length - 1)))) length += 1;
+    let id = 0;
+    for (let i = 0; i < length; i += 1) id = id * 256 + buffer[at + i];
+    return { id, length };
+  };
+  const found = {};
+  const walk = (at, end) => {
+    while (at < end) {
+      const id = readId(at);
+      const size = readVint(at + id.length);
+      const start = at + id.length + size.length;
+      const stop = size.unknown ? end : Math.min(end, start + size.value);
+      if (id.id === 0xb0 || id.id === 0xba) {
+        let value = 0;
+        for (let i = 0; i < size.value; i += 1) value = value * 256 + buffer[start + i];
+        found[id.id === 0xb0 ? 'width' : 'height'] = value;
+        if (found.width && found.height) return;
+      } else if (MASTERS.has(id.id) && (!size.unknown || id.id === 0x18538067)) {
+        // A live-muxed file writes the Segment with an unknown size; its children
+        // still have theirs.
+        walk(start, stop);
+        if (found.width && found.height) return;
+      }
+      at = stop;
+    }
+  };
+  walk(0, buffer.length);
+  return found;
+}
+
 const shotFile = (dir, id) => path.join(tmp, dir, `${id}.png`);
 
 test('captures the whole path, with the slide guards applied', async () => {
@@ -186,6 +244,7 @@ test('the shipped example plans validate', async () => {
   const files = [
     PLAN('fixture.plan.json'),
     PLAN('fixture-video.plan.json'),
+    PLAN('fixture-video-wide.plan.json'),
     PLAN('fixture-stale.plan.json'),
     path.join(ROOT, 'plans', 'examples', 'railway-installer.plan.json'),
   ];
@@ -221,6 +280,9 @@ test('--video records a walkthrough a reviewer can follow', async (t) => {
   assert.equal(timeline.humanized, true);
   assert.equal(timeline.seed, 'fixture-video-v1');
   assert.equal(timeline.fps, 25);
+  // The canvas is what a viewer sees: the plan's viewport here, because a 900×700
+  // page recorded onto a 16:9 canvas would be a stripe beside a page.
+  assert.deepEqual(timeline.videoSize, { width: 900, height: 700 });
   assert.equal(timeline.videos[0].file, 'video/01-main.webm');
   const shotSteps = timeline.steps.filter((step) => step.shot);
   assert.deepEqual(shotSteps.map((step) => step.shot.id), ['01-welcome', '02-step2', '03-echo']);
@@ -259,6 +321,55 @@ test('--video records a walkthrough a reviewer can follow', async (t) => {
   }
   // Still the same picture it always was: a clipped card, not a viewport frame.
   assert.equal((await pngSize(shotFile('video', '01-welcome'))).width, 784);
+});
+
+test('--video-size shrinks the canvas, and refuses one it cannot fill', async (t) => {
+  // A 1440p plan recorded onto a 1080p canvas: the same walkthrough, a lighter
+  // file. Playwright never scales a recording *up* and pads what the frame does
+  // not cover, so the canvas has to be the viewport's shape and no larger —
+  // which is why the assertion reads the file's own header, not the log line.
+  const wide = path.join(tmp, 'video-wide');
+  const res = await run([
+    PLAN('fixture-video-wide.plan.json'),
+    '--out', wide,
+    '--video', '--video-size', '1920x1080', '--speed', '20',
+  ]);
+  if (res.code !== 0 && FFMPEG_HINT.test(res.stderr)) return t.skip('Playwright ffmpeg is not installed here');
+  assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
+
+  const timeline = JSON.parse(await readFile(path.join(wide, '.timeline.json'), 'utf8'));
+  assert.deepEqual(timeline.viewport, { width: 2560, height: 1440 });
+  assert.deepEqual(timeline.videoSize, { width: 1920, height: 1080 });
+  assert.deepEqual(webmSize(await readFile(path.join(wide, 'video', '01-main.webm'))), { width: 1920, height: 1080 });
+
+  // A 700 px-tall viewport cannot fill a 16:9 canvas: the run would be a grey
+  // stripe beside a page. Refused before a browser opens, naming both fixes.
+  const banded = path.join(tmp, 'video-banded');
+  const refused = await run([PLAN('fixture-video.plan.json'), '--out', banded, '--video', '--video-size', '1920x1080']);
+  assert.equal(refused.code, 2, 'a mismatched canvas is a usage error, not a run');
+  assert.match(refused.stderr, /1920x1080 is 1\.778:1/);
+  assert.match(refused.stderr, /viewport is 900x700/);
+  assert.match(refused.stderr, /--video-size 900x700/);
+  assert.equal(existsSync(banded), false, 'a refused run writes nothing at all');
+
+  // Right shape, wrong direction: a 16:9 canvas bigger than a 16:9 viewport is
+  // still a band — the page would sit in the corner of it.
+  const bigger = path.join(tmp, 'video-bigger');
+  const grown = await run([
+    PLAN('fixture-video-wide.plan.json'),
+    '--out', bigger,
+    '--video', '--video-size', '3840x2160',
+  ]);
+  assert.equal(grown.code, 2);
+  assert.match(grown.stderr, /larger than the 2560x1440 viewport/);
+  assert.match(grown.stderr, /does not scale a recording up/);
+  assert.equal(existsSync(bigger), false);
+});
+
+test('--video-size is validated before anything else runs', async () => {
+  const bad = await run([PLAN('fixture-video.plan.json'), '--out', path.join(tmp, 'video-bad-size'), '--video', '--video-size', '1080p']);
+  assert.equal(bad.code, 2);
+  assert.match(bad.stderr, /--video-size must be <width>x<height>/);
 });
 
 test('humanizing changes the pacing, not the picture — and replays the same path', async (t) => {

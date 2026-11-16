@@ -167,6 +167,26 @@ as `seed=…`, default `run-<stamp>`) reproduces the same path and the same typi
 rhythm. A video is documentation, so it has to be re-shootable rather than
 re-performed. `--speed N` scales every delay (1 natural, 20 a fast test run).
 
+A video is **16:9 by default** — that is the shape of YouTube, of a deck, of a
+README embed — and the frame comes from the plan: a plan that pins no viewport
+gets 1600×900. **1080p comes from the viewport, not from a flag**: pin the plan at
+`{ "width": 1920, "height": 1080 }` and keep `"deviceScaleFactor": 2`, and the
+recording is a downscale of a 2× raster — sharp text, no upscaling:
+
+```bash
+node scripts/path-shots.mjs plans/example.plan.json --video
+  canvas: 1920x1080 @ 25fps   (viewport 1920x1080)
+```
+
+`--video-size` *shrinks* the canvas, for a lighter file (a 1440p plan shipped at
+1080p, or a 720p teaser), and refuses two canvases that cannot be honoured:
+another aspect, or a larger one. Playwright fits the recorded frame inside the
+canvas without stretching it and **never scales it up** — anything the frame does
+not cover is filled with a solid band — so a bigger canvas does not mean a bigger
+picture, it means the page in the corner of a grey field. Both numbers are in
+`.timeline.json` as `viewport` and `videoSize`, so a later reader can tell how the
+file was made.
+
 Figures do not change: a humanized figure is byte-identical to a plain one, which
 the test suite asserts. `--no-humanize` records the raw machine-speed cut when
 that is what you want.
@@ -232,6 +252,7 @@ the script waits for that file instead of a keypress.
 | `--seed <s>` | seed the humanizer (default `run-<stamp>`, logged as `seed=`) |
 | `--speed <n>` | scale every human delay: 1 natural, 20 a fast test run |
 | `--video-fps <n>` | video frame rate (default 25) |
+| `--video-size <WxH>` | shrink the video canvas (default: the viewport). Must have the viewport's shape and be no larger than it — Playwright never scales a recording up, it pads the canvas with a band, so the run is refused instead. 1080p comes from the plan's viewport (`1920x1080`), not from this flag |
 | `--poster <id>` | figure to show in the player before play (default: the first frame) |
 | `--trace` | write `<out>/trace.zip`; open with `npx playwright show-trace` |
 | `--vars-out <f>` | where `setVar` values go (default `<out>/.vars.json`, mode 600) |
