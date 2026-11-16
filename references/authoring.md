@@ -71,10 +71,11 @@ card's border reads as a crop, not a figure: the border touches the edge, the
 heading above it loses its leading, and a shadow or focus ring is cut in half.
 Every selector clip is padded (`pad`, default 32 CSS px) for this reason. Raise
 it to 48–64 for a dense card, a card with a drop shadow, or a subject whose
-neighbours help a reader place it; only drop below the default for a bare text
-run where the padding would be a field of white. A measured rect is used
-as-is — include the padding yourself. Figures in one set should share a `pad`
-value so their margins line up in a document column.
+neighbours help a reader place it; drop below the default for a bare text run
+where the padding would be a field of white, or where the next section sits
+closer than the pad and its edge would leak into the frame. A measured rect is
+used as-is — include the padding yourself. Figures in one set should share a
+`pad` value so their margins line up in a document column.
 
 Measure before you guess:
 
