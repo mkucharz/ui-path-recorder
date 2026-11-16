@@ -239,6 +239,11 @@ test('--video records a walkthrough a reviewer can follow', async (t) => {
   assert.match(review, /video\/01-main\.webm/);
   assert.match(review, /#t=\d/);
   assert.match(review, /seed fixture-video-v1/);
+  // A chapter must seek the player in place: a reviewer jumps around a recording
+  // and needs the figure list it is comparing against to stay on screen. The
+  // handler is progressive — the plain `#t=` href still works without it.
+  assert.match(review, /ol\.chapters a\[href\*="#t="\]/);
+  assert.match(review, /player\.currentTime = Number\(seconds\)/);
 
   // The figures are unchanged by any of it. This is the claim that matters most
   // for a *recording*: the pointer is drawn into the very page the figure is

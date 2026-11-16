@@ -898,9 +898,20 @@ try {
   // those are exactly what a reviewer needs to see next to the evidence.
   const extras = await collectExtras();
   if (shots.length || videoFiles.length) {
-    await writeReview({ plan, planPath, shots, scale, baseUrl, outDir: OUT, elapsed: Date.now() - startedAt, extras, timeline, videos: videoFiles, poster: posterFigure() }).catch(
-      () => {},
-    );
+    await writeReview({
+      plan,
+      planPath,
+      shots,
+      scale,
+      baseUrl,
+      outDir: OUT,
+      elapsed: Date.now() - startedAt,
+      extras,
+      timeline,
+      videos: videoFiles,
+      poster: posterFigure(),
+      viewport,
+    }).catch(() => {});
   }
   process.exit(1);
 }
@@ -926,6 +937,7 @@ if (review && (shots.length || videoFiles.length)) {
     timeline,
     videos: videoFiles,
     poster: posterFigure(),
+    viewport,
   });
   console.log(`  review: ${path.relative(process.cwd(), file)}`);
 }
