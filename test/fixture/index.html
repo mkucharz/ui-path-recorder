@@ -42,7 +42,7 @@
 </style>
 </head>
 <body>
-<div id="flash-bar">Delete selected</div>
+<div id="flash-bar" hidden>Delete selected</div>
 
 <main id="card">
   <h1 id="title">Welcome back</h1>
@@ -75,8 +75,17 @@
 </div>
 
 <script>
-  // 1. The flash: visible on first paint, gone once this script has run.
-  setTimeout(() => { document.getElementById('flash-bar').hidden = true; }, 400);
+  const params = new URLSearchParams(location.search);
+
+  // 1. The flash, on request only: a bulk-action bar painted visible and hidden
+  //    again by the page's own script. `?flash=1` is for the waitHidden
+  //    self-test; a walkthrough a reader watches should not open on a bar the
+  //    app never shows them.
+  if (params.get('flash') === '1') {
+    const bar = document.getElementById('flash-bar');
+    bar.hidden = false;
+    setTimeout(() => { bar.hidden = true; }, 400);
+  }
 
   // 2. The cookie banner, dismissed before any figure is taken.
   document.getElementById('cookie-deny').addEventListener('click', () => {
@@ -98,21 +107,23 @@
     document.getElementById('done').hidden = false;
   });
 
-  // 4. A value that only exists on the page, so a plan can read it (setVar) and
-  //    use it later — the shape of a generated password that is shown once.
-  const params = new URLSearchParams(location.search);
-
-  // 5. A page that paints the other theme, for the theme guard's self-test.
+  // 4. A page that paints the other theme, for the theme guard's self-test.
   if (params.get('theme') === 'light') {
     document.body.style.background = '#ffffff';
     document.body.style.color = '#111111';
   }
 
+  // 5. A value that only exists on the page, so a plan can read it (setVar) and
+  //    use it later — the shape of a generated password that is shown once.
   const token = params.get('token');
   if (token) {
+    // Reached with the value already in hand: the finished view, not the form
+    // still sitting underneath it. The `#done` heading is the one on screen, so
+    // the card's own title is left alone — rewriting it printed "All set" twice.
+    document.getElementById('signin').hidden = true;
+    document.getElementById('title').hidden = true;
+    document.getElementById('subtitle').hidden = true;
     document.getElementById('done').hidden = false;
-    document.getElementById('title').textContent = 'All set';
-    document.getElementById('subtitle').textContent = 'Your installation is ready.';
     const echo = document.createElement('p');
     echo.id = 'echoed';
     echo.textContent = 'Signed in with ' + token;

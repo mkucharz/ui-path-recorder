@@ -234,6 +234,14 @@ log, so a video is not silently missing time:
   frames dropped: 3   (the page rendered at another size mid-step; the frame before covers the gap)
 ```
 
+**Chrome the page paints and then hides is part of the page, not of the video.** A
+bulk-action bar, a locale switcher, an `x-show` panel that is visible until its
+script boots: a recording that starts any earlier opens on something a reader of
+the app never sees. In a plan the answer is `waitHidden`; when the page is your
+own demo, do not paint it — the bundled fixture keeps its "Delete selected" bar
+behind `?flash=1` for that reason. A site that keeps a dismissal in storage
+(apple.com's country bar) is pinned with `themeStorage` before the first frame.
+
 Figures do not change: a humanized figure is byte-identical to a plain one, which
 the test suite asserts. `--no-humanize` records the raw machine-speed cut when
 that is what you want.

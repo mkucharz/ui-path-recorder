@@ -1,6 +1,6 @@
 {
   "tutorial": "apple-mac-studio-max",
-  "description": "The most expensive Mac Studio Apple sells: choose the top chip, the top CPU/GPU variant, 512GB unified memory and 16TB storage in the US store configurator, decline a trade-in, and check the price Apple asks for it.",
+  "description": "The most expensive Mac Studio Apple sells, from apple.com's front page: choose the top chip, the top CPU/GPU variant, 512GB unified memory and 16TB storage in the US store configurator, decline a trade-in, and check the price Apple asks for it.",
   "instance": "production",
   "baseUrl": "https://www.apple.com",
   "locale": "en-US",
@@ -16,7 +16,24 @@
       "literal": "$29,799.00"
     }
   },
+  "themeStorage": {
+    "ls-opt-out": "{\"v\":{\"dismissals\":1}}"
+  },
   "steps": [
+    {
+      "name": "apple.com, where the shopping starts",
+      "goto": "/",
+      "waitFor": {
+        "selector": "#globalnav"
+      },
+      "hold": 1800,
+      "expect": [
+        "Store",
+        "Mac",
+        "iPhone",
+        "Support"
+      ]
+    },
     {
       "name": "the US store's Mac Studio configurator",
       "goto": "/shop/buy-mac/mac-studio",
