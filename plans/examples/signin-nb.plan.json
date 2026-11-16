@@ -1,0 +1,34 @@
+{
+  "tutorial": "signin-nb",
+  "description": "Same path as signin.plan.json in Norwegian: locale and language change, no assertion does.",
+  "baseUrl": "${SIGNIN_URL}",
+  "locale": "nb-NO",
+  "viewport": { "width": 1100, "height": 760 },
+  "colorScheme": "dark",
+  "deviceScaleFactor": 2,
+  "vars": {
+    "lang": { "literal": "nb" },
+    "email": { "literal": "reader@acme.example" },
+    "password": { "literal": "not-a-real-password" }
+  },
+  "steps": [
+    { "name": "open the sign-in page", "goto": "/?lang=${lang}" },
+    {
+      "name": "the form is on screen",
+      "expect": { "selector": ["#signin-card", "#email"] },
+      "shot": { "id": "01-signin", "clip": "#signin-card", "pad": 40 }
+    },
+    {
+      "name": "this screen still signs in with a password",
+      "expect": { "selector": ["#password", "#submit"] }
+    },
+    { "name": "fill the email", "fill": { "selector": "#email", "value": "${email}" } },
+    { "name": "fill the password", "fill": { "selector": "#password", "value": "${password}" } },
+    { "name": "sign in", "click": "#submit" },
+    {
+      "name": "the workspace is on screen",
+      "expect": { "selector": "#dashboard" },
+      "shot": { "id": "02-workspace" }
+    }
+  ]
+}

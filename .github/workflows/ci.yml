@@ -40,7 +40,12 @@ jobs:
             const { readFileSync } = require("node:fs");
             const schema = JSON.parse(readFileSync("plans/schema.json", "utf8"));
             if (schema.$schema !== "https://json-schema.org/draft/2020-12/schema") throw new Error("schema is not draft 2020-12");
-            for (const f of ["plans/examples/railway-installer.plan.json"]) {
+            for (const f of [
+              "plans/examples/signin.plan.json",
+              "plans/examples/signin-nb.plan.json",
+              "plans/examples/railway-installer.plan.json",
+              "plans/examples/apple-mac-studio-max.plan.json",
+            ]) {
               const plan = JSON.parse(readFileSync(f, "utf8"));
               if (!plan.steps?.length) throw new Error(`${f} has no steps`);
             }

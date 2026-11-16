@@ -1,0 +1,17 @@
+{
+  "tutorial": "fixture-selector",
+  "description": "Self-test: the guard names the controls the path depends on, not the words on them.",
+  "baseUrl": "${FIXTURE_URL}",
+  "locale": "en-US",
+  "viewport": { "width": 900, "height": 700 },
+  "colorScheme": "dark",
+  "deviceScaleFactor": 2,
+  "steps": [
+    { "name": "open the app", "goto": "/" },
+    {
+      "name": "the form is on screen",
+      "expect": { "selector": ["#card", "#email", "#submit"] },
+      "shot": { "id": "01-signin", "clip": "#card" }
+    }
+  ]
+}

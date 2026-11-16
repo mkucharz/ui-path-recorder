@@ -65,7 +65,7 @@ Minimum viable plan:
   "vars": { "email": { "literal": "admin@example.com" } },
   "steps": [
     { "name": "open", "goto": "/login" },
-    { "name": "sign-in card", "expect": "Welcome back", "shot": { "id": "01-signin", "clip": "main.card" } },
+    { "name": "sign-in card", "expect": { "selector": ["#email", "#password"] }, "shot": { "id": "01-signin", "clip": "main.card" } },
     { "fill": { "selector": "#email", "value": "${email}" } }
   ]
 }
@@ -171,8 +171,10 @@ document. The runner enforces them, so a breach is a failed run.
   another language fails the run. A dark plan whose page paints light fails the
   run. The classic disaster: an `Accept-Language` leaking the author's language
   into a published figure.
-- **Every figure carries `expect`.** A screenshot that asserts nothing will
-  happily ship a login page over the one you meant.
+- **Every figure carries a guard.** `expect` names the element ids the figure
+  depends on; a text guard is for words the document makes a claim about. A
+  screenshot that asserts nothing will happily ship a login page over the one you
+  meant, and a label-based guard fails on a translation you did not make.
 - **`waitHidden` before the shot** for chrome the server renders visible and the
   page's script hides on boot — otherwise the figure shows a control readers
   never see. (And when the flash is a product bug, fix the product; the guard is
@@ -205,6 +207,7 @@ More of these, with the incident behind each: [`references/gotchas.md`](referenc
 ```
 plans/<name>.plan.json      the committed path
 plans/schema.json           machine-readable plan contract
+examples/signin/            a demo app the example plans run against
 captures/<run>/             figures + review.html + .shots.json + .vars.json
                             (+ .timeline.json and video/ when recorded)
 scripts/path-shots.mjs      the runner
@@ -220,7 +223,8 @@ regenerate it.
 
 ## Before you say it is done
 
-- `review.html` opened, every figure checked against its `expect` text.
+- `review.html` opened, every figure checked against its guard — the ids it
+  required, and the text if the plan asserted any.
 - If it was recorded, **the video was watched** — at least the chapters, at a
   speed you can tolerate. A recording is the one artefact whose defects are
   invisible in a still: a pointer that rests on the wrong control, a step whose

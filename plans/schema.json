@@ -212,8 +212,24 @@
           "description": "Locators painted over before the shot. Prefer a neutral literal value — a black rectangle reads as a mistake."
         },
         "expect": {
-          "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }],
-          "description": "Text the screen must show. The guard that turns a stale figure into a failed run."
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["selector"],
+              "properties": {
+                "selector": {
+                  "oneOf": [
+                    { "type": "string" },
+                    { "type": "array", "minItems": 1, "items": { "type": "string" } }
+                  ]
+                }
+              }
+            }
+          ],
+          "description": "What this screen must prove, checked before the shot. Page text (string or array), or { \"selector\": \"#login-form\" } for elements that must be visible. Guard the ids the path depends on; reserve text for words the document makes a claim about."
         },
         "shot": {
           "oneOf": [{ "type": "string" }, { "$ref": "#/$defs/shot" }],

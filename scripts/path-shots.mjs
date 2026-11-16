@@ -848,13 +848,42 @@ try {
     if (step.mask) {
       masks = masks.concat([].concat(step.mask).map((s) => page.locator(expand(s))));
     }
-    if (step.expect) lastExpect = [].concat(expand(step.expect));
+    // `expect` is one guard with two forms, and they answer different questions:
+    //
+    // - `{ "selector": "#password" }` — is the control this path depends on
+    //   still on the screen? Ids survive copy edits, renames and translations;
+    //   labels do not, which is why this is the form to reach for by default.
+    // - `"$29,799.00"` — are the words the document makes a claim about still
+    //   on the screen? Use text when the text *is* the claim.
+    //
+    // Either way the guard is a check at this point in the path, not a wait:
+    // `waitFor` is how a screen is allowed to settle.
+    const isSelectorGuard = step.expect && typeof step.expect === 'object' && !Array.isArray(step.expect);
+    if (step.expect) {
+      lastExpect = isSelectorGuard
+        ? [].concat(step.expect.selector).map((s) => `element ${expand(s)}`)
+        : [].concat(expand(step.expect));
+    }
     if (step.expect || step.shot) await assertLanguage(label);
     if (step.expect) {
-      const body = flat(await page.locator('body').innerText());
-      for (const needle of [].concat(expand(step.expect))) {
-        if (!body.includes(flat(needle))) {
-          fail(label, `expected page text ${JSON.stringify(needle)}\n  got: ${body.slice(0, 400)}`);
+      if (isSelectorGuard) {
+        for (const raw of [].concat(step.expect.selector)) {
+          const selector = expand(raw);
+          const visible = await page
+            .locator(selector)
+            .first()
+            .isVisible()
+            .catch(() => false);
+          if (!visible) {
+            fail(label, `expected element ${JSON.stringify(selector)} on screen (at ${page.url()})`);
+          }
+        }
+      } else {
+        const body = flat(await page.locator('body').innerText());
+        for (const needle of [].concat(expand(step.expect))) {
+          if (!body.includes(flat(needle))) {
+            fail(label, `expected page text ${JSON.stringify(needle)}\n  got: ${body.slice(0, 400)}`);
+          }
         }
       }
     }

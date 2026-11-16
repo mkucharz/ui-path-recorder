@@ -1,0 +1,13 @@
+{
+  "tutorial": "fixture-selector-missing",
+  "description": "Self-test: an element the plan requires is not on the screen, so the run stops.",
+  "baseUrl": "${FIXTURE_URL}",
+  "locale": "en-US",
+  "viewport": { "width": 900, "height": 700 },
+  "colorScheme": "dark",
+  "deviceScaleFactor": 2,
+  "steps": [
+    { "name": "open the app", "goto": "/" },
+    { "name": "a control this app never had", "expect": { "selector": "#magic-link" }, "shot": { "id": "01-never" } }
+  ]
+}

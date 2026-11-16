@@ -87,6 +87,35 @@ open captures/fixture-video-*/review.html   # player + chapters, then the figure
 `--speed 3` because a natural pace turns this 8-second flow into a 25-second one;
 drop it for the real thing.
 
+## Try it against a sign-in screen
+
+`examples/signin` is a small app in the shape of yours: a sign-in card, a
+workspace behind it, and the copy in English and Norwegian. It exists so a plan
+can be read and re-run without an account or a network call.
+
+```bash
+node scripts/serve-example.mjs            # http://127.0.0.1:8100
+```
+
+In a second terminal:
+
+```bash
+SIGNIN_URL=http://127.0.0.1:8100 \
+  node scripts/path-shots.mjs plans/examples/signin.plan.json --review
+
+SIGNIN_URL=http://127.0.0.1:8100 \
+  node scripts/path-shots.mjs plans/examples/signin-nb.plan.json --review
+```
+
+The two plans are the same path. Only `tutorial`, `locale` and the `lang` var
+differ, and no assertion is translated: the guards name element ids.
+
+The server also serves the app *after* it changed. `--variant refreshed` is a
+copy-only change — the same plan passes and the figures are new. `--variant
+broken` replaces the password field with an emailed link — the same plan fails,
+naming the id it lost. The plan is pointed at a different build; it never learns
+which one it is looking at.
+
 ## A plan
 
 ```json
@@ -102,18 +131,21 @@ drop it for the real thing.
   "steps": [
     { "name": "open", "goto": "/login" },
     { "name": "dismiss the cookie banner", "clickIfPresent": { "selector": "#cookie-deny" } },
-    { "name": "sign-in card", "expect": "Welcome back", "shot": { "id": "01-signin", "clip": "main.card" } },
+    { "name": "sign-in card", "expect": { "selector": ["#email", "#password"] }, "shot": { "id": "01-signin", "clip": "main.card" } },
     { "fill": { "selector": "#email", "value": "${email}" } },
     { "type": { "selector": "#password", "value": "${password}" } },
     { "click": "#submit" },
-    { "waitFor": { "text": "Welcome, admin" } },
-    { "expect": "Welcome, admin", "shot": { "id": "02-app" } }
+    { "waitFor": { "selector": "#dashboard" } },
+    { "expect": { "selector": "#dashboard" }, "shot": { "id": "02-app" } }
   ]
 }
 ```
 
 Full reference: [`references/plan-format.md`](references/plan-format.md) ·
 machine-readable: [`plans/schema.json`](plans/schema.json) ·
+a sign-in card in two languages:
+[`signin.plan.json`](plans/examples/signin.plan.json) and
+[`signin-nb.plan.json`](plans/examples/signin-nb.plan.json);
 a real 62-step flow over a deploy portal, an OAuth consent screen, an installer
 and a third-party identity provider:
 [`plans/examples/railway-installer.plan.json`](plans/examples/railway-installer.plan.json);
@@ -223,7 +255,7 @@ right screen. Each of these is a failed run, not a wrong picture:
 
 | Guard | Catches |
 |---|---|
-| `expect` per figure | the figure is not the screen the document describes |
+| `expect` per figure | the screen lost an element id the path depends on, or the words the document claims |
 | language check | the page resolved another locale (`lang="pl"` under an `en-US` plan) |
 | theme check | the page painted light under a dark plan — the theme had not settled |
 | `waitHidden` | a control the server rendered visible and the script later hides (Alpine/`x-show` first paint) |

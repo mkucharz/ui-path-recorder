@@ -1,0 +1,10 @@
+{
+  "tutorial": "invalid-expect",
+  "description": "Self-test: a guard with a key that does not exist must be refused, not silently assert nothing.",
+  "baseUrl": "${FIXTURE_URL}",
+  "locale": "en-US",
+  "steps": [
+    { "name": "open the app", "goto": "/" },
+    { "name": "a guard written against the wrong key", "expect": { "sel": "#card" } }
+  ]
+}

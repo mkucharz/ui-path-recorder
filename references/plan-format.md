@@ -199,14 +199,30 @@ value in `vars` reads better than a black rectangle. Masks reset on a new tab.
 ### `expect` — the guard that makes a figure honest
 
 ```json
+{ "expect": { "selector": "#signin-form" } }
+{ "expect": { "selector": ["#password", "#submit"] } }
 { "expect": "Sign in to your account" }
 { "expect": ["Choose a target", "Railway", "Google Cloud"] }
 ```
 
-Text that must be on screen (whitespace-insensitive, all of it). This is what
-turns a stale figure into a failed run, and it is *the* reason to write a plan
-instead of clicking through a flow by hand. Every figure should carry one —
-ideally the sentence from the document that the figure illustrates.
+One guard, two forms, because there are two different things worth checking:
+
+- **A selector** asks whether the controls this path depends on are still on the
+  screen. Every selector must match an element that is visible, and a miss fails
+  the run. This is the form to reach for by default: ids survive copy edits,
+  renames and translations, and the failure is the one a reader would hit next —
+  you cannot type into a field that is gone.
+- **Text** asks whether the words the document makes a claim about are still on
+  screen (whitespace-insensitive, all of it). Use it when the text *is* the
+  claim — a price, a plan name, a warning — and let the figure carry the rest.
+
+`expect` is what turns a stale figure into a failed run, and it is *the* reason
+to write a plan instead of clicking through a flow by hand. Every figure should
+carry one: the ids it depends on, or the sentence the document says it shows.
+
+A guard is checked at its point in the path, not waited for. Use `waitFor` to
+let a slow screen settle first; use `expect` to refuse a screen that settled
+wrong.
 
 ### `shot` — take the picture
 

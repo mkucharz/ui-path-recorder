@@ -194,9 +194,9 @@ seconds. Shoot at `--speed 1` with a pinned `--seed`; test at 20.
 
 ## What the runner cannot do
 
-- **Know a selector was right for the screen you meant.** `expect` text is the
-  only defence, and it is only as good as the sentence you copied from the
-  document.
+- **Know a selector was right for the screen you meant.** The guards are the only
+  defence, and a selector guard is only as good as the id you chose: `#card` on
+  the wrong page passes. Guard the control the next step actually touches.
 - **Notice your own app's flash if you did not tell it** (`waitHidden`).
 - **Decide that a figure is redundant.** Three near-identical progress stages may
   be one figure in the document and three in the plan.

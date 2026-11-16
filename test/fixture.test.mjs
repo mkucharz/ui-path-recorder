@@ -15,11 +15,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
 import { validate } from '../lib/plan.mjs';
+import { startStaticServer } from '../lib/serve.mjs';
 import { startFixtureServer } from './serve.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const CLI = path.join(ROOT, 'scripts', 'path-shots.mjs');
 const PLAN = (name) => path.join(ROOT, 'test', 'plans', name);
+const EXAMPLE = (name) => path.join(ROOT, 'plans', 'examples', name);
+const SIGNIN_ROOT = path.join(ROOT, 'examples', 'signin');
 
 let server;
 let tmp;
@@ -36,7 +39,7 @@ after(async () => {
 });
 
 /** Run the CLI the way a user would. */
-function run(args) {
+function run(args, env = {}) {
   return new Promise((resolve) => {
     const started = Date.now();
     execFile(
@@ -44,12 +47,34 @@ function run(args) {
       [CLI, ...args],
       {
         cwd: tmp,
-        env: { ...process.env, FIXTURE_URL: base(), FIXTURE_PASSWORD: 'correct-horse-battery' },
+        env: {
+          ...process.env,
+          FIXTURE_URL: base(),
+          FIXTURE_PASSWORD: 'correct-horse-battery',
+          ...env,
+        },
       },
       (error, stdout, stderr) => resolve({ code: error?.code ?? 0, stdout, stderr, ms: Date.now() - started }),
     );
   });
 }
+
+/**
+ * Serve the shipped sign-in example as one of its builds. The variant belongs to
+ * the app, never to the plan: the same plan file is pointed at a different build.
+ */
+async function withVariant(variant, fn) {
+  const example = await startStaticServer({
+    root: SIGNIN_ROOT,
+    transform: (html) => html.replaceAll('__VARIANT__', variant),
+  });
+  try {
+    return await fn(example.url);
+  } finally {
+    await example.close();
+  }
+}
+
 
 /** PNG dimensions straight off IHDR: no dependency needed. */
 function pngSize(file) {
@@ -187,6 +212,117 @@ test('a stale assertion fails the run and leaves evidence', async () => {
   assert.ok(existsSync(path.join(out, 'review.html')));
 });
 
+test('a selector guard passes, and the review names the element it required', async () => {
+  const out = path.join(tmp, 'selector');
+  const res = await run([PLAN('fixture-selector.plan.json'), '--out', out, '--review']);
+  assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
+
+  // The review sheet carries the guard, so a reviewer sees what the screen had
+  // to prove without reading the plan.
+  const review = await readFile(path.join(out, 'review.html'), 'utf8');
+  assert.match(review, /element #card/);
+  assert.match(review, /element #submit/);
+});
+
+test('a required element that is missing stops the run and leaves evidence', async () => {
+  const out = path.join(tmp, 'selector-missing');
+  const res = await run([PLAN('fixture-selector-missing.plan.json'), '--out', out]);
+  assert.equal(res.code, 1, 'a missing control must not report success');
+  assert.match(res.stderr, /expected element "#magic-link" on screen/);
+
+  const failures = await readdir(path.join(out, 'failures'));
+  const notes = await readFile(path.join(out, 'failures', failures.find((f) => f.endsWith('.txt'))), 'utf8');
+  assert.match(notes, /on screen:/);
+});
+
+test('a malformed guard is refused before a browser opens', async () => {
+  const out = path.join(tmp, 'invalid-expect');
+  const res = await run([PLAN('invalid-expect.plan.json'), '--out', out]);
+  assert.equal(res.code, 2, `exit ${res.code}\n${res.stderr}`);
+  assert.match(res.stderr, /"expect" has unknown key "sel"/);
+  assert.match(res.stderr, /allowed: "selector"/);
+  assert.ok(!existsSync(out), 'nothing may be written for a plan that was never run');
+});
+
+test('validate names the guard problems that do not need a browser', () => {
+  const withGuard = (expect) => ({ baseUrl: 'http://127.0.0.1:1', steps: [{ goto: '/', expect }] });
+  assert.throws(() => validate(withGuard({ selector: [] })), /"expect\.selector" needs/);
+  assert.throws(() => validate(withGuard({})), /"expect\.selector" needs/);
+  assert.throws(() => validate(withGuard([''])), /non-empty string/);
+  assert.throws(() => validate(withGuard(null)), /must be page text/);
+  assert.doesNotThrow(() => validate(withGuard({ selector: '#card' })));
+  assert.doesNotThrow(() => validate(withGuard({ selector: ['#card', '#email'] })));
+});
+
+test('the same plan against the changed copy refreshes the figure and passes', async () => {
+  // The copy-only build: the sentences and the button changed, no id did. The
+  // guard has nothing to object to, so the run is green and the figures are new
+  // — the "screenshots just refresh" case.
+  const first = path.join(tmp, 'signin-current');
+  const second = path.join(tmp, 'signin-refreshed');
+
+  const before = await withVariant('current', (url) =>
+    run([EXAMPLE('signin.plan.json'), '--out', first], { SIGNIN_URL: url }),
+  );
+  assert.equal(before.code, 0, `exit ${before.code}\n${before.stderr}`);
+
+  const after = await withVariant('refreshed', (url) =>
+    run([EXAMPLE('signin.plan.json'), '--out', second], { SIGNIN_URL: url }),
+  );
+  assert.equal(after.code, 0, `exit ${after.code}\n${after.stderr}`);
+
+  const a = await readFile(path.join(first, '01-signin.png'));
+  const b = await readFile(path.join(second, '01-signin.png'));
+  assert.notDeepEqual(a, b, 'a copy change must produce a new figure, not the old one');
+});
+
+test('a removed password field fails the run, after the card was banked', async () => {
+  const out = path.join(tmp, 'signin-broken');
+  const res = await withVariant('broken', (url) =>
+    run([EXAMPLE('signin.plan.json'), '--out', out, '--review'], { SIGNIN_URL: url }),
+  );
+  assert.equal(res.code, 1, 'a plan that requires #password must not pass a passwordless screen');
+  assert.match(res.stderr, /expected element "#password" on screen/);
+
+  // The card from the previous step is still reviewable, and the evidence names
+  // the control that replaced the one the plan required.
+  assert.ok(existsSync(path.join(out, '01-signin.png')));
+  assert.ok(existsSync(path.join(out, 'review.html')));
+  const failures = await readdir(path.join(out, 'failures'));
+  const notes = await readFile(path.join(out, 'failures', failures.find((f) => f.endsWith('.txt'))), 'utf8');
+  assert.match(notes, /button #magic-link/);
+});
+
+test('the Norwegian plan is the same path with no translated assertion', async () => {
+  const out = path.join(tmp, 'signin-nb');
+  const res = await withVariant('current', (url) =>
+    run([EXAMPLE('signin-nb.plan.json'), '--out', out, '--review'], { SIGNIN_URL: url }),
+  );
+  assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
+
+  const review = await readFile(path.join(out, 'review.html'), 'utf8');
+  assert.match(review, /nb-NO/);
+
+  // If a label ever creeps into the plan, "same path, another language" quietly
+  // stops being true.
+  const plan = JSON.parse(await readFile(EXAMPLE('signin-nb.plan.json'), 'utf8'));
+  assert.doesNotMatch(JSON.stringify(plan), /Velkommen|Logg inn|Passord/);
+});
+
+test('forgetting the locale in the Norwegian plan is caught, not shipped', async () => {
+  const plan = JSON.parse(await readFile(EXAMPLE('signin-nb.plan.json'), 'utf8'));
+  plan.tutorial = 'signin-nb-forgot-locale';
+  plan.locale = 'en-US';
+  const file = path.join(tmp, 'signin-forgot-locale.plan.json');
+  await writeFile(file, JSON.stringify(plan, null, 2));
+
+  const res = await withVariant('current', (url) =>
+    run([file, '--out', path.join(tmp, 'forgot-locale')], { SIGNIN_URL: url }),
+  );
+  assert.equal(res.code, 1);
+  assert.match(res.stderr, /page rendered lang="nb", plan pins "en-US"/);
+});
+
 test('a page rendering another language is refused, not captured', async () => {
   const out = path.join(tmp, 'locale');
   const res = await run([PLAN('fixture-locale.plan.json'), '--out', out]);
@@ -246,6 +382,10 @@ test('the shipped example plans validate', async () => {
     PLAN('fixture-video.plan.json'),
     PLAN('fixture-video-wide.plan.json'),
     PLAN('fixture-stale.plan.json'),
+    PLAN('fixture-selector.plan.json'),
+    PLAN('fixture-selector-missing.plan.json'),
+    EXAMPLE('signin.plan.json'),
+    EXAMPLE('signin-nb.plan.json'),
     path.join(ROOT, 'plans', 'examples', 'railway-installer.plan.json'),
   ];
   for (const file of files) {

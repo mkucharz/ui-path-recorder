@@ -1,27 +1,15 @@
 /**
- * The smallest possible stand-in for "a real app": one static page, served on an
- * ephemeral port so a test run never collides with anything.
+ * The fixture server: the smallest possible stand-in for "a real app", served on
+ * an ephemeral port so a test run never collides with anything.
  */
-import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { startStaticServer } from '../lib/serve.mjs';
 
-const HTML = path.join(import.meta.dirname, 'fixture', 'index.html');
+const ROOT = path.join(import.meta.dirname, 'fixture');
 
 /** Start the fixture server. Returns its base URL and a close() function. */
-export async function startFixtureServer(port = 0) {
-  const html = await readFile(HTML);
-  const server = createServer((req, res) => {
-    // One page for every path: the plan rewrites `?token=` onto the same URL.
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-    res.end(html);
-  });
-  await new Promise((resolve) => server.listen(port, '127.0.0.1', resolve));
-  const { port: bound } = server.address();
-  return {
-    url: `http://127.0.0.1:${bound}`,
-    close: () => new Promise((resolve) => server.close(resolve)),
-  };
+export function startFixtureServer(port = 0) {
+  return startStaticServer({ root: ROOT, port });
 }
 
 // `node test/serve.mjs --port 8099` — a fixture to try the runner against with

@@ -13,8 +13,9 @@ In order of preference:
    are not guesses, and renaming one breaks the plan instead of shipping a stale
    figure.
 2. **The document's own prose.** A tutorial that says "click **Deploy** in the
-   Railway card" is telling you what the figure must show, which is what the
-   `expect` string should be.
+   Railway card" tells you which screen deserves the figure and what the caption
+   claims — but the guard is the card's id, not the word "Deploy". Labels are
+   what copy edits and translations change.
 3. **`npx playwright codegen <url>`.** Click through the flow in the recorded
    window; it prints Playwright calls with worked-out selectors. Draft with it,
    then hand-write the plan — codegen gives you selectors, it does not know what
@@ -94,14 +95,19 @@ any single crop: if figures end up at different widths, the column looks ragged.
 
 ## 5. Write the guards first, then the steps
 
-Write every `expect` from the sentence in the document the figure illustrates.
-That single habit is what makes a stale capture fail instead of ship.
+Write each guard before the steps that reach it, from the ids the app uses: the
+card, the field, the button the path needs next. That single habit is what makes
+a stale capture fail instead of ship, and it is the habit that survives a copy
+edit, a rename or a translation.
+
+Reserve text guards for text the document makes a claim about — the price in a
+figure, the plan name in a settings screenshot.
 
 Then, for a page that settles slowly:
 
 ```json
 { "waitHidden": { "selector": "#bulk-bar" } },
-{ "expect": "Memory's Project", "shot": { "id": "13-projects" } }
+{ "expect": { "selector": "#projects" }, "shot": { "id": "13-projects" } }
 ```
 
 and for a screen that only some deployments show:
