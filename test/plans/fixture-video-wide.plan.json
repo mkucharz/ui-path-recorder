@@ -1,0 +1,34 @@
+{
+  "tutorial": "fixture-video-wide",
+  "description": "The video path on a 16:9 frame at 1440p, recorded onto a 1920x1080 canvas: the same fixture app, driven like a person, shipped as a 1080p file.",
+  "baseUrl": "${FIXTURE_URL}",
+  "locale": "en-US",
+  "viewport": { "width": 2560, "height": 1440 },
+  "colorScheme": "dark",
+  "humanize": {
+    "seed": "fixture-wide-v1",
+    "shotHoldMs": 200
+  },
+  "vars": {
+    "password": { "env": "FIXTURE_PASSWORD" }
+  },
+  "steps": [
+    { "name": "open the app", "goto": "/" },
+    { "name": "dismiss the cookie banner", "clickIfPresent": { "selector": "#cookie-deny" } },
+    { "name": "let the first paint settle", "waitHidden": { "selector": "#flash-bar" } },
+    {
+      "name": "sign-in card",
+      "expect": "Welcome back",
+      "shot": { "id": "01-welcome", "clip": "#card", "pad": 16 }
+    },
+    { "name": "the operator's email is typed in", "fill": { "selector": "#email", "value": "admin@example.com" }, "hold": 100 },
+    { "name": "the password is typed in", "fill": { "selector": "#password", "value": "${password}" }, "hold": 100 },
+    { "name": "sign in", "click": "#submit" },
+    { "name": "the second screen replaces the first in place", "waitFor": { "text": "Step 2 — choose a target" } },
+    {
+      "name": "second screen, full frame",
+      "expect": "The installer will create four services",
+      "shot": { "id": "02-step2" }
+    }
+  ]
+}

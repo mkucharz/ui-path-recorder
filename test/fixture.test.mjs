@@ -9,7 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -54,6 +54,64 @@ function run(args) {
 /** PNG dimensions straight off IHDR: no dependency needed. */
 function pngSize(file) {
   return readFile(file).then((b) => ({ width: b.readUInt32BE(16), height: b.readUInt32BE(20) }));
+}
+
+/**
+ * WebM dimensions straight off the container — the same hand-parsing the PNG
+ * check above does, for the other format the runner writes. `--video-size` is
+ * only worth a flag if the *file* has that shape: the console line is a report,
+ * and Playwright silently pads a canvas it cannot fill.
+ *
+ * An element is an ID, a size, then its payload; the TrackEntry carries
+ * PixelWidth (0xB0) and PixelHeight (0xBA). Clusters are skipped whole, because
+ * descending into every frame is how this stops being a fast test.
+ */
+function webmSize(buffer) {
+  const MASTERS = new Set([
+    0x18538067 /* Segment */,
+    0x1654ae6b /* Tracks */,
+    0xae /* TrackEntry */,
+    0xe0 /* Video — PixelWidth/Height live here, not in the entry */,
+  ]);
+  const readVint = (at) => {
+    const first = buffer[at];
+    let length = 1;
+    while (length <= 8 && !(first & (0x80 >> (length - 1)))) length += 1;
+    let value = first & (0xff >> length);
+    for (let i = 1; i < length; i += 1) value = value * 256 + buffer[at + i];
+    return { value, length, unknown: value === 2 ** (7 * length) - 1 };
+  };
+  const readId = (at) => {
+    const first = buffer[at];
+    let length = 1;
+    while (length <= 4 && !(first & (0x80 >> (length - 1)))) length += 1;
+    let id = 0;
+    for (let i = 0; i < length; i += 1) id = id * 256 + buffer[at + i];
+    return { id, length };
+  };
+  const found = {};
+  const walk = (at, end) => {
+    while (at < end) {
+      const id = readId(at);
+      const size = readVint(at + id.length);
+      const start = at + id.length + size.length;
+      const stop = size.unknown ? end : Math.min(end, start + size.value);
+      if (id.id === 0xb0 || id.id === 0xba) {
+        let value = 0;
+        for (let i = 0; i < size.value; i += 1) value = value * 256 + buffer[start + i];
+        found[id.id === 0xb0 ? 'width' : 'height'] = value;
+        if (found.width && found.height) return;
+      } else if (MASTERS.has(id.id) && (!size.unknown || id.id === 0x18538067)) {
+        // A live-muxed file writes the Segment with an unknown size; its children
+        // still have theirs.
+        walk(start, stop);
+        if (found.width && found.height) return;
+      }
+      at = stop;
+    }
+  };
+  walk(0, buffer.length);
+  return found;
 }
 
 const shotFile = (dir, id) => path.join(tmp, dir, `${id}.png`);
@@ -154,12 +212,18 @@ test('a mistyped step key is refused before a browser opens', async () => {
   assert.ok(res.ms < 10_000, `refusing took ${res.ms}ms — it should not wait on a browser`);
 });
 
-test('--only names a figure that exists', async () => {
+test('--only and --poster name a figure that exists', async () => {
   const res = await run([PLAN('fixture.plan.json'), '--only', '99-nope', '--out', path.join(tmp, 'only')]);
   assert.equal(res.code, 2);
-  assert.match(res.stderr, /no shot named "99-nope"/);
+  assert.match(res.stderr, /--only names no figure "99-nope"/);
   // The message lists what it could have been, so a rename is a one-line fix.
   assert.match(res.stderr, /01-welcome, 02-step2, 03-echo/);
+
+  // A mistyped poster is a player showing a broken image, so it is refused the
+  // same way rather than rendering an empty frame.
+  const poster = await run([PLAN('fixture.plan.json'), '--poster', '99-nope', '--out', path.join(tmp, 'poster')]);
+  assert.equal(poster.code, 2);
+  assert.match(poster.stderr, /--poster names no figure "99-nope"/);
 });
 
 test('a var with no value says which environment variable to set', async () => {
@@ -179,6 +243,8 @@ test('a var with no value says which environment variable to set', async () => {
 test('the shipped example plans validate', async () => {
   const files = [
     PLAN('fixture.plan.json'),
+    PLAN('fixture-video.plan.json'),
+    PLAN('fixture-video-wide.plan.json'),
     PLAN('fixture-stale.plan.json'),
     path.join(ROOT, 'plans', 'examples', 'railway-installer.plan.json'),
   ];
@@ -188,4 +254,174 @@ test('the shipped example plans validate', async () => {
   }
   const schema = JSON.parse(await readFile(path.join(ROOT, 'plans', 'schema.json'), 'utf8'));
   assert.equal(schema.$schema, 'https://json-schema.org/draft/2020-12/schema');
+});
+
+/**
+ * Video is the artefact with the least obvious failure mode: a recording that
+ * exists and contains nothing looks like success. These tests therefore read the
+ * run's own timeline and compare pictures, instead of trusting the file size.
+ */
+const FFMPEG_HINT = /needs Playwright's ffmpeg/;
+
+test('--video records a walkthrough a reviewer can follow', async (t) => {
+  const out = path.join(tmp, 'video');
+  const res = await run([PLAN('fixture-video.plan.json'), '--out', out, '--video', '--review', '--speed', '20']);
+  if (res.code !== 0 && FFMPEG_HINT.test(res.stderr)) return t.skip('Playwright ffmpeg is not installed here');
+  assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
+
+  // One deterministic file per page, named for the review sheet.
+  const videos = await readdir(path.join(out, 'video'));
+  assert.deepEqual(videos, ['01-main.webm']);
+  assert.ok((await stat(path.join(out, 'video', '01-main.webm'))).size > 10_000, 'the recording is not empty');
+
+  // The timeline is what makes the video reviewable: chapters with times, and a
+  // record that the pointer was hidden for every figure.
+  const timeline = JSON.parse(await readFile(path.join(out, '.timeline.json'), 'utf8'));
+  assert.equal(timeline.humanized, true);
+  assert.equal(timeline.seed, 'fixture-video-v1');
+  assert.equal(timeline.fps, 25);
+  // The canvas is what a viewer sees: the plan's viewport here, because a 900×700
+  // page recorded onto a 16:9 canvas would be a stripe beside a page.
+  assert.deepEqual(timeline.videoSize, { width: 900, height: 700 });
+  assert.equal(timeline.videos[0].file, 'video/01-main.webm');
+  const shotSteps = timeline.steps.filter((step) => step.shot);
+  assert.deepEqual(shotSteps.map((step) => step.shot.id), ['01-welcome', '02-step2', '03-echo']);
+  for (const step of shotSteps) assert.equal(step.shot.cursorHidden, true, `${step.shot.id} was captured with the pointer hidden`);
+  // Pacing is recorded, not inferred: the recorded delays are what a re-run has
+  // to reproduce.
+  assert.ok(timeline.steps.reduce((sum, step) => sum + step.plannedMs, 0) > 0, 'the run scheduled human delays');
+  for (const step of shotSteps) assert.ok(step.plannedMs > 0, `the shot at ${step.shot.id} held its frame`);
+  // Times only ever move forward, or a chapter seek lands somewhere else.
+  for (let i = 1; i < timeline.steps.length; i += 1) {
+    assert.ok(timeline.steps[i].startMs >= timeline.steps[i - 1].startMs, `step ${i + 1} starts before the one before it`);
+  }
+
+  const review = await readFile(path.join(out, 'review.html'), 'utf8');
+  assert.match(review, /<video/);
+  assert.match(review, /video\/01-main\.webm/);
+  assert.match(review, /#t=\d/);
+  assert.match(review, /seed fixture-video-v1/);
+  // A chapter must seek the player in place: a reviewer jumps around a recording
+  // and needs the figure list it is comparing against to stay on screen. The
+  // handler is progressive — the plain `#t=` href still works without it.
+  assert.match(review, /ol\.chapters a\[href\*="#t="\]/);
+  assert.match(review, /player\.currentTime = Number\(seconds\)/);
+
+  // The figures are unchanged by any of it. This is the claim that matters most
+  // for a *recording*: the pointer is drawn into the very page the figure is
+  // taken from, so "hidden before the capture" has to be proven, not asserted.
+  // The fixture paints no transitions, so the same plan without `--video` — and
+  // therefore without a humanizer at all — must produce the same bytes.
+  const plain = path.join(tmp, 'video-plain');
+  const baseline = await run([PLAN('fixture-video.plan.json'), '--out', plain]);
+  assert.equal(baseline.code, 0, baseline.stderr);
+  for (const id of ['01-welcome', '02-step2', '03-echo']) {
+    const [recorded, without] = await Promise.all([readFile(shotFile('video', id)), readFile(shotFile('video-plain', id))]);
+    assert.ok(recorded.equals(without), `${id} differs between a recorded run and a plain one — the pointer reached the figure`);
+  }
+  // Still the same picture it always was: a clipped card, not a viewport frame.
+  assert.equal((await pngSize(shotFile('video', '01-welcome'))).width, 784);
+});
+
+test('--video-size shrinks the canvas, and refuses one it cannot fill', async (t) => {
+  // A 1440p plan recorded onto a 1080p canvas: the same walkthrough, a lighter
+  // file. Playwright never scales a recording *up* and pads what the frame does
+  // not cover, so the canvas has to be the viewport's shape and no larger —
+  // which is why the assertion reads the file's own header, not the log line.
+  const wide = path.join(tmp, 'video-wide');
+  const res = await run([
+    PLAN('fixture-video-wide.plan.json'),
+    '--out', wide,
+    '--video', '--video-size', '1920x1080', '--speed', '20',
+  ]);
+  if (res.code !== 0 && FFMPEG_HINT.test(res.stderr)) return t.skip('Playwright ffmpeg is not installed here');
+  assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
+
+  const timeline = JSON.parse(await readFile(path.join(wide, '.timeline.json'), 'utf8'));
+  assert.deepEqual(timeline.viewport, { width: 2560, height: 1440 });
+  assert.deepEqual(timeline.videoSize, { width: 1920, height: 1080 });
+  assert.deepEqual(webmSize(await readFile(path.join(wide, 'video', '01-main.webm'))), { width: 1920, height: 1080 });
+
+  // A 700 px-tall viewport cannot fill a 16:9 canvas: the run would be a grey
+  // stripe beside a page. Refused before a browser opens, naming both fixes.
+  const banded = path.join(tmp, 'video-banded');
+  const refused = await run([PLAN('fixture-video.plan.json'), '--out', banded, '--video', '--video-size', '1920x1080']);
+  assert.equal(refused.code, 2, 'a mismatched canvas is a usage error, not a run');
+  assert.match(refused.stderr, /1920x1080 is 1\.778:1/);
+  assert.match(refused.stderr, /viewport is 900x700/);
+  assert.match(refused.stderr, /--video-size 900x700/);
+  assert.equal(existsSync(banded), false, 'a refused run writes nothing at all');
+
+  // Right shape, wrong direction: a 16:9 canvas bigger than a 16:9 viewport is
+  // still a band — the page would sit in the corner of it.
+  const bigger = path.join(tmp, 'video-bigger');
+  const grown = await run([
+    PLAN('fixture-video-wide.plan.json'),
+    '--out', bigger,
+    '--video', '--video-size', '3840x2160',
+  ]);
+  assert.equal(grown.code, 2);
+  assert.match(grown.stderr, /larger than the 2560x1440 viewport/);
+  assert.match(grown.stderr, /does not scale a recording up/);
+  assert.equal(existsSync(bigger), false);
+});
+
+test('--video-size is validated before anything else runs', async () => {
+  const bad = await run([PLAN('fixture-video.plan.json'), '--out', path.join(tmp, 'video-bad-size'), '--video', '--video-size', '1080p']);
+  assert.equal(bad.code, 2);
+  assert.match(bad.stderr, /--video-size must be <width>x<height>/);
+});
+
+test('humanizing changes the pacing, not the picture — and replays the same path', async (t) => {
+  const plain = path.join(tmp, 'pace-plain');
+  const humanA = path.join(tmp, 'pace-human-a');
+  const humanB = path.join(tmp, 'pace-human-b');
+  const base = [PLAN('fixture.plan.json'), '--speed', '20'];
+
+  const first = await run([...base, '--out', plain]);
+  const second = await run([...base, '--out', humanA, '--humanize', '--seed', 'offline-test']);
+  const third = await run([...base, '--out', humanB, '--humanize', '--seed', 'offline-test']);
+  assert.equal(first.code, 0, first.stderr);
+  assert.equal(second.code, 0, second.stderr);
+  assert.equal(third.code, 0, third.stderr);
+
+  // A pointer inside a picture is the one thing a viewer would notice. The
+  // strongest proof available: the bytes are the same as without a pointer.
+  for (const id of ['01-welcome', '02-step2', '03-echo']) {
+    const [without, withHuman] = await Promise.all([readFile(shotFile('pace-plain', id)), readFile(shotFile('pace-human-a', id))]);
+    assert.ok(without.equals(withHuman), `${id} differs between a plain run and a humanized one — the pointer reached the figure`);
+  }
+
+  // Same seed, same scheduled delays: a video can be re-recorded, not guessed at.
+  const planned = async (dir) => JSON.parse(await readFile(path.join(dir, '.timeline.json'), 'utf8')).steps.map((step) => step.plannedMs);
+  assert.deepEqual(await planned(humanA), await planned(humanB));
+});
+
+test('--no-humanize records the raw machine-speed cut', async (t) => {
+  const out = path.join(tmp, 'video-raw');
+  const res = await run([PLAN('fixture-video.plan.json'), '--out', out, '--video', '--no-humanize', '--speed', '20']);
+  if (res.code !== 0 && FFMPEG_HINT.test(res.stderr)) return t.skip('Playwright ffmpeg is not installed here');
+  assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
+  const timeline = JSON.parse(await readFile(path.join(out, '.timeline.json'), 'utf8'));
+  assert.equal(timeline.humanized, false);
+  const shotSteps = timeline.steps.filter((step) => step.shot);
+  assert.equal(shotSteps.length, 3);
+  assert.ok(shotSteps.every((step) => step.shot.cursorHidden === false), 'nothing was hidden, because nothing was drawn');
+});
+
+test('a humanize block with a bad knob is refused before a browser opens', async () => {
+  const bad = (humanize) => ({ tutorial: 'bad-humanize', baseUrl: 'http://127.0.0.1:1', humanize, steps: [{ goto: '/' }] });
+  const cases = [
+    [{ speed: 0 }, /"humanize.speed" must be a positive number/],
+    [{ humanzie: true }, /unknown "humanize" key "humanzie"/],
+    [{ typing: { minMs: 200, maxMs: 100 } }, /typing.maxMs" must be >=/],
+  ];
+  for (const [humanize, expected] of cases) {
+    const file = path.join(tmp, `bad-${Object.keys(humanize)[0]}.plan.json`);
+    await writeFile(file, JSON.stringify(bad(humanize)));
+    const res = await run([file, '--out', path.join(tmp, 'never')]);
+    assert.equal(res.code, 2, `exit ${res.code}\n${res.stderr}`);
+    assert.match(res.stderr, expected);
+    assert.ok(res.ms < 10_000, `refusing took ${res.ms}ms — it should not wait on a browser`);
+  }
 });

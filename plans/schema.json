@@ -34,7 +34,7 @@
       "additionalProperties": false,
       "required": ["width", "height"],
       "properties": { "width": { "type": "integer" }, "height": { "type": "integer" } },
-      "default": { "width": 1600, "height": 827 }
+      "default": { "width": 1600, "height": 900 }
     },
     "colorScheme": {
       "enum": ["dark", "light", "no-preference"],
@@ -60,6 +60,12 @@
       "description": "A storage key a third-party app reads for its theme, pinned before any script runs. One entry: {\"cp-theme\": \"dark\"}.",
       "additionalProperties": { "type": "string" }
     },
+    "reducedMotion": {
+      "enum": ["reduce", "no-preference"],
+      "default": "reduce",
+      "description": "prefers-reduced-motion. A recorded video forces no-preference: an app with every transition switched off records as a series of stills."
+    },
+    "humanize": { "$ref": "#/$defs/humanize" },
     "vars": {
       "type": "object",
       "description": "Values interpolated as ${name}. Prefer `literal` with neutral data for anything a figure will show; use `env` for credentials.",
@@ -95,6 +101,7 @@
         { "required": ["waitFor"] },
         { "required": ["waitHidden"] },
         { "required": ["pause"] },
+        { "required": ["hold"] },
         { "required": ["expect"] },
         { "required": ["shot"] }
       ],
@@ -157,6 +164,10 @@
           "description": "Click something with target=_blank; the rest of the plan continues in the new tab."
         },
         "pause": { "type": "integer", "description": "Milliseconds to wait, for a page that settles on its own timer." },
+        "hold": {
+          "type": "integer",
+          "description": "Milliseconds of stillness after this step's actions, before the next step starts — a beat a viewer can read. Only meaningful in a humanized run."
+        },
         "setVar": {
           "type": "object",
           "additionalProperties": false,
@@ -233,8 +244,49 @@
             }
           ]
         },
-        "pad": { "type": "integer", "description": "Breathing room around a selector clip or a trimmed frame (default 32). Raise it for a dense card or one with a shadow." }
+        "pad": { "type": "integer", "description": "Breathing room around a selector clip or a trimmed frame (default 32). Raise it for a dense card or one with a shadow." },
+        "holdMs": {
+          "type": "integer",
+          "description": "How long the video holds this frame before the next action (default: humanize.shotHoldMs, 1200)."
+        }
       }
+    },
+    "humanize": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How the page is driven: pointer, curved travel, hover dwell, typing cadence. On by default for --video, off otherwise. Everything is sampled from `seed`, so the same seed replays the same path.",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true, "description": "false is the same as --no-humanize." },
+        "seed": { "type": "string", "description": "The same seed replays the same path, typing rhythm and scheduled delays. --seed overrides." },
+        "speed": { "type": "number", "exclusiveMinimum": 0, "default": 1, "description": "Divides every delay: 1 is a natural pace, 20 a fast test run. --speed overrides." },
+        "cursor": { "enum": ["arrow", "none"], "default": "arrow" },
+        "clickRipple": { "type": "boolean", "default": true },
+        "moveMs": { "$ref": "#/$defs/range", "description": "Travel duration range in ms, interpolated by distance (default [220, 640])." },
+        "dwellMs": { "$ref": "#/$defs/range", "description": "Hover on the target before the press (default [80, 220])." },
+        "pressMs": { "$ref": "#/$defs/range", "description": "How long the button is held down (default [60, 120])." },
+        "afterMs": { "$ref": "#/$defs/range", "description": "Stillness after an action (default [180, 420])." },
+        "typing": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minMs": { "type": "number", "minimum": 0, "description": "Shortest delay between keys (default 55)." },
+            "maxMs": { "type": "number", "minimum": 0, "description": "Longest delay between keys (default 140)." },
+            "maxChars": { "type": "number", "minimum": 0, "description": "Above this length a value is typed at the start and pasted (default 40)." },
+            "longValueLead": { "type": "number", "minimum": 0, "description": "Characters typed before that paste (default 6)." }
+          },
+          "description": "Typing cadence."
+        },
+        "shotHoldMs": { "type": "number", "minimum": 0, "default": 1200, "description": "How long a figure's frame is held in the video." },
+        "loadMs": { "type": "number", "minimum": 0, "default": 400, "description": "Wait after a navigation, before the page is trusted to hold still." },
+        "loadFade": { "type": "number", "minimum": 0, "default": 180, "description": "Fade up from maskColor between pages, instead of a white flash." }
+      }
+    },
+    "range": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "type": "number", "minimum": 0 },
+      "description": "A [min, max] pair of milliseconds."
     }
   }
 }

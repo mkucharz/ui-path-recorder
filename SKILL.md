@@ -1,6 +1,6 @@
 ---
 name: path-recorder
-description: Record a reproducible path through a live UI and turn it into documentation-quality figures — a tutorial walkthrough, a runbook, a release-note screenshot set. Use when asked to capture screenshots of a web app, re-shoot stale docs figures, build a screenshot pipeline for a tutorial, or write a scripted UI walkthrough that a human signs into once and then runs unattended. Handles login walls, cookie banners, theme/locale pinning, clipping to the subject, reviewable run directories and failure evidence.
+description: Record a reproducible path through a live UI and turn it into documentation-quality figures — a tutorial walkthrough, a runbook, a release-note screenshot set — or a walkthrough video a person can actually watch. Use when asked to capture screenshots of a web app, re-shoot stale docs figures, build a screenshot pipeline for a tutorial, record a demo/walkthrough video of a flow, or write a scripted UI walkthrough that a human signs into once and then runs unattended. Handles login walls, cookie banners, theme/locale pinning, clipping to the subject, reviewable run directories, failure evidence, and humanized recording (visible pointer, curved travel, typing cadence, seeded and replayable).
 ---
 
 # path-recorder
@@ -16,6 +16,9 @@ Two artefacts per walkthrough:
 |---|---|
 | `plans/<name>.plan.json` | the path, as data — committed, reviewed, diffed |
 | `captures/<run>/` | one run's figures, `review.html`, failure evidence — never committed |
+
+With `--video` there is a third: the run directory also holds the walkthrough as
+a recording a person can watch, driven at human pace with a visible pointer.
 
 ## When to use
 
@@ -82,6 +85,34 @@ Default output is a **fresh run directory** `captures/<tutorial>-<timestamp>/`,
 so a capture never overwrites a document's figures before someone has looked at
 them. Add `--only <shot-id>` to replay the plan up to one figure.
 
+`--video` records the walkthrough **and drives the page like a person**: a
+visible pointer travelling along a curved path, a dwell before each press, typing
+a character at a time, and a beat of stillness on each figure. It needs
+`npx playwright install ffmpeg` once. Figures are byte-identical with and without
+it — the pointer is hidden for every capture — so the only thing it changes is
+pacing, which is why it is on by default for a recording.
+
+Everything it does comes from a **seed**, logged on the run as `seed=…`. Pin it
+in the plan (`"humanize": { "seed": "install-v3" }`) so a re-shoot reproduces the
+same path, and use `--speed 20` while iterating on selectors (a natural pace
+turns a 30-second flow into four minutes). `--no-humanize` records the raw
+machine-speed cut.
+
+A recording is **16:9 by default** — YouTube, a deck, a README embed — because the
+frame comes from the plan and a plan that pins no viewport gets 1600×900. For a
+1080p upload pin the plan's viewport at `{ "width": 1920, "height": 1080 }` and
+keep `"deviceScaleFactor": 2`: the canvas is then a downscale of a 2× raster.
+`--video-size` only shrinks (a 1440p plan shipped at 1080p); a larger canvas, or
+one of another shape, is refused before the browser opens, because Playwright
+never scales a recording up — it fills the rest of the canvas with a band.
+
+The recording is made of pictures the page actually painted. Taking a figure
+changes what Chromium is capturing for one frame, and Playwright's own recorder
+pads that frame with grey, which reads as a blink of a half-drawn page. The runner
+captures the frames itself and drops the ones that are not the page's shape,
+holding the frame before them across the gap; `frames dropped: N` in the log says
+how many, and it is normally a small number.
+
 ### 4. Read the evidence, not the error
 
 A first run over an unseen page is wrong about a selector. When it fails, the
@@ -89,14 +120,22 @@ run writes `failures/<stamp>--<step>.{png,html,txt}`; the `.txt` ends with
 `on screen:` — every button and input label the plan could have used. Fix the
 plan from that, not from a description of the page.
 
-Other useful flags: `--video` (a `.webm` of the walkthrough), `--trace`
-(open with `npx playwright show-trace`), `--profile <dir>` (see step 6).
+Other useful flags: `--trace` (open with `npx playwright show-trace`),
+`--profile <dir>` (see step 6), `--video-fps`, `--video-size <WxH>`,
+`--poster <shot-id>`.
 
 ### 5. Sign off, then ingest
 
 Open `captures/<run>/review.html`: every figure with its id, its real pixel size,
 the size the app drew on screen, and **the text the plan asserted on that
 screen**. If a figure is stale you can see it by reading.
+
+When the run recorded a video, the same page carries the player and a chapter
+list built from `.timeline.json` — clicking a chapter seeks the player in place
+(`01-main.webm#t=4.6`, and a second tab's chapters seek that tab's recording), so
+checking that the pointer follows the flow is a click, not a scrub. Also in the
+run: `.timeline.json` with every step's start/end, its action and its scheduled
+delay.
 
 Then:
 
@@ -167,7 +206,11 @@ More of these, with the incident behind each: [`references/gotchas.md`](referenc
 plans/<name>.plan.json      the committed path
 plans/schema.json           machine-readable plan contract
 captures/<run>/             figures + review.html + .shots.json + .vars.json
+                            (+ .timeline.json and video/ when recorded)
 scripts/path-shots.mjs      the runner
+lib/human.mjs               how a recorded run is driven: pointer, travel, typing
+lib/recorder.mjs            how a recording is made: frames, resampling, ffmpeg
+lib/timeline.mjs            where each step started/ended, and the video chapters
 lib/ingest.mjs              figures → WebP + manifest
 ```
 
@@ -178,6 +221,10 @@ regenerate it.
 ## Before you say it is done
 
 - `review.html` opened, every figure checked against its `expect` text.
+- If it was recorded, **the video was watched** — at least the chapters, at a
+  speed you can tolerate. A recording is the one artefact whose defects are
+  invisible in a still: a pointer that rests on the wrong control, a step whose
+  scrolling took the point off screen, a `pause` that reads as a freeze.
 - The run directory is *outside* the document tree until someone approves it.
 - `node lib/ingest.mjs` ran, and the document renders the figure at its CSS size
   (a 4x capture shown at 1x is a waste; shown at 4x it is blurry).

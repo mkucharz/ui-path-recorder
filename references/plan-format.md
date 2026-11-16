@@ -16,12 +16,14 @@ Machine-readable version: [`../plans/schema.json`](../plans/schema.json).
 | `baseUrl` | **required** | Absolute URL for relative `goto`s, or `"${INSTANCE_URL}"` so one plan serves several environments. |
 | `locale` | `en-US` | Browser locale and `Accept-Language`. A page rendering another language fails the run. |
 | `timezoneId` | `UTC` | A page that prints a "last seen" timestamp renders it in this zone. |
-| `viewport` | `1600×827` | CSS pixels. |
+| `viewport` | `1600×900` | CSS pixels. Also the video frame: 1600×900 is 16:9, and a recording is 16:9 by default. Pin `1920×1080` for a 1080p upload. |
 | `colorScheme` | `dark` | `dark`, `light` or `no-preference`. Under `dark`, a page that paints light fails the run. |
 | `deviceScaleFactor` | `1` | Capture ratio. **Use 2 at minimum; 4 for figures a reader zooms into.** |
 | `pad` | `32` | Pixels kept around a trimmed frame. |
 | `maskColor` | `#0a0e14` | Fill for masked locators. |
 | `themeStorage` | — | One storage key a third-party app reads for its theme, pinned before any script runs: `{"cp-theme": "dark"}`. Use when the app ignores `prefers-color-scheme`. |
+| `reducedMotion` | `reduce` | `reduce` or `no-preference`. A recorded video forces `no-preference` — an app with every transition switched off records as a series of stills. |
+| `humanize` | on for `--video` | How the page is driven when recording. See below. |
 | `vars` | — | `${name}` values. See below. |
 | `steps` | **required** | Non-empty array. |
 
@@ -91,6 +93,11 @@ the frameworks that only enable their submit button after the field has seen
 typing. If a form's button stays disabled, switch `fill` to `type`; that is
 usually the whole fix.
 
+**Both become typing in a humanized run**: `fill` clicks the field, selects what
+is there and types it key by key, because a field that fills itself instantly
+reads as a glitch in a video (see `humanize`). The plan means the same thing
+either way — which is why a humanized and a plain run produce identical figures.
+
 ### `press`
 
 ```json
@@ -123,6 +130,19 @@ usually the whole fix.
 Milliseconds. For a third-party page that settles on its own timer, or when the
 point of the step is to find out what appeared and there is no element to wait
 for yet. Prefer `waitFor` — a pause is a guess.
+
+### `hold` — a beat a viewer can read
+
+```json
+{ "hold": 800 }
+```
+
+Milliseconds of stillness after the step's actions, before the next step starts.
+Only meaningful in a humanized run (a plain run with humanization off returns
+immediately), which is why it belongs in the plan and not in the flags: the beat
+is timed against *this* screen. Use it on the step whose screen carries the point
+of the walkthrough — the generated password, the finished state — so a viewer has
+time to read it before the pointer moves on.
 
 ### `setVar` — read a value off the page
 
@@ -210,5 +230,48 @@ ideally the sentence from the document that the figure illustrates.
 - No `clip` means the whole viewport, then trimmed to its content (unless
   `--no-trim` or `sharp` is unavailable). A clip is never trimmed: it is
   already the composition, and re-cropping it would slice the subject's edges.
+- `holdMs` overrides how long the video holds this frame before the next action
+  (`humanize.shotHoldMs`, default 1200). A dense dashboard deserves longer than a
+  labelled button.
 - The figure is captured after `networkidle` (5 s cap) plus 250 ms, with
-  animations disabled and the text caret hidden.
+  animations disabled and the text caret hidden. The pointer is hidden for the
+  capture and shown again afterwards, so it is in the video and not in the figure.
+
+## `humanize` — how the page is driven when recording
+
+On by default for `--video`. Off otherwise, unless `--humanize` forces it on for a
+pacing-only run; `--no-humanize` records the raw machine-speed cut. Every key is
+optional, and the default is the value in the table.
+
+| Key | Default | |
+|---|---|---|
+| `enabled` | `true` | `false` is the same as `--no-humanize`. |
+| `seed` | `run-<stamp>` | A string. The same seed replays the same path, the same typing rhythm and the same scheduled delays. Set it to pin a video's look; `--seed` overrides. |
+| `speed` | `1` | Divides every delay. 1 is a natural pace, 20 is a fast test run. `--speed` overrides. |
+| `cursor` | `"arrow"` | `arrow` or `none`. |
+| `clickRipple` | `true` | A ring where the click landed. |
+| `moveMs` | `[220, 640]` | Travel duration range in ms, interpolated by distance and clamped to it. |
+| `dwellMs` | `[80, 220]` | Hover on the target before the press. |
+| `pressMs` | `[60, 120]` | How long the button is held down. |
+| `afterMs` | `[180, 420]` | Stillness after an action, before the next one starts. |
+| `typing` | below | `{minMs, maxMs, maxChars, longValueLead}` |
+| `shotHoldMs` | `1200` | How long a figure's frame is held in the video. |
+| `loadMs` | `400` | Wait after a navigation, before the page is trusted to hold still. |
+| `loadFade` | `180` | Fade up from `maskColor` instead of a white flash between pages. |
+
+In `typing`, `minMs`/`maxMs` are per-key delays (default 55–140 ms, longer after
+a delimiter, with an occasional longer stop), `maxChars` is the length above
+which a value is typed at the start and pasted (40), and `longValueLead` is how
+many characters are typed before that paste (6).
+
+An unknown key here is refused before a browser opens: a mistyped
+`{"humanzie": …}` would otherwise leave the whole block silently inert.
+
+```json
+"humanize": { "seed": "install-v3", "shotHoldMs": 2000, "typing": { "maxMs": 90 } }
+```
+
+The pointer it draws is a *depiction*, not a capture: an overlay placed at the
+coordinates the runner really dispatches, hidden for every figure and every piece
+of failure evidence. It cannot point somewhere the plan did not go, and it cannot
+end up inside a figure.

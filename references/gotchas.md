@@ -114,6 +114,84 @@ Most apps paint a narrow column on a full viewport. A full-frame capture becomes
 because a colour-distance test sees a soft radial gradient as content and never
 trims anything.
 
+## Video
+
+**The pointer in a recording is a depiction, not a capture.** Playwright's
+screencast draws no mouse at all — a real OS cursor is never in the frame, which is
+why a plain recording is so hard to follow. The pointer in `--video` output is an
+in-page overlay the runner places at the coordinates it dispatches, so it cannot
+point somewhere the plan did not go — and it cannot reach a figure either: it is
+hidden before every capture, and a humanized run's PNGs are byte-identical to a
+plain run's (asserted in the tests).
+
+**`--video` forces `prefers-reduced-motion: no-preference`.** A run without it
+captures a page whose every transition is switched off, which records as a series
+of stills — the recording reads as broken rather than calm. The reverse is also
+true: an app with a three-second intro animation now spends three seconds in the
+video, and the answer is `waitFor`/`hold`, not switching motion back off. Figures
+are unaffected — a shot disables animations for itself.
+
+**A video is recorded at the viewport in CSS pixels, never at
+`deviceScaleFactor`.** `2` gives crisp figures and a 900×700 video. For a sharper
+video, raise `viewport` (and accept more scrolling in the flow), not the capture
+ratio — scaling a small recording up in a document only enlarges its compression
+artefacts. Both video dimensions are rounded down to even numbers, because the
+encoder refuses odd ones.
+
+**A video is 16:9 by default, and `--video-size` can only shrink it.** The frame
+is the plan's viewport, and a plan that pins none gets 1600×900, so a `--video`
+run is a 16:9 file without a flag. Pin `1920×1080` (with `deviceScaleFactor: 2`)
+for a 1080p upload. `--video-size` exists for a *lighter* file — a 1440p plan
+shipped at 1080p — never for a bigger one: Playwright fits the recorded frame
+inside the canvas without stretching it and **does not scale it up**, so a canvas
+of another aspect, or one larger than the viewport, is the page in the corner of a
+grey field. The runner refuses both before the browser opens rather than write a
+banded file that looks like a pass.
+
+**One video per tab, and each is written while the run happens.** A
+`clickNewPage` flow writes `01-main.webm` and `02-tab-2.webm`; both are linked
+from `review.html`, and each chapter points at the tab it happened in. The runner
+owns the recording (`page.screencast` + its own ffmpeg invocation, see
+`lib/recorder.mjs`) rather than using `recordVideo`, so the file is named up front
+and there is nothing to move afterwards.
+
+**A frame the page never rendered is dropped, not padded — and the log says how
+many.** Taking a figure calls `page.screenshot()`, which transiently changes the
+surface Chromium is screencasting; the screencast is shared, so one frame in a few
+hundred arrives with the page laid out for a different viewport (a 500-px-wide
+phone layout, or the whole page shrunk into the corner). Playwright's recorder
+pipes every frame through `pad=W:H:0:0:gray`, and a viewer sees a grey field with
+a blink of the page in it. This recorder hands each frame to its own pump instead:
+a frame whose JPEG dimensions or reported viewport differ from the recording's is
+thrown away and the frame before it covers the gap. `frames dropped: N` in the run
+log is therefore a normal, small number — `N: 0` on a plan with no figures at all.
+
+Each recording starts when *its* page opened, so a chapter is a seek into its own
+tab's file, not into the first one: `.timeline.json` records `recordingStartMs`
+per video and a chapter subtracts it. Without that, the second tab's chapters seek
+seconds into a file that is only a second long.
+
+**The file has no timestamps, so the pump resamples.** A screencast is variable
+rate — an idle page emits nothing — while the file is constant rate. Each accepted
+frame is written once per output frame period it was on screen, which is what
+ffmpeg's `-r` does with a timestamped input; writing every frame exactly once
+would stretch a fast-redrawing page (a humanized pointer moves at 60 fps) into a
+slow-motion video of the wrong length. The last frame is held for
+`max(time since it appeared, 1s)`, so a video does not stop the instant the plan
+does.
+
+**A recording starts with the browser, not with the plan.** The first frames are
+the blank page or the app's loading state, so the video is a second or two longer
+than `.timeline.json` reports. That is why the poster defaults to nothing: the
+first frame is the honest thumbnail, whereas a figure used as a poster is a crop
+stretched across the whole player. `--poster <id>` overrides it deliberately.
+
+**Only the scheduled delays are reproducible.** `plannedMs` in `.timeline.json`
+comes from the seed and is identical on every re-run; `startMs`/`endMs` are wall
+clock and never are. `--speed` rescales every delay without changing the sampled
+path, so a fast test run and the final take share chapter *names*, not chapter
+seconds. Shoot at `--speed 1` with a pinned `--seed`; test at 20.
+
 ## What the runner cannot do
 
 - **Know a selector was right for the screen you meant.** `expect` text is the
@@ -124,6 +202,10 @@ trims anything.
   be one figure in the document and three in the plan.
 - **Fix prose drift.** A re-captured figure often disproves the caption next to
   it. Fix both, in the same change.
+- **Watch the recording for you.** A video can be forty seconds of correct
+  figures with the pointer resting on the wrong control, or a step that scrolled
+  the point of the screen out of frame. Watch it — `--speed 20` while iterating,
+  `--speed 1` before publishing — or extract frames and look at them.
 - **Guarantee a first run suceeds.** A cold start over an unseen third-party flow
   costs an iteration or two; budget for it, and use `--only` to keep the retries
   cheap.
