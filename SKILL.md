@@ -106,6 +106,13 @@ keep `"deviceScaleFactor": 2`: the canvas is then a downscale of a 2× raster.
 one of another shape, is refused before the browser opens, because Playwright
 never scales a recording up — it fills the rest of the canvas with a band.
 
+The recording is made of pictures the page actually painted. Taking a figure
+changes what Chromium is capturing for one frame, and Playwright's own recorder
+pads that frame with grey, which reads as a blink of a half-drawn page. The runner
+captures the frames itself and drops the ones that are not the page's shape,
+holding the frame before them across the gap; `frames dropped: N` in the log says
+how many, and it is normally a small number.
+
 ### 4. Read the evidence, not the error
 
 A first run over an unseen page is wrong about a selector. When it fails, the
@@ -202,6 +209,7 @@ captures/<run>/             figures + review.html + .shots.json + .vars.json
                             (+ .timeline.json and video/ when recorded)
 scripts/path-shots.mjs      the runner
 lib/human.mjs               how a recorded run is driven: pointer, travel, typing
+lib/recorder.mjs            how a recording is made: frames, resampling, ffmpeg
 lib/timeline.mjs            where each step started/ended, and the video chapters
 lib/ingest.mjs              figures → WebP + manifest
 ```

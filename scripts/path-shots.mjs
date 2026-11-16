@@ -58,13 +58,14 @@
  * hidden before every figure and every piece of evidence, and `--no-humanize`
  * records the raw machine-speed cut instead.
  */
-import { access, mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { access, mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { createVars, loadPlan, PlanError } from '../lib/plan.mjs';
 import { writeEvidence } from '../lib/evidence.mjs';
 import { writeReview } from '../lib/review.mjs';
 import { createHuman, resolveOptions } from '../lib/human.mjs';
+import { createRecorder } from '../lib/recorder.mjs';
 import { actionOf, createTimeline } from '../lib/timeline.mjs';
 
 const USAGE = `usage:
@@ -342,7 +343,6 @@ const contextOpts = {
   // of stills. Figures are unaffected — a shot disables animations itself.
   reducedMotion: plan?.reducedMotion ?? (video ? 'no-preference' : 'reduce'),
   extraHTTPHeaders: { 'Accept-Language': `${locale},en;q=0.9` },
-  ...(video ? { recordVideo: { dir: path.join(OUT, 'video'), size: videoSize, fps: videoFps } } : {}),
 };
 
 let browser = null;
@@ -400,35 +400,37 @@ if (humanizeOn) {
 }
 
 const shutdown = async () => {
-  // `path()` is only meaningful before the context closes; the file appears when
-  // it does. Capture the names first, close, then rename to something a review
-  // sheet can link in walkthrough order.
-  const pending = video
-    ? await Promise.all(
-        pageLog.map(async (entry) => ({ entry, from: entry.video ? await entry.video.path().catch(() => null) : null })),
-      )
-    : [];
+  // The recorders stop first, while the pages are still open: the last frame of
+  // a page is written from the page that ends the recording, and a closed page
+  // has nothing left to give. Each wrote its own file as it went, so there is no
+  // name to learn afterwards and nothing to rename.
+  if (video) {
+    const stopped = await Promise.all(
+      pageLog.map(async (entry) => {
+        if (!entry.recorder) return null;
+        const result = await entry.recorder.stop().catch((error) => {
+          console.error(`  video: ${entry.label} failed: ${error.message}`);
+          return null;
+        });
+        return result ? { ...result, page: entry.index } : null;
+      }),
+    );
+    for (const result of stopped) {
+      if (!result) continue;
+      const file = path.relative(OUT, result.file);
+      if (videoFiles.some((v) => v.file === file)) continue;
+      videoFiles.push({ file, page: result.page, dropped: result.dropped });
+    }
+  }
   if (trace) {
     await mkdir(OUT, { recursive: true });
     await context.tracing.stop({ path: path.join(OUT, 'trace.zip') }).catch(() => {});
   }
   await context.close().catch(() => {});
   if (browser) await browser.close().catch(() => {});
-  if (!video || videoFiles.length) return;
-  await mkdir(path.join(OUT, 'video'), { recursive: true });
-  for (const { entry, from } of pending) {
-    if (!from) continue;
-    const relative = `video/${entry.label}.webm`;
-    try {
-      await rename(from, path.join(OUT, relative));
-      videoFiles.push({ file: relative, page: entry.index });
-    } catch {
-      /* Playwright deleted it, or the page never produced a frame */
-    }
-  }
 };
 
-/** The recording, named from the directory: Playwright names the file after the page. */
+/** The recording, as it was written. */
 async function logVideo() {
   if (!video) return;
   if (!videoFiles.length) {
@@ -439,6 +441,11 @@ async function logVideo() {
     videoFiles.map(async (v) => `${v.file} (${Math.round((await stat(path.join(OUT, v.file))).size / 1024)}K)`),
   );
   console.log(`  video: ${sizes.join(', ')}`);
+  const dropped = videoFiles.reduce((sum, v) => sum + (v.dropped ?? 0), 0);
+  // A figure changes the surface Chromium is capturing for a moment; those
+  // frames are dropped rather than padded into a grey band, so the count is
+  // expected to be small and never zero-by-accident.
+  if (dropped) console.log(`  frames dropped: ${dropped}   (the page rendered at another size mid-step; the frame before covers the gap)`);
   console.log(`  canvas: ${videoSize.width}x${videoSize.height} @ ${videoFps}fps   (viewport ${viewport.width}x${viewport.height})`);
   console.log(`  seed:  ${humanSeed}   (re-run with --seed ${humanSeed} to replay the same path)`);
 }
@@ -463,30 +470,40 @@ async function openPage() {
   let opened;
   try {
     opened = context.pages()[0] ?? (await context.newPage());
+    return await trackPage(opened);
   } catch (error) {
-    if (/ffmpeg/i.test(error.message)) {
+    if (error.ffmpegMissing || /ffmpeg/i.test(error.message)) {
       console.error("\n  --video needs Playwright's ffmpeg:   npx playwright install ffmpeg\n");
       await shutdown();
       process.exit(2);
     }
     throw error;
   }
-  return trackPage(opened);
 }
 
 /**
  * Register a page for the humanizer and for the video. Every page gets a stable
  * label (`01-main`, `02-tab-2`) so the review sheet links a file rather than a
- * random name Playwright chose.
+ * random name, and its own recorder: a tab is its own recording, because the
+ * screencast belongs to the page.
  */
-function trackPage(opened) {
+async function trackPage(opened) {
   const index = pageLog.length + 1;
   const label = `${String(index).padStart(2, '0')}-${index === 1 ? 'main' : `tab-${index}`}`;
+  const recorder = video
+    ? await createRecorder({
+        page: opened,
+        file: path.join(OUT, 'video', `${label}.webm`),
+        size: videoSize,
+        fps: videoFps,
+      })
+    : null;
   // The recording for a page starts with the page, so that is the zero point a
   // chapter seek is measured from — per page, because each tab is its own file.
+  // Taken after the capture is running, so a chapter is not a fraction early.
   const openedAt = Date.now();
   if (video && !videoStartedAt) videoStartedAt = openedAt;
-  pageLog.push({ page: opened, video: video ? opened.video() : null, label, index, openedAt });
+  pageLog.push({ page: opened, recorder, label, index, openedAt });
   human.setPage(opened);
   return opened;
 }
@@ -744,7 +761,7 @@ try {
         human.click(page.locator(expand(spec.selector))),
       ]);
       await popup.waitForLoadState('domcontentloaded');
-      page = trackPage(popup);
+      page = await trackPage(popup);
       page.setDefaultTimeout(20_000);
       masks = [];
       // The step's chapter stays on the tab the click was dispatched in — that is

@@ -148,17 +148,37 @@ of another aspect, or one larger than the viewport, is the page in the corner of
 grey field. The runner refuses both before the browser opens rather than write a
 banded file that looks like a pass.
 
-**One video per tab, and the file only appears when the context closes.** A
+**One video per tab, and each is written while the run happens.** A
 `clickNewPage` flow writes `01-main.webm` and `02-tab-2.webm`; both are linked
-from `review.html`, and each chapter points at the tab it happened in. Playwright
-names those files after the page and deletes them unless they are moved out, which
-is why the run captures `video.path()` before `context.close()` and renames them
-to their walkthrough position.
+from `review.html`, and each chapter points at the tab it happened in. The runner
+owns the recording (`page.screencast` + its own ffmpeg invocation, see
+`lib/recorder.mjs`) rather than using `recordVideo`, so the file is named up front
+and there is nothing to move afterwards.
+
+**A frame the page never rendered is dropped, not padded — and the log says how
+many.** Taking a figure calls `page.screenshot()`, which transiently changes the
+surface Chromium is screencasting; the screencast is shared, so one frame in a few
+hundred arrives with the page laid out for a different viewport (a 500-px-wide
+phone layout, or the whole page shrunk into the corner). Playwright's recorder
+pipes every frame through `pad=W:H:0:0:gray`, and a viewer sees a grey field with
+a blink of the page in it. This recorder hands each frame to its own pump instead:
+a frame whose JPEG dimensions or reported viewport differ from the recording's is
+thrown away and the frame before it covers the gap. `frames dropped: N` in the run
+log is therefore a normal, small number — `N: 0` on a plan with no figures at all.
 
 Each recording starts when *its* page opened, so a chapter is a seek into its own
 tab's file, not into the first one: `.timeline.json` records `recordingStartMs`
 per video and a chapter subtracts it. Without that, the second tab's chapters seek
 seconds into a file that is only a second long.
+
+**The file has no timestamps, so the pump resamples.** A screencast is variable
+rate — an idle page emits nothing — while the file is constant rate. Each accepted
+frame is written once per output frame period it was on screen, which is what
+ffmpeg's `-r` does with a timestamped input; writing every frame exactly once
+would stretch a fast-redrawing page (a humanized pointer moves at 60 fps) into a
+slow-motion video of the wrong length. The last frame is held for
+`max(time since it appeared, 1s)`, so a video does not stop the instant the plan
+does.
 
 **A recording starts with the browser, not with the plan.** The first frames are
 the blank page or the app's loading state, so the video is a second or two longer

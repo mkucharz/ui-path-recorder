@@ -187,6 +187,21 @@ picture, it means the page in the corner of a grey field. Both numbers are in
 `.timeline.json` as `viewport` and `videoSize`, so a later reader can tell how the
 file was made.
 
+**A frame the page never painted is dropped, not padded.** Taking a figure changes
+the surface Chromium is capturing for a moment, and the screencast is shared, so
+one frame in a few hundred can arrive with the page laid out for a different
+viewport — a phone-width column, or the whole page shrunk into the corner.
+Playwright's own recorder fills the difference with grey, which a viewer sees as a
+single-frame flash of grey field with the page in it. This runner therefore
+records the frames itself (`page.screencast` plus its own ffmpeg invocation, see
+`lib/recorder.mjs`), drops any frame whose size or reported viewport differs from
+the recording's, and holds the frame before it across the gap. The count is in the
+log, so a video is not silently missing time:
+
+```
+  frames dropped: 3   (the page rendered at another size mid-step; the frame before covers the gap)
+```
+
 Figures do not change: a humanized figure is byte-identical to a plain one, which
 the test suite asserts. `--no-humanize` records the raw machine-speed cut when
 that is what you want.
