@@ -98,7 +98,10 @@ Full reference: [`references/plan-format.md`](references/plan-format.md) ·
 machine-readable: [`plans/schema.json`](plans/schema.json) ·
 a real 62-step flow over a deploy portal, an OAuth consent screen, an installer
 and a third-party identity provider:
-[`plans/examples/railway-installer.plan.json`](plans/examples/railway-installer.plan.json).
+[`plans/examples/railway-installer.plan.json`](plans/examples/railway-installer.plan.json);
+a short store-configurator plan that records the most expensive Mac Studio's
+price and fails when Apple changes it:
+[`plans/examples/apple-mac-studio-max.plan.json`](plans/examples/apple-mac-studio-max.plan.json).
 
 ## What a run writes
 

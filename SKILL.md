@@ -44,7 +44,10 @@ write steps.
 
 Start from `plans/examples/railway-installer.plan.json` — a 62-step plan over a
 deploy portal, an OAuth consent screen, an installer and a third-party identity
-provider. Keep plans small: one screen, one step, one figure.
+provider. For a short plan whose subject is a live value, see
+`plans/examples/apple-mac-studio-max.plan.json` — nine steps through a store
+configurator, with the price in one `vars` literal so a price change fails the
+run. Keep plans small: one screen, one step, one figure.
 
 Minimum viable plan:
 

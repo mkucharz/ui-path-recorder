@@ -1,0 +1,107 @@
+{
+  "tutorial": "apple-mac-studio-max",
+  "description": "The most expensive Mac Studio Apple sells: choose the top chip, the top CPU/GPU variant, 512GB unified memory and 16TB storage in the US store configurator, decline a trade-in, and check the price Apple asks for it.",
+  "instance": "production",
+  "baseUrl": "https://www.apple.com",
+  "locale": "en-US",
+  "timezoneId": "UTC",
+  "viewport": {
+    "width": 1600,
+    "height": 1200
+  },
+  "colorScheme": "light",
+  "deviceScaleFactor": 2,
+  "vars": {
+    "expectedPrice": {
+      "literal": "$29,799.00"
+    }
+  },
+  "steps": [
+    {
+      "name": "the US store's Mac Studio configurator",
+      "goto": "/shop/buy-mac/mac-studio",
+      "waitFor": {
+        "text": "Buy Mac Studio"
+      },
+      "expect": [
+        "Buy Mac Studio",
+        "M5 Max chip",
+        "M5 Ultra chip"
+      ]
+    },
+    {
+      "name": "the Ultra is the top chip, so start there",
+      "click": ".rc-dimension-selector-row:has(input[data-autom='processor-dimensionChipm5ultra']) label",
+      "waitFor": {
+        "text": "Select your processing power"
+      },
+      "expect": [
+        "M5 Ultra chip",
+        "Select your processing power"
+      ]
+    },
+    {
+      "name": "the more expensive of the two Ultra variants",
+      "click": ".rc-dimension-selector-row:has(input[data-autom='processor-dimensionChip-cpuCoreCount-gpuCoreCountm5ultra-36-80']) label",
+      "pause": 1800,
+      "expect": "36-core CPU"
+    },
+    {
+      "name": "the figure shows both chips and the selected 36-core CPU / 80-core GPU variant",
+      "expect": [
+        "M5 Max chip",
+        "M5 Ultra chip",
+        "36-core CPU"
+      ],
+      "shot": {
+        "id": "01-chip-options",
+        "clip": "fieldset:has(input[data-autom='processor-dimensionChipm5ultra'])",
+        "pad": 40
+      }
+    },
+    {
+      "name": "max out unified memory",
+      "click": ".rc-dimension-selector-row:has(input[data-autom='memory-dimensionMemory_512gb']) label",
+      "pause": 1800
+    },
+    {
+      "name": "max out storage",
+      "click": ".rc-dimension-selector-row:has(input[data-autom='storage-dimensionCapacity_16tb']) label",
+      "pause": 1800,
+      "expect": [
+        "512GB unified memory",
+        "16TB storage"
+      ]
+    },
+    {
+      "name": "no trade-in, so the recorded figure is the price of the machine itself",
+      "click": "label#noTradeIn_label",
+      "pause": 1200
+    },
+    {
+      "name": "the summary card is the claim: top chip, max memory, max storage — and that price",
+      "expect": [
+        "Your new Mac Studio.",
+        "Mac Studio with M5 Ultra chip",
+        "36-core CPU",
+        "512GB unified memory",
+        "16TB storage",
+        "${expectedPrice}"
+      ],
+      "shot": {
+        "id": "02-max-spec",
+        "clip": ".rf-bfe-summary-section",
+        "pad": 40
+      }
+    },
+    {
+      "name": "the same number in the page's own price line",
+      "expect": "${expectedPrice}",
+      "shot": {
+        "id": "03-price",
+        "clip": ".rf-bfe-summary-section [data-autom='heroPrice']",
+        "pad": 24
+      }
+    }
+  ]
+}
