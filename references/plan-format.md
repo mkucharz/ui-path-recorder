@@ -16,7 +16,7 @@ Machine-readable version: [`../plans/schema.json`](../plans/schema.json).
 | `baseUrl` | **required** | Absolute URL for relative `goto`s, or `"${INSTANCE_URL}"` so one plan serves several environments. |
 | `locale` | `en-US` | Browser locale and `Accept-Language`. A page rendering another language fails the run. |
 | `timezoneId` | `UTC` | A page that prints a "last seen" timestamp renders it in this zone. |
-| `viewport` | `1600×827` | CSS pixels. |
+| `viewport` | `1600×900` | CSS pixels. Also the video frame: 1600×900 is 16:9, and a recording is 16:9 by default. Pin `1920×1080` for a 1080p upload. |
 | `colorScheme` | `dark` | `dark`, `light` or `no-preference`. Under `dark`, a page that paints light fails the run. |
 | `deviceScaleFactor` | `1` | Capture ratio. **Use 2 at minimum; 4 for figures a reader zooms into.** |
 | `pad` | `32` | Pixels kept around a trimmed frame. |

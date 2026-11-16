@@ -138,6 +138,16 @@ ratio — scaling a small recording up in a document only enlarges its compressi
 artefacts. Both video dimensions are rounded down to even numbers, because the
 encoder refuses odd ones.
 
+**A video is 16:9 by default, and `--video-size` can only shrink it.** The frame
+is the plan's viewport, and a plan that pins none gets 1600×900, so a `--video`
+run is a 16:9 file without a flag. Pin `1920×1080` (with `deviceScaleFactor: 2`)
+for a 1080p upload. `--video-size` exists for a *lighter* file — a 1440p plan
+shipped at 1080p — never for a bigger one: Playwright fits the recorded frame
+inside the canvas without stretching it and **does not scale it up**, so a canvas
+of another aspect, or one larger than the viewport, is the page in the corner of a
+grey field. The runner refuses both before the browser opens rather than write a
+banded file that looks like a pass.
+
 **One video per tab, and the file only appears when the context closes.** A
 `clickNewPage` flow writes `01-main.webm` and `02-tab-2.webm`; both are linked
 from `review.html`, and each chapter points at the tab it happened in. Playwright
