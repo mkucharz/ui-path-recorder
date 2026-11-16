@@ -617,6 +617,10 @@ try {
     const label = `#${i + 1}${step.name ? ` ${step.name}` : ''}`;
     currentStep = label;
     const record = timeline.begin({ index: i + 1, name: step.name ?? null, action: actionOf(step) });
+    // Which tab this step runs in. A `clickNewPage` flow continues in a second
+    // recording, and a chapter that seeks into the wrong one lands on a screen
+    // the step never showed — so the tab is recorded per step, not once.
+    record.page(pageLog.length);
     // A flow through a third party has two possible shapes and the plan cannot
     // branch: a consent screen appears on the first run and is skipped once the
     // session holds a grant. A step that only applies at one of those places says
