@@ -1,0 +1,13 @@
+{
+  "tutorial": "fixture-locale",
+  "description": "Self-test: the plan pins pl-PL but the app renders lang=en, so the capture must be refused.",
+  "baseUrl": "${FIXTURE_URL}",
+  "locale": "pl-PL",
+  "viewport": { "width": 900, "height": 700 },
+  "colorScheme": "dark",
+  "deviceScaleFactor": 2,
+  "steps": [
+    { "name": "open the app", "goto": "/" },
+    { "name": "sign-in card", "expect": "Welcome back", "shot": { "id": "01-welcome", "clip": "#card" } }
+  ]
+}

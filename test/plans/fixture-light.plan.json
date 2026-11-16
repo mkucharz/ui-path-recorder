@@ -1,0 +1,13 @@
+{
+  "tutorial": "fixture-light",
+  "description": "Self-test: the plan asks for a dark figure but the page paints light, so the capture must be refused.",
+  "baseUrl": "${FIXTURE_URL}",
+  "locale": "en-US",
+  "viewport": { "width": 900, "height": 700 },
+  "colorScheme": "dark",
+  "deviceScaleFactor": 2,
+  "steps": [
+    { "name": "open the app in its light theme", "goto": "/?theme=light" },
+    { "name": "sign-in card", "expect": "Welcome back", "shot": { "id": "01-welcome", "clip": "#card" } }
+  ]
+}

@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/mkucharz/ui-path-recorder/main/plans/schema.json",
+  "title": "Path capture plan",
+  "description": "One browser session and an ordered list of steps: a path through a UI, with a picture taken at the points a reader needs to see. Validated by lib/plan.mjs before a browser opens, so a mistyped key is an error rather than a step that silently does nothing.",
+  "type": "object",
+  "required": ["baseUrl", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "tutorial": {
+      "type": "string",
+      "description": "Name of the walkthrough. Becomes the default run directory name and the review sheet's title."
+    },
+    "description": {
+      "type": "string",
+      "description": "What this path proves, in one or two sentences."
+    },
+    "instance": {
+      "type": "string",
+      "description": "Which deployment the plan runs against (dev, staging, a local stack)."
+    },
+    "baseUrl": {
+      "type": "string",
+      "description": "Absolute URL for relative `goto` values, or a `${VAR}` placeholder so one plan serves several environments."
+    },
+    "locale": {
+      "type": "string",
+      "default": "en-US",
+      "description": "Browser locale and Accept-Language. A page that renders in another language fails the run."
+    },
+    "timezoneId": { "type": "string", "default": "UTC" },
+    "viewport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": { "width": { "type": "integer" }, "height": { "type": "integer" } },
+      "default": { "width": 1600, "height": 827 }
+    },
+    "colorScheme": {
+      "enum": ["dark", "light", "no-preference"],
+      "default": "dark",
+      "description": "Pinned theme. When dark, a page that paints a light background fails the run instead of shipping a figure mid-theme."
+    },
+    "deviceScaleFactor": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "default": 1,
+      "description": "Capture ratio. 2 is the practical minimum for a figure a reader may zoom into; 4 survives a 2x display without resampling."
+    },
+    "pad": {
+      "type": "integer",
+      "description": "Pixels kept around a trimmed frame (default 32)."
+    },
+    "maskColor": {
+      "type": "string",
+      "description": "Fill for masked locators (default #0a0e14)."
+    },
+    "themeStorage": {
+      "type": "object",
+      "description": "A storage key a third-party app reads for its theme, pinned before any script runs. One entry: {\"cp-theme\": \"dark\"}.",
+      "additionalProperties": { "type": "string" }
+    },
+    "vars": {
+      "type": "object",
+      "description": "Values interpolated as ${name}. Prefer `literal` with neutral data for anything a figure will show; use `env` for credentials.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "env": { "type": "string", "description": "Environment variable to read (defaults to the var's own name)." },
+          "literal": { "type": ["string", "number", "boolean"], "description": "A value fixed in the plan." }
+        }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Executed in order. Actions inside one step run in a fixed order, so `fill` + `expect` + `shot` in one step is one screen from top to bottom.",
+      "items": { "$ref": "#/$defs/step" }
+    }
+  },
+  "$defs": {
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "anyOf": [
+        { "required": ["goto"] },
+        { "required": ["fill"] },
+        { "required": ["type"] },
+        { "required": ["press"] },
+        { "required": ["click"] },
+        { "required": ["clickIfPresent"] },
+        { "required": ["clickNewPage"] },
+        { "required": ["setVar"] },
+        { "required": ["waitFor"] },
+        { "required": ["waitHidden"] },
+        { "required": ["pause"] },
+        { "required": ["expect"] },
+        { "required": ["shot"] }
+      ],
+      "properties": {
+        "name": { "type": "string", "description": "What this step does, shown in logs and evidence files." },
+        "when": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Skip the step unless the page matches. A plan cannot branch, and a third-party flow looks different on the first run than on the tenth.",
+          "properties": {
+            "url": { "type": "string", "description": "Regular expression tested against the current URL." },
+            "text": { "type": "string", "description": "Text that must be on screen (whitespace-insensitive)." }
+          }
+        },
+        "goto": { "type": "string", "description": "A path relative to baseUrl, or an absolute URL." },
+        "fill": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["selector", "value"],
+          "properties": { "selector": { "type": "string" }, "value": { "type": "string" } },
+          "description": "Set a field in one assignment. Some frameworks ignore it; use `type` there."
+        },
+        "type": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["selector", "value"],
+          "properties": { "selector": { "type": "string" }, "value": { "type": "string" } },
+          "description": "Send real key events, one character at a time, for a form that only enables its button after typing."
+        },
+        "press": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["selector", "key"],
+          "properties": { "selector": { "type": "string" }, "key": { "type": "string" } }
+        },
+        "click": {
+          "oneOf": [
+            { "type": "string", "description": "Selector to click." },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["selector"],
+              "properties": { "selector": { "type": "string" } }
+            }
+          ],
+          "description": "Click a selector that must exist."
+        },
+        "clickIfPresent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["selector"],
+          "properties": { "selector": { "type": "string" }, "timeout": { "type": "integer" } },
+          "description": "Click if it appears. For a cookie banner that some regions get and others do not — absence is not a failure."
+        },
+        "clickNewPage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["selector"],
+          "properties": { "selector": { "type": "string" }, "timeout": { "type": "integer" } },
+          "description": "Click something with target=_blank; the rest of the plan continues in the new tab."
+        },
+        "pause": { "type": "integer", "description": "Milliseconds to wait, for a page that settles on its own timer." },
+        "setVar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "from"],
+          "properties": {
+            "name": { "type": "string" },
+            "from": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["selector"],
+              "properties": {
+                "selector": { "type": "string" },
+                "prop": { "enum": ["text", "value", "href"], "default": "text" }
+              }
+            }
+          },
+          "description": "Read a value off the page into ${name} — a password an installer generates and shows once. Written to .vars.json (mode 600), never logged."
+        },
+        "waitFor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "selector": { "type": "string" },
+            "text": { "type": "string", "description": "Text that must appear in body.innerText, whitespace-insensitive." },
+            "url": {
+              "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }],
+              "description": "URL pattern(s) to wait for; an array accepts either outcome."
+            },
+            "timeout": { "type": "integer", "default": 20000 }
+          },
+          "description": "Wait until the page is somewhere worth photographing."
+        },
+        "waitHidden": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["selector"],
+          "properties": { "selector": { "type": "string" }, "timeout": { "type": "integer" } },
+          "description": "Wait until chrome is gone: a control the server rendered visible and the page's own script hides on boot."
+        },
+        "mask": {
+          "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }],
+          "description": "Locators painted over before the shot. Prefer a neutral literal value — a black rectangle reads as a mistake."
+        },
+        "expect": {
+          "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }],
+          "description": "Text the screen must show. The guard that turns a stale figure into a failed run."
+        },
+        "shot": {
+          "oneOf": [{ "type": "string" }, { "$ref": "#/$defs/shot" }],
+          "description": "Take the picture. A bare string is the figure id."
+        }
+      }
+    },
+    "shot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "description": "Figure id; also the file name (<id>.png). Unique within a plan." },
+        "clip": {
+          "oneOf": [
+            { "type": "string", "description": "Selector whose bounding box is the subject." },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["x", "y", "width", "height"],
+              "properties": {
+                "x": { "type": "number" },
+                "y": { "type": "number" },
+                "width": { "type": "number" },
+                "height": { "type": "number" }
+              },
+              "description": "A measured rect in CSS pixels, for a subject with no element of its own. Carries its own padding."
+            }
+          ]
+        },
+        "pad": { "type": "integer", "description": "Padding around a selector clip (default 16), and around a trimmed frame." }
+      }
+    }
+  }
+}

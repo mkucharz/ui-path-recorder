@@ -1,0 +1,9 @@
+{
+  "tutorial": "fixture-invalid",
+  "description": "A mistyped step key: the runner must refuse this before opening a browser.",
+  "baseUrl": "${FIXTURE_URL}",
+  "steps": [
+    { "name": "typo", "goto": "/" },
+    { "name": "this key does not exist", "clickk": "#submit" }
+  ]
+}

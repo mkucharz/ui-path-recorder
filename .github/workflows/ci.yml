@@ -1,0 +1,61 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: fixture capture
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: install
+        run: npm ci
+
+      - name: install a browser matching playwright-core
+        # The revision has to match the version the runner imports, so it is read
+        # from the installed package rather than pinned twice.
+        run: npx --yes "playwright@$(node -p "require('playwright-core/package.json').version")" install --with-deps chromium
+
+      - name: syntax
+        run: npm run check
+
+      - name: plans satisfy the contract
+        run: |
+          node -e '
+            const { readFileSync } = require("node:fs");
+            const schema = JSON.parse(readFileSync("plans/schema.json", "utf8"));
+            if (schema.$schema !== "https://json-schema.org/draft/2020-12/schema") throw new Error("schema is not draft 2020-12");
+            for (const f of ["plans/examples/railway-installer.plan.json"]) {
+              const plan = JSON.parse(readFileSync(f, "utf8"));
+              if (!plan.steps?.length) throw new Error(`${f} has no steps`);
+            }
+            console.log("plans parse; schema is draft 2020-12");
+          '
+
+      - name: capture the fixture end to end
+        # No network, no account: the fixture is served on localhost by the test.
+        run: npm test
+
+      - name: keep a run on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capture-failures
+          path: |
+            /tmp/path-shots-*/**/failures/
+            /tmp/path-shots-*/**/review.html
+          if-no-files-found: ignore
+          retention-days: 7

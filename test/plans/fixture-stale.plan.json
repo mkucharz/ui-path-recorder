@@ -1,0 +1,20 @@
+{
+  "tutorial": "fixture-stale",
+  "description": "Deliberately stale: fails after banking one figure, so the failure path is covered too.",
+  "baseUrl": "${FIXTURE_URL}",
+  "locale": "en-US",
+  "viewport": { "width": 900, "height": 700 },
+  "colorScheme": "dark",
+  "deviceScaleFactor": 2,
+  "steps": [
+    { "name": "open the app", "goto": "/" },
+    { "name": "dismiss the cookie banner", "clickIfPresent": { "selector": "#cookie-deny" } },
+    { "name": "let the first paint settle", "waitHidden": { "selector": "#flash-bar" } },
+    { "name": "good figure", "expect": "Welcome back", "shot": { "id": "01-welcome", "clip": "#card", "pad": 16 } },
+    {
+      "name": "stale text the app has never shown",
+      "expect": "Set up two-factor authentication",
+      "shot": { "id": "02-never" }
+    }
+  ]
+}

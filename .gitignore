@@ -1,0 +1,14 @@
+# Run output: a capture is a reviewable artefact, not a source file.
+captures/
+
+# A browser profile that holds a signed-in session. Never leaves the host, never
+# enters git — it is a credential.
+.profile/
+
+node_modules/
+*.log
+.DS_Store
+
+# Playwright artefacts that are large and per-run.
+trace.zip
+video/
