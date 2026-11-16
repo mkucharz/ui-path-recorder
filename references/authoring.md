@@ -66,6 +66,16 @@ A viewport-wide capture of a 360 px card is a large box with a small picture in
 it. Prefer `"clip": "<selector>"`; it is exact, repeatable, and makes a drifting
 crop show as a size diff in review.
 
+**Leave breathing room around the subject.** A clip that ends exactly on a
+card's border reads as a crop, not a figure: the border touches the edge, the
+heading above it loses its leading, and a shadow or focus ring is cut in half.
+Every selector clip is padded (`pad`, default 32 CSS px) for this reason. Raise
+it to 48–64 for a dense card, a card with a drop shadow, or a subject whose
+neighbours help a reader place it; only drop below the default for a bare text
+run where the padding would be a field of white. A measured rect is used
+as-is — include the padding yourself. Figures in one set should share a `pad`
+value so their margins line up in a document column.
+
 Measure before you guess:
 
 ```js

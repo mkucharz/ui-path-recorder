@@ -627,9 +627,22 @@ try {
         // pixels. The rect exists for a subject with no element of its own, and
         // it carries its own padding, so it is not padded again.
         const isRect = typeof spec.clip === 'object';
+        if (!isRect) {
+          // `boundingBox` and screenshot clips are viewport-relative, and
+          // Chromium cannot capture outside the viewport: a subject below the
+          // fold fails as "clipped area is either empty or outside the
+          // resulting image". Scroll it in first, centred, so the padded box
+          // has room on both sides instead of being clamped at a viewport edge.
+          await page
+            .locator(expand(spec.clip))
+            .first()
+            .evaluate((node) => node.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }))
+            .catch(() => {});
+          await page.waitForTimeout(150);
+        }
         const box = isRect ? { ...spec.clip } : await page.locator(expand(spec.clip)).first().boundingBox();
         if (!box) fail(label, `clip selector matched nothing: ${spec.clip}`);
-        const pad = spec.pad ?? (isRect ? 0 : 16);
+        const pad = spec.pad ?? (isRect ? 0 : 32);
         const vp = page.viewportSize();
         raw = await page.screenshot({
           ...shotOpts,
@@ -644,7 +657,11 @@ try {
         raw = await page.screenshot(shotOpts);
       }
       let buffer = raw;
-      if (trim) {
+      // A clip is already the composition. Trimming it again re-crops the
+      // figure to its darkest content — a card's fill is close enough to the
+      // page colour to count as dead space — and slices the edges of the card
+      // the author chose as the subject. Only a whole-frame capture is trimmed.
+      if (trim && !spec.clip) {
         const lib = await sharp();
         if (lib) {
           const { trimDeadSpace } = await import('../lib/frame.mjs');

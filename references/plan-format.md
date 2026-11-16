@@ -200,9 +200,15 @@ ideally the sentence from the document that the figure illustrates.
 - `id` is the figure id **and** the file name (`<id>.png`), unique within a plan.
   Name them with a numeric prefix — `01-`, `02-` — so a directory listing reads in
   walkthrough order and a document can reference them stably.
-- `clip` is a selector (padded by `pad`, default 16) or a measured rect in CSS
-  pixels (used as-is, for a subject with no element of its own).
+- `clip` is a selector (padded by `pad`, default 32) or a measured rect in CSS
+  pixels (used as-is, for a subject with no element of its own). The padding is
+  not optional decoration: a figure that ends on a card border reads as a crop,
+  so selector clips always keep margin, and a measured rect must carry its own.
+- A selector clip is scrolled to the middle of the viewport before capture, so a
+  figure can live below the first screen. A measured rect is not scrolled: it
+  must already be inside the current viewport.
 - No `clip` means the whole viewport, then trimmed to its content (unless
-  `--no-trim` or `sharp` is unavailable).
+  `--no-trim` or `sharp` is unavailable). A clip is never trimmed: it is
+  already the composition, and re-cropping it would slice the subject's edges.
 - The figure is captured after `networkidle` (5 s cap) plus 250 ms, with
   animations disabled and the text caret hidden.

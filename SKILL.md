@@ -138,6 +138,12 @@ document. The runner enforces them, so a breach is a failed run.
 - **Clip to the subject** (`"clip": "<selector>"`) rather than shipping a
   viewport-wide frame with a small card in it. A selector clip is exact and
   repeatable: same width every run, so a drifting crop is visible as a diff.
+- **Leave breathing room around the subject.** A clip that lands on a card's
+  border looks cropped: the border is the edge of the figure, the heading loses
+  its leading, a shadow is sliced. Selector clips are padded (`"pad"`, default
+  32 CSS px) so every figure has margin; go up to 48–64 for dense cards and
+  shadows, and keep one `pad` across a figure set so the margins line up. A
+  measured-rect clip carries its own padding — include it in the numbers.
 - **Never commit a capture or a profile.** `captures/` and `.profile/` hold
   session cookies in the worst case and megabytes in the best.
 - **Neutral data beats a mask.** `admin@example.com` reads better in a figure

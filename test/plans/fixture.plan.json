@@ -35,7 +35,7 @@
       "name": "a scraped value reaches a later step",
       "goto": "/?token=${token}",
       "waitFor": { "selector": "#echoed" },
-      "expect": "Signed in with ${token}",
+      "expect": ["Signed in with ${token}"],
       "shot": { "id": "03-echo", "clip": "#card", "pad": 16 }
     }
   ]

@@ -233,7 +233,7 @@
             }
           ]
         },
-        "pad": { "type": "integer", "description": "Padding around a selector clip (default 16), and around a trimmed frame." }
+        "pad": { "type": "integer", "description": "Breathing room around a selector clip or a trimmed frame (default 32). Raise it for a dense card or one with a shadow." }
       }
     }
   }
