@@ -62,6 +62,14 @@ FIXTURE_URL=http://127.0.0.1:8099 FIXTURE_PASSWORD=correct-horse \
 open captures/fixture-*/review.html
 ```
 
+Those two environment variables belong to the *fixture plan*, not to the tool:
+the plan declares `"baseUrl": "${FIXTURE_URL}"` and `"password": {"env": "FIXTURE_PASSWORD"}`,
+so it runs against whatever port the server bound and keeps a credential out of
+the committed plan. `${...}` resolves from the plan's `vars`, then the
+environment — a real plan names its own, usually `"${INSTANCE_URL}"` and
+`{"env": "SHOT_PASSWORD"}`. The password value here is arbitrary; the fixture
+accepts anything.
+
 ## A plan
 
 ```json
