@@ -103,6 +103,18 @@ edit, a rename or a translation.
 Reserve text guards for text the document makes a claim about — the price in a
 figure, the plan name in a settings screenshot.
 
+If the plan is also a recording (`--video`), each step can carry the sentence a
+viewer reads while it plays:
+
+```json
+{ "caption": "Type the email address on your account.", "fill": { "selector": "#email", "value": "${email}" } }
+```
+
+Write it here, next to the step it describes — afterwards, in a video editor, it
+is a claim nobody checks and it drifts off its screen on the next edit. One
+caption becomes both the pill drawn into the recording and the `.vtt` beside it
+(`plan-format.md` → `caption`).
+
 Then, for a page that settles slowly:
 
 ```json

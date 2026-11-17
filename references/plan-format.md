@@ -250,8 +250,51 @@ wrong.
   (`humanize.shotHoldMs`, default 1200). A dense dashboard deserves longer than a
   labelled button.
 - The figure is captured after `networkidle` (5 s cap) plus 250 ms, with
-  animations disabled and the text caret hidden. The pointer is hidden for the
-  capture and shown again afterwards, so it is in the video and not in the figure.
+  animations disabled and the text caret hidden. The pointer — and the step's
+  caption — is hidden for the capture and shown again afterwards, so both are in
+  the video and neither is in the figure.
+
+### `caption` — the subtitle for this step
+
+```json
+{ "caption": "Open the sign-in page for your workspace.", "goto": "/signin" }
+{ "caption": "Sign in with the address and password you already use.", "shot": "01-signin" }
+```
+
+The sentence a viewer reads while this step plays. It is part of the plan rather
+than of a video editor, for the same reason `expect` is: a subtitle that is typed
+in afterwards is a claim nobody checks, and it drifts off the screen it describes
+the moment the path changes.
+
+One `caption` is two artefacts, both timed by the step:
+
+- **drawn in the recording** — a dark pill at the bottom centre, sized from the
+  viewport (so it stays proportionate at 1080p) — for the whole step. This is what
+  makes the video explain itself in any player, including one that ignores
+  sidecar tracks.
+- **`video/01-main.vtt`** beside the recording — a WebVTT file a `<track>`, a
+  docs page or a video host reads: switchable off, searchable, translatable. The
+  review sheet's player carries it as a captions track, off by default so it
+  cannot paint a second caption over the drawn-in pill; turn it on to check the
+  file's timing.
+
+Rules worth knowing:
+
+- **No `caption` on the next step clears it.** A subtitle never outlives the
+  screen it described, and the `.vtt` cue stops at the same boundary the pill
+  does.
+- **Consecutive steps with the same caption are one cue**, so a two-step screen
+  does not blink a subtitle on and off.
+- **A cue shorter than 1.2 s is lengthened** to its step's own boundary: a click
+  that swaps a screen in 200 ms is not something a viewer can read. It never runs
+  into the following step.
+- **One line, under 160 characters**, and it is not an action — a step with only
+  `caption` does nothing and is refused. Both are checked before a browser opens.
+- **Figures never contain it**, exactly like the pointer.
+- `--no-humanize` has no overlay to draw with, so the recording carries no
+  burned-in subtitles; the `.vtt` is still written and the run logs a warning.
+
+The shipped example is `plans/examples/signin-captions.plan.json`.
 
 ## `humanize` — how the page is driven when recording
 

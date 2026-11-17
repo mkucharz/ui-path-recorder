@@ -165,7 +165,8 @@ captures/signin-2026-01-01T10-00-00/
   .timeline.json       ← where each step started/ended, and the video chapters
   .vars.json           ← values scraped off the page, mode 600 (only if setVar ran)
   failures/            ← only on failure: the page, its DOM, and its controls
-  trace.zip, video/    ← only with --trace / --video (video/01-main.webm, one per tab)
+  trace.zip, video/    ← only with --trace / --video (video/01-main.webm, one per tab,
+                         and 01-main.vtt beside it when the plan has captions)
 ```
 
 A run directory is *reviewable before it touches a document*. That is the point
@@ -255,6 +256,45 @@ seeks in place, and the figure list stays on screen to compare against:
   6. the password is typed in                      3.1s · fill
   7. sign in                                       4.6s · click
 ```
+
+### Subtitles come from the plan
+
+A walkthrough watched without sound still has to say what it is doing, and that
+sentence belongs next to the step it describes — not typed into a video editor
+afterwards, where it drifts off the screen it was written for:
+
+```json
+{ "name": "fill the email", "caption": "Type the email address on your account.", "fill": { "selector": "#email", "value": "${email}" } }
+```
+
+One `caption` produces two artefacts that cannot disagree, because both are timed
+by the step's own clock:
+
+- the recording **draws it in the page** — a bottom-centre pill, sized from the
+  viewport — for the whole step, so the video explains itself anywhere it plays,
+  including a player that ignores sidecar tracks;
+- `video/01-main.vtt` beside the recording, which is what a `<video><track>`, a
+  docs site or a video host reads: switchable off, searchable, translatable
+  later. The review sheet's player carries it as a captions track — off by
+  default, because the recording already draws its subtitles in and a default
+  track would paint a second one over the same corner. Switching it on is how you
+  check the file's timing against what is on screen.
+
+A step with no caption clears the last one, so a subtitle never outlives the
+screen it described; consecutive steps sharing a caption are one cue, so it does
+not blink between them. The pill is hidden with the pointer for every figure and
+every piece of evidence — a picture is evidence, a subtitle is a depiction — which
+is why a captioned run's figures stay byte-identical to a plain run's.
+
+`--no-humanize` records the raw cut, and the raw cut has no overlay to draw with:
+the `.vtt` is still written, and the run says so rather than leaving you to find
+out from the recording:
+
+```
+  warning: 5 step(s) carry a caption; --no-humanize leaves it to the .vtt track
+```
+
+`plans/examples/signin-captions.plan.json` is the shipped example.
 
 ## The guards
 

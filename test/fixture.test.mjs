@@ -386,6 +386,7 @@ test('the shipped example plans validate', async () => {
     PLAN('fixture-selector-missing.plan.json'),
     EXAMPLE('signin.plan.json'),
     EXAMPLE('signin-nb.plan.json'),
+    EXAMPLE('signin-captions.plan.json'),
     path.join(ROOT, 'plans', 'examples', 'railway-installer.plan.json'),
   ];
   for (const file of files) {
@@ -409,9 +410,10 @@ test('--video records a walkthrough a reviewer can follow', async (t) => {
   if (res.code !== 0 && FFMPEG_HINT.test(res.stderr)) return t.skip('Playwright ffmpeg is not installed here');
   assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
 
-  // One deterministic file per page, named for the review sheet.
+  // One deterministic file per page, named for the review sheet — plus the
+  // subtitles the plan's `caption`s produce.
   const videos = await readdir(path.join(out, 'video'));
-  assert.deepEqual(videos, ['01-main.webm']);
+  assert.deepEqual(videos, ['01-main.vtt', '01-main.webm']);
   assert.ok((await stat(path.join(out, 'video', '01-main.webm'))).size > 10_000, 'the recording is not empty');
 
   // The timeline is what makes the video reviewable: chapters with times, and a
@@ -424,6 +426,8 @@ test('--video records a walkthrough a reviewer can follow', async (t) => {
   // page recorded onto a 16:9 canvas would be a stripe beside a page.
   assert.deepEqual(timeline.videoSize, { width: 900, height: 700 });
   assert.equal(timeline.videos[0].file, 'video/01-main.webm');
+  // The record names its sidecar, so the two files travel together.
+  assert.equal(timeline.videos[0].captionsFile, 'video/01-main.vtt');
   const shotSteps = timeline.steps.filter((step) => step.shot);
   assert.deepEqual(shotSteps.map((step) => step.shot.id), ['01-welcome', '02-step2', '03-echo']);
   for (const step of shotSteps) assert.equal(step.shot.cursorHidden, true, `${step.shot.id} was captured with the pointer hidden`);
@@ -436,9 +440,39 @@ test('--video records a walkthrough a reviewer can follow', async (t) => {
     assert.ok(timeline.steps[i].startMs >= timeline.steps[i - 1].startMs, `step ${i + 1} starts before the one before it`);
   }
 
+  // The subtitles are part of the run's record, not a post-processing step: each
+  // captioned step keeps its words, so a `.vtt` can be rebuilt without the plan.
+  const captioned = timeline.steps.filter((step) => step.caption);
+  assert.deepEqual(
+    captioned.map((step) => step.caption),
+    ["Open the app.", "The card asks for the operator's email.", 'Four services will be created.', 'A value read off the page comes back.'],
+  );
+  assert.equal(timeline.steps.find((step) => step.name === 'sign in').caption, null, 'a step without one clears the subtitle');
+
+  // The sidecar is what a player, a docs page or a video host actually reads.
+  const vtt = await readFile(path.join(out, 'video', '01-main.vtt'), 'utf8');
+  assert.ok(vtt.startsWith('WEBVTT\n\n'), 'a WebVTT file starts with its header');
+  assert.match(vtt, /^NOTE\nfixture-video · \d+ cue\(s\) · seed fixture-video-v1$/m);
+  const cues = vtt.match(/\d\d:\d\d:\d\d\.\d\d\d --> \d\d:\d\d:\d\d\.\d\d\d/g) ?? [];
+  assert.equal(cues.length, captioned.length, 'one cue per captioned step, none merged away or invented');
+  assert.match(vtt, /Open the app\./);
+  // A cue cannot describe a frame before the recording exists, and its window is
+  // the step's own: the first cue starts at (or after) zero and every cue ends
+  // after it starts.
+  for (const cue of cues) {
+    const [from, to] = cue.split(' --> ');
+    assert.ok(to > from, `cue ${cue} ends before it starts`);
+    assert.ok(from >= '00:00:00.000', 'a cue never starts before the file does');
+  }
+
   const review = await readFile(path.join(out, 'review.html'), 'utf8');
   assert.match(review, /<video/);
   assert.match(review, /video\/01-main\.webm/);
+  // The player carries the subtitles as a track (so they can be turned off and
+  // are searchable) *and* the recorder drew them in, which is what a viewer who
+  // never opens the review sheet sees.
+  assert.match(review, /<track kind="captions" src="video\/01-main\.vtt" srclang="en" label="Captions">/);
+  assert.ok(!/label="Captions" default>/.test(review), 'the track cannot be on by default: it would paint over the drawn-in pill');
   assert.match(review, /#t=\d/);
   assert.match(review, /seed fixture-video-v1/);
   // A chapter must seek the player in place: a reviewer jumps around a recording

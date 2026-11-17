@@ -107,6 +107,12 @@
       ],
       "properties": {
         "name": { "type": "string", "description": "What this step does, shown in logs and evidence files." },
+        "caption": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "The subtitle for this step: drawn in the page for the step's whole duration and written beside the recording as a WebVTT file. One line, a sentence a viewer reads while watching — an empty or over-long caption is refused."
+        },
         "when": {
           "type": "object",
           "additionalProperties": false,
