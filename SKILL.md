@@ -122,6 +122,14 @@ video editor, it is a claim nobody checks. `--no-humanize` has no overlay to dra
 with, so it writes the track only and warns; see `references/plan-format.md` →
 `caption`, and `plans/examples/signin-captions.plan.json`.
 
+A recording can also **tick a checklist off beside it**: `"check": "…"` on a step
+adds that row to a small panel docked over the page, ticked the moment the step
+starts. The rows are the steps — there is no list in the plan to drift — and the
+panel is hidden with the pointer for every figure, so the figures stay
+byte-identical. `video.checklist` sets its heading, side, width and tick colour;
+a viewport under 1280 px warns about the share of the frame it takes. See
+`references/plan-format.md` → `check`, and `plans/examples/signin-checklist.plan.json`.
+
 ### 4. Read the evidence, not the error
 
 A first run over an unseen page is wrong about a selector. When it fails, the
@@ -223,6 +231,7 @@ scripts/path-shots.mjs      the runner
 lib/human.mjs               how a recorded run is driven: pointer, travel, typing
 lib/recorder.mjs            how a recording is made: frames, resampling, ffmpeg
 lib/captions.mjs            a step's subtitle → the pill in the picture and its .vtt
+lib/checklist.mjs           the rows a recording ticks: derived from steps, drawn by human.mjs
 lib/timeline.mjs            where each step started/ended, and the video chapters
 lib/ingest.mjs              figures → WebP + manifest
 ```

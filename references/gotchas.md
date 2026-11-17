@@ -213,6 +213,29 @@ the run prints a warning. The pill is hidden for every figure and every piece of
 evidence along with the pointer, which is why a captioned run's PNGs stay
 byte-identical to a plain run's.
 
+**A checklist row is a step, so it cannot drift — and it ticks on the step's
+first frame, not its last.** A `check` marks the item done the moment the step
+starts, which is the right beat for "we are now doing X" but the wrong one if the
+work only finishes at the end of the step: put the `check` on the step that
+lands on the finished screen (after its `waitFor`), not on the click that starts
+the work. A row over 48 characters, a step carrying only `check`, more than ten
+items, or `video.checklist` with nothing to tick: refused before the browser
+opens.
+
+**A checklist panel is docked over the app, so the viewport decides what it
+covers.** It is 300 px by default (220–380 configurable), capped at 30% of the
+frame, and drawn over the page rather than shrinking it. A viewport under 1280 px
+triggers the warning in the log; a plan recorded at 900 px with a 380 px panel is
+a video of a panel with an app behind it. Pick the side the app leaves empty, and
+check the panel against a real frame — `--speed 20`, extract one.
+
+**A hard navigation takes the panel with the document.** Like the caption, the
+list is redrawn by the first `arrive()`/`hold`/`settle()` after a `goto`. It is
+redrawn *settled*, with the ticks already in place, so a page change does not
+re-run every tick; a row ticked before the navigation therefore appears
+already-ticked on the new page. Ticking in the panel itself happens only while
+the panel is on screen — which is what makes one run of ticks, not two.
+
 ## What the runner cannot do
 
 - **Know a selector was right for the screen you meant.** The guards are the only

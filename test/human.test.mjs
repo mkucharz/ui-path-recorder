@@ -198,6 +198,67 @@ test('a caption is drawn, cleared by an empty one, and said again after a page s
   assert.ok(!calls.includes('__pathCaption'), 'a cleared caption is not repeated');
 });
 
+test('the checklist arrives at the start and ticks on the beat, once per item', async () => {
+  const { page, overlay, calls } = fakePage();
+  const plan = {
+    viewport: { width: 900, height: 700 },
+    video: { checklist: { title: 'Setup' } },
+    steps: [{ check: 'Open the installer' }, { check: 'Sign in' }],
+  };
+  const humanizer = createHuman({ context: { addInitScript: () => {} }, page, plan, speed: 200, seed: 'checklist' });
+
+  // The panel is the one thing whose entrance animates: 0 / N, before any step
+  // has a picture of its own.
+  await humanizer.begin();
+  assert.deepEqual(overlay.at(-1), { name: '__pathChecklist', args: [[], true] });
+
+  await humanizer.check('  Open   the installer ');
+  assert.deepEqual(overlay.at(-1), { name: '__pathChecklist', args: [['Open the installer'], false] }, 'a tick is a settled redraw');
+  // Two spellings of one row are one row, and the page is told the same list.
+  await humanizer.check('Open the installer');
+  assert.deepEqual(overlay.at(-1).args, [['Open the installer'], false]);
+  await humanizer.check('Sign in');
+  assert.deepEqual(overlay.at(-1).args, [['Open the installer', 'Sign in'], false]);
+
+  // A navigation replaces the document that held the list: `arrive()` is where
+  // the runner waits for the new one, so it must draw the list again — settled,
+  // with the ticks it already had.
+  calls.length = 0;
+  await humanizer.arrive();
+  assert.ok(calls.includes('__pathChecklist'), 'the list follows the page it describes');
+  assert.deepEqual(overlay.at(-1).args, [['Open the installer', 'Sign in'], false]);
+});
+
+test('the panel travels in the init script, and a raw cut carries none', () => {
+  const scripts = [];
+  const context = { addInitScript: (_fn, arg) => scripts.push(arg) };
+  const plan = {
+    viewport: { width: 900, height: 700 },
+    video: { checklist: { side: 'left', width: 320 } },
+    steps: [{ check: 'Open the installer' }],
+  };
+  createHuman({ context, page: fakePage().page, plan }).attachInit();
+  assert.equal(scripts[0].checklist.side, 'left');
+  assert.equal(scripts[0].checklist.width, 320);
+  assert.deepEqual(scripts[0].checklist.items, ['Open the installer']);
+  assert.match(scripts[0].checklistCss, /#__path_checklist/);
+
+  // A plan with no `check` has no panel, and the overlay is not given an empty
+  // one to draw.
+  createHuman({ context, page: fakePage().page, plan: { steps: [{ goto: '/' }] } }).attachInit();
+  assert.equal(scripts[1].checklist, null);
+  assert.equal(scripts[1].checklistCss, '');
+});
+
+test('without humanizing there is no panel and nothing to tick', async () => {
+  const { page, overlay, calls } = fakePage();
+  const plain = createHuman({ context: { addInitScript: () => {} }, page, enabled: false, plan: { steps: [{ check: 'Open the installer' }] } });
+  await plain.begin();
+  await plain.check('Open the installer');
+  assert.deepEqual(calls, [], 'the page is never touched');
+  assert.deepEqual(overlay, []);
+});
+
 test('the same seed produces the same scheduled delay', async () => {
   const run = async (seed) => {
     const fake = fakePage();

@@ -115,6 +115,17 @@ is a claim nobody checks and it drifts off its screen on the next edit. One
 caption becomes both the pill drawn into the recording and the `.vtt` beside it
 (`plan-format.md` → `caption`).
 
+The same step can carry the row it completes in the checklist beside the video:
+
+```json
+{ "check": "Sign in with your email", "caption": "Type the email address on your account.", "fill": { "selector": "#email", "value": "${email}" } }
+```
+
+The panel's rows are these keys, so write them as the reader's outcome ("Sign in
+with your email"), not as the action ("click #email") — the subtitle says what is
+happening, the checklist says what is now done. Between four and ten items is a
+glance; more is a document (`plan-format.md` → `check`).
+
 Then, for a page that settles slowly:
 
 ```json

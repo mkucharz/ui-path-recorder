@@ -24,6 +24,7 @@ Machine-readable version: [`../plans/schema.json`](../plans/schema.json).
 | `themeStorage` | — | One storage key, pinned before any script runs: `{"cp-theme": "dark"}`. Use when the app ignores `prefers-color-scheme` for its theme, and for any first-paint chrome the site only suppresses from a stored dismissal — a locale switcher Apple keeps behind `ls-opt-out`. |
 | `reducedMotion` | `reduce` | `reduce` or `no-preference`. A recorded video forces `no-preference` — an app with every transition switched off records as a series of stills. |
 | `humanize` | on for `--video` | How the page is driven when recording. See below. |
+| `video` | — | How the recording is *drawn*: the checklist panel's heading, side, width and tick colour. See below. |
 | `vars` | — | `${name}` values. See below. |
 | `steps` | **required** | Non-empty array. |
 
@@ -295,6 +296,70 @@ Rules worth knowing:
   burned-in subtitles; the `.vtt` is still written and the run logs a warning.
 
 The shipped example is `plans/examples/signin-captions.plan.json`.
+
+### `check` — the checklist row this step ticks
+
+```json
+{ "check": "Open your workspace", "goto": "/?lang=${lang}" }
+{ "check": "Sign in with your email", "fill": { "selector": "#email", "value": "${email}" } }
+```
+
+A short line for the checklist panel docked beside the recording. The panel's rows
+**are** the steps that carry a `check`, in the order they first appear: there is
+no second list to keep in sync, so the panel cannot promise a step the path does
+not run, and re-ordering the plan re-orders the panel.
+
+- **The tick happens when the step starts**, on the same beat as its `caption`, so
+  the row and the subtitle change together. `timeline.checks()` (and the review
+  sheet's checklist block) seek to that moment.
+- **A repeated `check` is one row**, ticked once. A flow that returns to the same
+  screen does not grow a second row, and the later occurrence does not re-tick it.
+- **One line, at most 48 characters**, whitespace collapsed. More than ten
+  distinct items is refused: past that a viewer reads the list instead of watching.
+- **It is not an action.** A step carrying only `check` does nothing and is
+  refused; put it on the step whose work completes the item.
+- **A hard navigation re-draws the panel settled.** The list lives in the page, so
+  a `goto` replaces the document holding it; the new one draws the list with its
+  ticks already in place rather than animating them a second time.
+- **Figures never contain it**, exactly like the pointer and the caption.
+- `--no-humanize` has no overlay to draw with, so the recording carries no panel
+  and the run logs a warning.
+
+How the panel looks is `video.checklist` (below). The shipped example is
+`plans/examples/signin-checklist.plan.json`.
+
+## `video` — how the recording is drawn
+
+Optional. These keys describe the picture, never the path; the overlay is what
+draws them, so they apply to a humanized run (`--video` turns that on).
+
+| Key | | |
+|---|---|---|
+| `checklist` | — | `{ title, side, width, accent }` for the panel beside the video. |
+
+### `video.checklist`
+
+| Key | Default | |
+|---|---|---|
+| `title` | `"What you'll do"` | Heading above the rows. An empty string hides it. |
+| `side` | `"right"` | `left` or `right`. Pick the side the app leaves empty; a panel over a sidebar is a panel over evidence. |
+| `width` | `300` | 220–380 CSS pixels, capped at 30% of the viewport. Narrower crowds the labels, wider covers the app. |
+| `accent` | `"#7c9cf5"` | Colour of a completed tick, `#rgb` or `#rrggbb`. |
+
+The panel is docked *over* the app rather than shrinking it, so its width is a
+share of the frame: a viewport narrower than 1280 px logs a warning naming that
+share, because 30% of a 900 px page is a different video from 30% of 1600.
+
+Like the subtitle pill, the panel is drawn dark whatever the plan's
+`colorScheme`: it is a recording decoration, not part of the app, and a dark
+panel on a light page reads as an overlay rather than as a broken screen.
+
+```json
+"video": { "checklist": { "title": "Sign-in check", "width": 320 } }
+```
+
+An unknown key in either block is refused before a browser opens, the same way a
+mistyped step key is.
 
 ## `humanize` — how the page is driven when recording
 

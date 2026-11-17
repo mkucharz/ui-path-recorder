@@ -66,6 +66,7 @@
       "description": "prefers-reduced-motion. A recorded video forces no-preference: an app with every transition switched off records as a series of stills."
     },
     "humanize": { "$ref": "#/$defs/humanize" },
+    "video": { "$ref": "#/$defs/video" },
     "vars": {
       "type": "object",
       "description": "Values interpolated as ${name}. Prefer `literal` with neutral data for anything a figure will show; use `env` for credentials.",
@@ -112,6 +113,12 @@
           "minLength": 1,
           "maxLength": 160,
           "description": "The subtitle for this step: drawn in the page for the step's whole duration and written beside the recording as a WebVTT file. One line, a sentence a viewer reads while watching — an empty or over-long caption is refused."
+        },
+        "check": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48,
+          "description": "The checklist item this step ticks, drawn in a panel beside the recording the moment the step starts. The panel's rows are derived from the steps in first-appearance order, so this key is the only place the list is written; a repeated text is one row."
         },
         "when": {
           "type": "object",
@@ -270,6 +277,24 @@
         "holdMs": {
           "type": "integer",
           "description": "How long the video holds this frame before the next action (default: humanize.shotHoldMs, 1200)."
+        }
+      }
+    },
+    "video": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How the recording is drawn, rather than what the walkthrough does. Drawable only in a humanized run: the panel is an overlay in the page.",
+      "properties": {
+        "checklist": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The appearance of the checklist panel. The items are the steps that carry a `check` — there is no list to write here.",
+          "properties": {
+            "title": { "type": "string", "default": "What you'll do", "description": "The heading above the rows. An empty string hides it." },
+            "side": { "enum": ["left", "right"], "default": "right", "description": "Which edge the panel is docked to. Pick the side the app leaves empty." },
+            "width": { "type": "integer", "minimum": 220, "maximum": 380, "default": 300, "description": "Panel width in CSS pixels, capped at 30% of the viewport. Narrower rows than 220 crowd the labels; wider than 380 the panel covers the app." },
+            "accent": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$", "default": "#7c9cf5", "description": "Colour of a completed tick: #rgb or #rrggbb." }
+          }
         }
       }
     },
