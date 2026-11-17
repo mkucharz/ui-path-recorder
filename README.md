@@ -157,7 +157,8 @@ price and fails when Apple changes it:
 
 ```
 captures/signin-2026-01-01T10-00-00/
-  review.html          ← open this: every figure, its size, the text it asserted
+  review.html          ← open this: every figure, its size, the text it asserted,
+                          and a slideshow that walks them in the run's order
                           (plus the video with chapter links, when there is one)
   01-signin.png        ← the figure, at the capture ratio
   02-app.png
@@ -172,6 +173,15 @@ captures/signin-2026-01-01T10-00-00/
 A run directory is *reviewable before it touches a document*. That is the point
 of the default: nothing overwrites a published figure until a human has looked at
 `review.html`.
+
+That sheet holds the same figures twice, because two different questions are
+asked of them. The contact sheet answers *is this the right picture* — id, real
+pixels, the size the app drew on screen, and the text the plan asserted. The
+slideshow answers *does the path read in order*, which is the reviewer's actual
+job: `←`/`→` walk the figures one at a time, a thumbnail jumps to one, `#fig-2`
+in the URL points at a single slide, and `Present` goes full screen with a click
+on the figure as the next button. A slide's caption is the tile's own record, so
+the two views cannot disagree.
 
 ## A video a reader can follow
 

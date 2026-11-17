@@ -156,6 +156,13 @@ Open `captures/<run>/review.html`: every figure with its id, its real pixel size
 the size the app drew on screen, and **the text the plan asserted on that
 screen**. If a figure is stale you can see it by reading.
 
+The figures are also a **slideshow**, in the run's order: `←`/`→` walk them, a
+click on a thumbnail jumps to one, `#fig-2` in the URL points at a single slide,
+and `Present` goes full screen (there a click on the figure is the next button).
+What a slide says is the tile's own record — id, both sizes, the step, the
+asserted text — so stepping through the run in order is how you notice that step
+4's figure shows step 5's screen.
+
 When the run recorded a video, the same page carries the player and a chapter
 list built from `.timeline.json` — clicking a chapter seeks the player in place
 (`01-main.webm#t=4.6`, and a second tab's chapters seek that tab's recording), so

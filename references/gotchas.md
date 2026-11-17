@@ -118,6 +118,29 @@ Most apps paint a narrow column on a full viewport. A full-frame capture becomes
 because a colour-distance test sees a soft radial gradient as content and never
 trims anything.
 
+## The review sheet
+
+**The slideshow is built from the shots, never from a list.** A review page that
+carried its own idea of "the figures" could show a slide for a shot that failed,
+or keep one the plan dropped. Both views — the tiles and the slides — are
+generated from the same `shots` array in the same order, so the only way they can
+disagree is if the run wrote two different sets of figures.
+
+**One figure is not a slideshow.** Below two shots the section is not rendered at
+all: arrows over a single slide are a control that cannot do anything.
+
+**Stepping through slides is not history.** The slide goes in the URL as
+`#fig-2` (so a review comment can point at one) with `history.replaceState`, not a
+hash assignment: pressing back after looking at nine figures should leave the
+page, not walk them in reverse.
+
+**The player keeps the arrows while it has the focus.** The deck listens on
+`document`, and a keydown that started inside a `<video>`, an `<input>` or a
+`<textarea>` — or that arrived with a modifier — is left alone. Without that
+guard, scrubbing a recording to watch the pointer would silently change the
+figure underneath it. Space is the page's scroll key, so it advances only in
+fullscreen, where there is no page to scroll.
+
 ## Video
 
 **The pointer in a recording is a depiction, not a capture.** Playwright's
