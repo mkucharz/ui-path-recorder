@@ -112,6 +112,32 @@ test("a chapter in the second tab is timed from that tab's own recording", () =>
   );
 });
 
+test('checks are the ticked items, once each, timed like a chapter', () => {
+  const startedAt = Date.now() - 50;
+  const timeline = createTimeline(options({ startedAt }));
+  timeline.begin({ index: 1, action: 'goto', check: 'Open the installer' }).page(1);
+  // A step may re-tick an item — the panel keeps one row, so the sheet must too,
+  // and the first occurrence is the moment the row was ticked.
+  timeline.begin({ index: 2, action: 'click', check: 'Open the installer' }).page(1);
+  const skipped = timeline.begin({ index: 3, action: 'click', check: 'Never happened' });
+  skipped.skip('when:text');
+  timeline.begin({ index: 4, action: 'click', check: 'Sign in' }).page(1);
+  timeline.begin({ index: 5, action: 'click' }).page(1);
+  timeline.close();
+
+  const checks = timeline.checks();
+  assert.deepEqual(
+    checks.map((check) => check.item),
+    ['Open the installer', 'Sign in'],
+    'a repeated item is one row and a skipped step never ticked',
+  );
+  const [first, second] = checks;
+  assert.ok(first.atMs <= second.atMs, 'the rows are in the order they tick');
+  const steps = timeline.toJSON().steps;
+  assert.equal(first.atMs, Math.max(0, steps[0].startMs - timeline.toJSON().videoOffsetMs));
+  assert.equal(timeline.checks().at(-1).page, 1);
+});
+
 test('chapter times are relative to the start of the recording, not of the run', () => {
   const startedAt = Date.now();
   // The recorder started 1.5 s before the plan did.

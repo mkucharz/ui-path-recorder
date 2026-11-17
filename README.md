@@ -296,6 +296,47 @@ out from the recording:
 
 `plans/examples/signin-captions.plan.json` is the shipped example.
 
+### The checklist ticks itself off beside the video
+
+A subtitle says what the step is doing; nothing yet says what is left. A small
+panel on the side does, and — like the subtitle — the rows come from the plan
+rather than from an editor:
+
+```json
+{ "name": "fill the email", "check": "Sign in with your email", "caption": "Type the email address on your account.", "fill": { "selector": "#email", "value": "${email}" } }
+```
+
+The panel's rows *are* the steps that carry a `check`, in first-appearance order,
+so there is no second list to drift: re-order the plan and the panel re-orders,
+drop a step and its row goes with it. Each row ticks with a small draw-on check
+and a strike-through the moment its step starts — the same beat as that step's
+subtitle, so the row and the voice change together.
+
+```
+  What you'll do
+  ✓ Open your workspace
+  ✓ Sign in with your email
+  ○ Enter your password         1 / 4
+```
+
+It is docked over the app at the right edge (300 px by default, capped at 30% of
+the viewport), not built into the page, so the page is not resized for it and it
+can be removed for every figure exactly like the pointer — a captioned,
+checklist-ticked run's figures are still byte-identical to a plain run's.
+`video.checklist` changes its heading, side, width and tick colour, and a viewport
+under 1280 px gets a warning naming the share the panel takes:
+
+```
+  checklist: 4 item(s)  side=right  width=300px
+  warning: viewport is 900px wide; a right checklist takes 270px of it
+```
+
+`--no-humanize` draws neither the subtitles nor the panel, and says so. The
+review sheet lists the checklist the video ticks, each row a link that seeks the
+player to the moment it ticked — the one part of a checklist a still cannot prove.
+
+`plans/examples/signin-checklist.plan.json` is the shipped example.
+
 ## The guards
 
 The runner refuses to write a figure when the screen does not prove it is the

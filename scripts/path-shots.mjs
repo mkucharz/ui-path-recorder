@@ -66,6 +66,7 @@ import { writeEvidence } from '../lib/evidence.mjs';
 import { writeReview } from '../lib/review.mjs';
 import { createHuman, resolveOptions } from '../lib/human.mjs';
 import { buildVtt, cuesForRecording, vttFor } from '../lib/captions.mjs';
+import { NARROW_VIEWPORT, checklistOptions } from '../lib/checklist.mjs';
 import { createRecorder } from '../lib/recorder.mjs';
 import { actionOf, createTimeline } from '../lib/timeline.mjs';
 
@@ -398,13 +399,32 @@ const pageLog = [];
 let videoFiles = [];
 if (humanizeOn) {
   console.log(`  humanize: on   seed=${humanSeed}  speed=${humanOptions.speed}${video ? '' : '  (no --video: pacing only)'}`);
+  // The panel is the overlay's work, so it is worth one line of its own: a
+  // checklist nobody expected, or one that is not there, is otherwise first
+  // seen in the finished recording.
+  const checklist = checklistOptions(plan);
+  if (checklist) {
+    const width = Math.round(Math.min(checklist.width, viewport.width * 0.3));
+    console.log(`  checklist: ${checklist.items.length} item(s)  side=${checklist.side}  width=${width}px`);
+    if (viewport.width < NARROW_VIEWPORT) {
+      console.warn(
+        `  warning: viewport is ${viewport.width}px wide; a ${checklist.side} checklist takes ${width}px of it\n` +
+          `  -- widen the viewport or narrow "video.checklist.width" — the panel is docked over the app`,
+      );
+    }
+  }
 } else {
-  // Captions are drawn by the overlay, which a raw cut does not install. The
-  // .vtt is still written, but the recording itself will carry no subtitles and
-  // that is worth saying once rather than discovering in a finished file.
+  // Captions and the checklist are drawn by the overlay, which a raw cut does
+  // not install. The .vtt is still written, but the recording itself will carry
+  // neither, and that is worth saying once rather than discovering in a finished
+  // file.
   const captioned = plan?.steps.filter((step) => step.caption).length ?? 0;
   if (video && captioned) {
     console.warn(`  warning: ${captioned} step(s) carry a caption; --no-humanize leaves it to the .vtt track`);
+  }
+  const checked = plan?.steps.filter((step) => step.check).length ?? 0;
+  if (video && checked) {
+    console.warn(`  warning: ${checked} step(s) carry a check; --no-humanize draws no checklist`);
   }
 }
 
@@ -728,7 +748,13 @@ try {
   for (const [i, step] of plan.steps.entries()) {
     const label = `#${i + 1}${step.name ? ` ${step.name}` : ''}`;
     currentStep = label;
-    const record = timeline.begin({ index: i + 1, name: step.name ?? null, action: actionOf(step), caption: step.caption ?? null });
+    const record = timeline.begin({
+      index: i + 1,
+      name: step.name ?? null,
+      action: actionOf(step),
+      caption: step.caption ?? null,
+      check: step.check ? step.check.replace(/\s+/g, ' ').trim() : null,
+    });
     // Which tab this step runs in. A `clickNewPage` flow continues in a second
     // recording, and a chapter that seeks into the wrong one lands on a screen
     // the step never showed — so the tab is recorded per step, not once.
@@ -758,6 +784,11 @@ try {
     // described. It is set before `goto`, because `arrive()` is what says it
     // again once the new document exists.
     await human.caption(step.caption ?? '');
+    // The checklist row this step completes, ticked on the same beat as the
+    // subtitle. A tick before a `goto` lands in the old document and is drawn
+    // already-done by the new one, which is the rule for a panel that crosses a
+    // navigation: re-ticking every page change reads as a bug.
+    if (step.check) await human.check(step.check);
     if (step.goto) {
       const url = expand(step.goto);
       await page.goto(url.startsWith('http') ? url : `${baseUrl}${url}`, { waitUntil: 'domcontentloaded' });

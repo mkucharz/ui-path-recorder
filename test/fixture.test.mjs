@@ -387,6 +387,7 @@ test('the shipped example plans validate', async () => {
     EXAMPLE('signin.plan.json'),
     EXAMPLE('signin-nb.plan.json'),
     EXAMPLE('signin-captions.plan.json'),
+    EXAMPLE('signin-checklist.plan.json'),
     path.join(ROOT, 'plans', 'examples', 'railway-installer.plan.json'),
   ];
   for (const file of files) {
@@ -449,6 +450,20 @@ test('--video records a walkthrough a reviewer can follow', async (t) => {
   );
   assert.equal(timeline.steps.find((step) => step.name === 'sign in').caption, null, 'a step without one clears the subtitle');
 
+  // The checklist is a property of the steps, not a list of its own: what the
+  // panel draws is recoverable from the timeline alone, in first-appearance
+  // order, and each row carries the moment its tick happened.
+  const checked = timeline.steps.filter((step) => step.check);
+  assert.deepEqual(
+    checked.map((step) => step.check),
+    ['Open the installer', 'Sign in as the operator', 'Pick the target', 'Copy the generated password'],
+  );
+  assert.equal(timeline.steps.find((step) => step.name === 'sign in').check, null, 'a step without one ticks nothing');
+  // The fixture viewport is under the panel's comfortable width, so the run says
+  // the panel's share of it out loud instead of leaving it to the recording.
+  assert.match(res.stdout, /checklist: 4 item\(s\)\s+side=right\s+width=260px/);
+  assert.match(res.stderr, /warning: viewport is 900px wide; a right checklist takes 260px of it/);
+
   // The sidecar is what a player, a docs page or a video host actually reads.
   const vtt = await readFile(path.join(out, 'video', '01-main.vtt'), 'utf8');
   assert.ok(vtt.startsWith('WEBVTT\n\n'), 'a WebVTT file starts with its header');
@@ -480,6 +495,11 @@ test('--video records a walkthrough a reviewer can follow', async (t) => {
   // handler is progressive — the plain `#t=` href still works without it.
   assert.match(review, /ol\.chapters a\[href\*="#t="\]/);
   assert.match(review, /player\.currentTime = Number\(seconds\)/);
+  // The checklist in the sheet is the one the panel drew, each row a seek: the
+  // only way a reviewer can check that a tick lands on the moment it claims.
+  assert.match(review, /<ol class="chapters checks">/);
+  assert.match(review, /Open the installer<\/a> <span class=dim>\d+\.\ds<\/span>/);
+  assert.match(review, /Copy the generated password<\/a>/);
 
   // The figures are unchanged by any of it. This is the claim that matters most
   // for a *recording*: the pointer is drawn into the very page the figure is
@@ -581,6 +601,9 @@ test('--no-humanize records the raw machine-speed cut', async (t) => {
   const shotSteps = timeline.steps.filter((step) => step.shot);
   assert.equal(shotSteps.length, 3);
   assert.ok(shotSteps.every((step) => step.shot.cursorHidden === false), 'nothing was hidden, because nothing was drawn');
+  // A raw cut installs no overlay, so the checklist the plan describes is not in
+  // the picture either — said once, not discovered in the finished file.
+  assert.match(res.stderr, /4 step\(s\) carry a check; --no-humanize draws no checklist/);
 });
 
 test('a humanize block with a bad knob is refused before a browser opens', async () => {

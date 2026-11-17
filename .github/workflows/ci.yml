@@ -44,6 +44,7 @@ jobs:
               "plans/examples/signin.plan.json",
               "plans/examples/signin-nb.plan.json",
               "plans/examples/signin-captions.plan.json",
+              "plans/examples/signin-checklist.plan.json",
               "plans/examples/railway-installer.plan.json",
               "plans/examples/apple-mac-studio-max.plan.json",
             ]) {
