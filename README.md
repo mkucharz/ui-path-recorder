@@ -330,26 +330,45 @@ and a strike-through the moment its step starts — the same beat as that step's
 subtitle, so the row and the voice change together.
 
 ```
-  What you'll do
+  WHAT YOU'LL DO
+  Four steps, one workspace
   ✓ Open your workspace
   ✓ Sign in with your email
   ○ Enter your password         1 / 4
 ```
 
+The heading and the short line under it are `title` and `subtitle` on
+`video.checklist`: the line says what the list is for, in one glance, so the panel
+answers "what is this list" before it answers "what is left":
+
+```json
+"video": { "checklist": { "title": "Sign-in checklist", "subtitle": "Four steps, one workspace" } }
+```
+
 It comes in **two layouts**, and the difference is what happens to the page:
 
 - `"layout": "overlay"` (the default) floats a translucent card over the app at
-  the right edge (300 px by default, capped at 30% of the viewport). Nothing about
-  the page changes, which is right for an app that fills its window — the tick
-  still reads behind the panel because the card blurs what is under it.
+  the edge `side` names (300 px by default, capped at 30% of the viewport).
+  Nothing about the page changes, which is right for an app that fills its
+  window — the tick still reads behind the panel because the card blurs what is
+  under it.
 - `"layout": "dock"` reserves a column instead of covering one: the page is laid
   out beside the panel, so no control is ever hidden and the whole frame is one
-  composition — app on the left, list on the right. That is what a 1920×1080
+  composition — app on one side, list on the other. That is what a 1920×1080
   recording needs to be a real 16:9 frame rather than an app with a card on top.
 
 ```json
 "video": { "checklist": { "title": "Sign-in checklist", "layout": "dock", "width": 360 } }
+"video": { "checklist": { "title": "Sign-in checklist", "layout": "dock", "side": "left", "width": 360 } }
 ```
+Each line is the whole block: the same panel on the right (the default) and on the
+left.
+
+`side` is `right` (the default) or `left`, and it means the same thing in both
+layouts: which edge the panel takes. In `dock` that is also which edge the page
+gives up, so a flow whose app leaves its left margin empty docks `left` and the
+frame reads list-then-app. The subtitle follows: it is centred on the page column,
+not on the frame, in either direction.
 
 Either way the panel is *not* built into the page: it can be removed for every
 figure exactly like the pointer, so a captioned, checklist-ticked run's figures are
@@ -357,9 +376,10 @@ still byte-identical to a plain run's. A docked run keeps the reserved column
 while the panel is off screen — the picture must show the page the video showed,
 and a page that reflowed for the capture would not be that page.
 
-`video.checklist` changes its heading, side, width, layout and tick colour. A
-viewport under 1280 px gets a warning naming the share the panel takes, and a dock
-that would leave the app itself narrower than 1280 px gets its own:
+`video.checklist` changes its heading, its second line, side, width, layout and
+tick colour. A viewport under 1280 px gets a warning naming the share the panel
+takes, and a dock that would leave the app itself narrower than 1280 px gets its
+own:
 
 ```
   checklist: 4 item(s)  side=right  width=300px
@@ -374,7 +394,8 @@ player to the moment it ticked — the one part of a checklist a still cannot pr
 
 `plans/examples/signin-checklist.plan.json` is the shipped overlay example;
 `plans/examples/signin-sidebar.plan.json` is the docked one, at 1920×1080 with a
-360 px column (1560 px for the app).
+360 px column (1560 px for the app), and `plans/examples/signin-sidebar-left.plan.json`
+is the same panel on the left edge.
 
 ### A title card and an end card
 

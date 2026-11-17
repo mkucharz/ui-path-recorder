@@ -22,14 +22,10 @@
       "goto": "/?lang=${lang}"
     },
     {
-      "name": "the form is on screen",
+      "name": "the form is on screen, still signing in with a password",
       "caption": "Sign in with the address and password you already use.",
-      "expect": { "selector": ["#signin-card", "#email"] },
+      "expect": { "selector": ["#signin-card", "#email", "#password", "#submit"] },
       "shot": { "id": "01-signin", "clip": "#signin-card", "pad": 48 }
-    },
-    {
-      "name": "this screen still signs in with a password",
-      "expect": { "selector": ["#password", "#submit"] }
     },
     {
       "name": "fill the email",

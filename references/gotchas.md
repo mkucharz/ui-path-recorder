@@ -245,6 +245,17 @@ that stops at the page load; put the sentence on the step that lands on the new
 screen (after its `waitFor`) instead. The `.vtt` is unaffected either way, because
 its cue is the step's own clock.
 
+**A step that says nothing takes the subtitle with it, so a guard between two
+narrated steps flickers.** The pill belongs to its step: the next step clears it,
+even if that step is a 10 ms `expect` and the one after it captions the same
+screen. A viewer sees the subtitle blink rather than pause, and a recording shows
+it as one blank frame. The validator warns about that shape — fold the guard into
+a neighbour (`expect` runs last in the step, so two guards on one screen combine
+cleanly) or give the quiet step a line. A `hold`, `waitFor` or `shot` makes the
+silence deliberate and is not warned about. This is why
+`plans/examples/signin-captions.plan.json` guards `#password` and `#submit` on the
+step that already inspected the form instead of spending a step on it.
+
 **A caption is a line, and `--no-humanize` does not burn it in.** Over 160
 characters, carrying a newline, empty, or on a step with no action: refused before
 the browser opens. The pill is drawn by the humanizer's overlay, so the raw cut
@@ -284,6 +295,12 @@ recording is a true 16:9 composition. Three things bite:
   1280 px logs a warning; 1920−360 = 1560 is the shipped example
   (`plans/examples/signin-sidebar.plan.json`), 1600−360 = 1240 is the one the
   warning is about.
+- **Everything centred in the frame follows the reservation.** The subtitle is
+  the one that shows: centred on the frame it sits under the middle of page +
+  list, which reads as shifted off the screen it is captioning. It is centred on
+  the app column (`--pc-dock-shift`) and bounded by it, and a card — which
+  reserves nothing — still centres on the whole frame. A new fixed, centred
+  overlay should do the same, or it will look off by half the panel.
 
 **A hard navigation takes the panel with the document.** Like the caption, the
 list is redrawn by the first `arrive()`/`hold`/`settle()` after a `goto`. It is
