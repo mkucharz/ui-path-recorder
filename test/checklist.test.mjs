@@ -112,6 +112,10 @@ test('a plan refuses a checklist it cannot draw', () => {
   // The second line is a glance under the heading: a string, one line, short.
   assert.throws(() => validate(withVideo({ checklist: { subtitle: 7 } })), /subtitle" must be a string/);
   assert.throws(() => validate(withVideo({ checklist: { subtitle: 'Two\nlines' } })), /subtitle" must be a single line/);
+  // "" is how a plan says "no second line"; spaces are a paragraph that says
+  // nothing, and would take the heading's gap to do it.
+  assert.throws(() => validate(withVideo({ checklist: { subtitle: '   ' } })), /subtitle" is only spaces/);
+  assert.doesNotThrow(() => validate(withVideo({ checklist: { subtitle: '' } })));
   assert.throws(
     () => validate(withVideo({ checklist: { subtitle: 'x'.repeat(MAX_SUBTITLE_CHARS + 1) } })),
     /subtitle" is \d+ characters — keep it under \d+/,

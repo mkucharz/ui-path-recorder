@@ -285,8 +285,9 @@ Rules worth knowing:
   screen it described, and the `.vtt` cue stops at the same boundary the pill
   does. That also means a step that says nothing between two that do blanks the
   pill for as long as it lasts — harmless for a `hold`, a **flicker** for a
-  guard. A silent step with no `hold`/`waitFor`/`shot` between two captioned ones
-  is warned about; fold its guard into a neighbour instead.
+  guard. A silent step with no `hold`, `waitFor`, `pause`, `waitHidden` or `shot`
+  between two captioned ones is warned about; fold its guard into a neighbour
+  instead.
 - **Consecutive steps with the same caption are one cue**, so a two-step screen
   does not blink a subtitle on and off.
 - **A cue shorter than 1.2 s is lengthened** to its step's own boundary: a click
@@ -307,7 +308,7 @@ The shipped example is `plans/examples/signin-captions.plan.json`.
 { "check": "Sign in with your email", "fill": { "selector": "#email", "value": "${email}" } }
 ```
 
-A short line for the checklist panel docked beside the recording. The panel's rows
+A short line for the checklist panel beside the recording. The panel's rows
 **are** the steps that carry a `check`, in the order they first appear: there is
 no second list to keep in sync, so the panel cannot promise a step the path does
 not run, and re-ordering the plan re-orders the panel.
@@ -353,7 +354,7 @@ that records.
 | Key | Default | |
 |---|---|---|
 | `title` | `"What you'll do"` | Heading above the rows. An empty string hides it. |
-| `subtitle` | `""` | A short second line under the heading — what the list is for. One line, under 80 characters; an empty string leaves the heading alone. |
+| `subtitle` | `""` | A short second line under the heading — what the list is for, in under 80 characters. One line in the plan (a newline is refused), but it is not one drawn line: a 220 px panel wraps a full-length one to four rows, so keep it a phrase. An empty string, or no key, leaves the heading alone. |
 | `side` | `"right"` | `left` or `right`. Pick the side the app leaves empty; a panel over a sidebar is a panel over evidence. In `dock` it is also the edge the page gives up. |
 | `width` | `300` | 220–380 CSS pixels. In `overlay` it is capped at 30% of the viewport; in `dock` it keeps its width, because the page gives up exactly that column. |
 | `layout` | `"overlay"` | `overlay` floats a translucent card over the app; `dock` reserves a column of its own and lays the page out beside it. |

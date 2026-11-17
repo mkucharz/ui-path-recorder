@@ -389,6 +389,8 @@ test('the shipped example plans validate', async () => {
     EXAMPLE('signin-captions.plan.json'),
     EXAMPLE('signin-checklist.plan.json'),
     EXAMPLE('signin-walkthrough.plan.json'),
+    EXAMPLE('signin-sidebar.plan.json'),
+    EXAMPLE('signin-sidebar-left.plan.json'),
     path.join(ROOT, 'plans', 'examples', 'railway-installer.plan.json'),
   ];
   for (const file of files) {

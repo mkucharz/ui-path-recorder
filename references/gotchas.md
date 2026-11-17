@@ -251,8 +251,8 @@ even if that step is a 10 ms `expect` and the one after it captions the same
 screen. A viewer sees the subtitle blink rather than pause, and a recording shows
 it as one blank frame. The validator warns about that shape — fold the guard into
 a neighbour (`expect` runs last in the step, so two guards on one screen combine
-cleanly) or give the quiet step a line. A `hold`, `waitFor` or `shot` makes the
-silence deliberate and is not warned about. This is why
+cleanly) or give the quiet step a line. A `hold`, `waitFor`, `pause`, `waitHidden` or `shot` makes
+the silence deliberate and is not warned about. This is why
 `plans/examples/signin-captions.plan.json` guards `#password` and `#submit` on the
 step that already inspected the form instead of spending a step on it.
 
