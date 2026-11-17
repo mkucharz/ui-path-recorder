@@ -330,12 +330,16 @@ How the panel looks is `video.checklist` (below). The shipped example is
 
 ## `video` — how the recording is drawn
 
-Optional. These keys describe the picture, never the path; the overlay is what
-draws them, so they apply to a humanized run (`--video` turns that on).
+Optional. These keys describe the picture, never the path. The panel is an
+overlay, so it applies to a humanized run (`--video` turns that on); the cards are
+page content and appear in the raw cut too, but only in a run that records.
 
 | Key | | |
 |---|---|---|
 | `checklist` | — | `{ title, side, width, accent }` for the panel beside the video. |
+| `intro` | — | The title card the video opens on. `{ title, subtitle?, bullets? }`. |
+| `outro` | — | The end card the video closes on. Same shape. |
+| `cardMs` | `2200` | How long each card is held, divided by `humanize.speed` like every other delay. |
 
 ### `video.checklist`
 
@@ -358,8 +362,46 @@ panel on a light page reads as an overlay rather than as a broken screen.
 "video": { "checklist": { "title": "Sign-in check", "width": 320 } }
 ```
 
-An unknown key in either block is refused before a browser opens, the same way a
-mistyped step key is.
+### `video.intro` / `video.outro`
+
+A card is a whole screen of the recording, so it is built around one line.
+
+| Key | Default | |
+|---|---|---|
+| `title` | **required** | The line the card is built around, up to 60 characters. A single line — a title that needs a paragraph is a `subtitle`. |
+| `subtitle` | — | One sentence under it, up to 120 characters. |
+| `bullets` | — | Up to 6 one-line points, 60 characters each. Six is a glance; more is a slide nobody reads. |
+
+Both cards carry **the same rows the panel ticks** — the steps that carry a
+`check` — at `0 / N` on the way in and `N / N`, all struck through, on the way
+out. There is nothing to write a second time, so a card cannot promise a step the
+path does not run.
+
+Two consequences worth knowing before you write one:
+
+- A card is an ordinary HTML document set in the page, not an overlay drawing, so
+  `--no-humanize` still records it. It is also why a card needs `--video`: a card
+  is a *recorded frame*, and a figure run must not open on a title card.
+- A card is measured after it renders. If its content plus its own padding is
+  taller than the viewport, the run warns with the number of pixels and the frame
+  height, because that overflow is a silent cut-off in the finished video. The
+  contract caps the text, not the pixels: how tall a line is depends on the
+  frame's size.
+
+The theme follows the plan's `colorScheme` rather than the app's, since a card is
+the recording speaking rather than the product. It carries no URL bar, no
+breadcrumb and no overlay.
+
+```json
+"video": {
+  "intro": { "title": "Sign in to your workspace", "bullets": ["About thirty seconds"] },
+  "outro": { "title": "That is the whole path" },
+  "cardMs": 2400
+}
+```
+
+An unknown key in any of these blocks is refused before a browser opens, the same
+way a mistyped step key is.
 
 ## `humanize` — how the page is driven when recording
 

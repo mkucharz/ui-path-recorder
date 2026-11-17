@@ -12,7 +12,14 @@
     "shotHoldMs": 600
   },
   "video": {
-    "checklist": { "title": "Setup", "width": 260 }
+    "checklist": { "title": "Setup", "width": 260 },
+    "intro": {
+      "title": "Deploy the stack from a clean machine",
+      "subtitle": "Four services, one walkthrough.",
+      "bullets": ["Bring your own domain", "Roughly ten minutes"]
+    },
+    "outro": { "title": "That is the whole path", "bullets": ["Re-run it when the app changes"] },
+    "cardMs": 1000
   },
   "vars": {
     "adminEmail": { "literal": "admin@example.com" },

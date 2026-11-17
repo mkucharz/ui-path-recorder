@@ -283,7 +283,7 @@
     "video": {
       "type": "object",
       "additionalProperties": false,
-      "description": "How the recording is drawn, rather than what the walkthrough does. Drawable only in a humanized run: the panel is an overlay in the page.",
+      "description": "How the recording is drawn, rather than what the walkthrough does. The checklist panel is an overlay in the page and needs a humanized run; the intro and end cards are page content, so they appear in the raw cut too.",
       "properties": {
         "checklist": {
           "type": "object",
@@ -295,8 +295,22 @@
             "width": { "type": "integer", "minimum": 220, "maximum": 380, "default": 300, "description": "Panel width in CSS pixels, capped at 30% of the viewport. Narrower rows than 220 crowd the labels; wider than 380 the panel covers the app." },
             "accent": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$", "default": "#7c9cf5", "description": "Colour of a completed tick: #rgb or #rrggbb." }
           }
-        }
+        },
+        "intro": { "$ref": "#/$defs/card", "description": "The title card the video opens on, shown before the app. It carries the same checklist the panel ticks, at 0 / N." },
+        "outro": { "$ref": "#/$defs/card", "description": "The end card the video closes on, shown after the last step. It carries the same checklist the panel ticked, all N ticked." },
+        "cardMs": { "type": "number", "minimum": 0, "default": 2200, "description": "How long each card is held in the recording, divided by humanize.speed like every other delay. Long enough to read twice." }
       }
+    },
+    "card": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 60, "description": "The line the card is built around. A single line — a title that needs a paragraph is a subtitle." },
+        "subtitle": { "type": "string", "maxLength": 120, "description": "One sentence under the title: what the walkthrough does, or what the viewer now has." },
+        "bullets": { "type": "array", "minItems": 1, "maxItems": 6, "items": { "type": "string", "maxLength": 60 }, "description": "One-line points under the title. Six is a glance; more is a slide nobody reads." }
+      },
+      "description": "An intro or end card: a whole screen of the recording, themed by the plan's colorScheme. A title containing markup is text, not HTML."
     },
     "humanize": {
       "type": "object",

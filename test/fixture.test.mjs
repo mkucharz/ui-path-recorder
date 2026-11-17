@@ -388,6 +388,7 @@ test('the shipped example plans validate', async () => {
     EXAMPLE('signin-nb.plan.json'),
     EXAMPLE('signin-captions.plan.json'),
     EXAMPLE('signin-checklist.plan.json'),
+    EXAMPLE('signin-walkthrough.plan.json'),
     path.join(ROOT, 'plans', 'examples', 'railway-installer.plan.json'),
   ];
   for (const file of files) {
@@ -464,6 +465,22 @@ test('--video records a walkthrough a reviewer can follow', async (t) => {
   assert.match(res.stdout, /checklist: 4 item\(s\)\s+side=right\s+width=260px/);
   assert.match(res.stderr, /warning: viewport is 900px wide; a right checklist takes 260px of it/);
 
+  // The cards are chapters, not padding: the video opens on the title and closes
+  // on the recap, and both are seekable like a step. `cardMs` is divided by
+  // `--speed` with every other delay, so a fast replay stays fast.
+  assert.match(res.stdout, /cards: intro \+ outro\s+50ms each/);
+  const cardSteps = timeline.steps.filter((step) => step.action === 'card');
+  assert.deepEqual(cardSteps.map((step) => step.name), ['intro', 'outro']);
+  assert.equal(timeline.steps[0].name, 'intro', 'the title card is the first thing recorded');
+  assert.equal(timeline.steps.at(-1).name, 'outro', 'and the recap is the last');
+  assert.equal(cardSteps[1].index, timeline.steps.length - 1, 'the end card is numbered after the last step');
+  assert.equal(cardSteps[0].page, 1);
+  assert.equal(cardSteps[0].caption, null, 'a card carries no subtitle: it is its own words');
+  assert.equal(cardSteps[0].check, null);
+  // A card is a whole screen, so it either fits the frame or the run says it does
+  // not; a fixture card that warns would be a card the recording cannot show.
+  assert.doesNotMatch(res.stderr, /card is \d+px taller/);
+
   // The sidecar is what a player, a docs page or a video host actually reads.
   const vtt = await readFile(path.join(out, 'video', '01-main.vtt'), 'utf8');
   assert.ok(vtt.startsWith('WEBVTT\n\n'), 'a WebVTT file starts with its header');
@@ -489,6 +506,10 @@ test('--video records a walkthrough a reviewer can follow', async (t) => {
   assert.match(review, /<track kind="captions" src="video\/01-main\.vtt" srclang="en" label="Captions">/);
   assert.ok(!/label="Captions" default>/.test(review), 'the track cannot be on by default: it would paint over the drawn-in pill');
   assert.match(review, /#t=\d/);
+  // The cards are in the playlist too, so a reviewer can jump to the title and
+  // to the recap instead of scrubbing for them.
+  assert.match(review, /video\/01-main\.webm#t=[\d.]+">intro<\/a>/);
+  assert.match(review, /video\/01-main\.webm#t=[\d.]+">outro<\/a>/);
   assert.match(review, /seed fixture-video-v1/);
   // A chapter must seek the player in place: a reviewer jumps around a recording
   // and needs the figure list it is comparing against to stay on screen. The
@@ -604,6 +625,14 @@ test('--no-humanize records the raw machine-speed cut', async (t) => {
   // A raw cut installs no overlay, so the checklist the plan describes is not in
   // the picture either — said once, not discovered in the finished file.
   assert.match(res.stderr, /4 step\(s\) carry a check; --no-humanize draws no checklist/);
+  // The cards survive it, because they are page content rather than an overlay
+  // drawing: the raw cut opens on the title and still ends on the recap.
+  assert.match(res.stdout, /card: intro/);
+  assert.match(res.stdout, /card: outro/);
+  assert.deepEqual(
+    timeline.steps.filter((step) => step.action === 'card').map((step) => step.name),
+    ['intro', 'outro'],
+  );
 });
 
 test('a humanize block with a bad knob is refused before a browser opens', async () => {

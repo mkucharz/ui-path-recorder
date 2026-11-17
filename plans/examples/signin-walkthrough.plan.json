@@ -1,0 +1,79 @@
+{
+  "tutorial": "signin-walkthrough",
+  "description": "The finished article, plan-only: a title card says what the video is for, subtitles narrate each step, a panel beside the page ticks the checklist off as it runs, and an end card closes on the same list filled in. Nothing here was added in an editor.",
+  "baseUrl": "${SIGNIN_URL}",
+  "locale": "en-US",
+  "viewport": { "width": 1600, "height": 900 },
+  "colorScheme": "dark",
+  "deviceScaleFactor": 2,
+  "humanize": {
+    "seed": "signin-walkthrough-v1",
+    "shotHoldMs": 1600
+  },
+  "video": {
+    "checklist": {
+      "title": "What you'll do",
+      "side": "right",
+      "width": 320,
+      "accent": "#7ce0b8"
+    },
+    "intro": {
+      "title": "Sign in to your workspace",
+      "subtitle": "One card, two fields, and a checklist that fills in as the recording runs.",
+      "bullets": ["The sign-in screen you already use", "Captions written in the plan", "About thirty seconds"]
+    },
+    "outro": {
+      "title": "That is the whole path",
+      "subtitle": "Re-run the plan when the app changes: the video, the figures and the checklist come back together.",
+      "bullets": ["Every step is also a screenshot", "Drop it into a docs site as-is"]
+    },
+    "cardMs": 2400
+  },
+  "vars": {
+    "lang": { "literal": "en" },
+    "email": { "literal": "reader@acme.example" },
+    "password": { "literal": "not-a-real-password" }
+  },
+  "steps": [
+    {
+      "name": "open the sign-in page",
+      "caption": "Open the sign-in page for your workspace.",
+      "check": "Open your workspace",
+      "goto": "/?lang=${lang}"
+    },
+    {
+      "name": "the form is on screen",
+      "caption": "Sign in with the address and password you already use.",
+      "check": "Sign in with your email",
+      "expect": { "selector": ["#signin-card", "#email"] },
+      "shot": { "id": "01-signin", "clip": "#signin-card", "pad": 48 }
+    },
+    {
+      "name": "this screen still signs in with a password",
+      "expect": { "selector": ["#password", "#submit"] }
+    },
+    {
+      "name": "fill the email",
+      "caption": "Type the email address on your account.",
+      "fill": { "selector": "#email", "value": "${email}" }
+    },
+    {
+      "name": "fill the password",
+      "caption": "Then the password.",
+      "check": "Enter your password",
+      "fill": { "selector": "#password", "value": "${password}" }
+    },
+    {
+      "name": "sign in",
+      "caption": "Choose Sign in.",
+      "click": "#submit"
+    },
+    {
+      "name": "the workspace is on screen",
+      "caption": "You land in your workspace, signed in.",
+      "check": "Land in your workspace",
+      "expect": { "selector": "#dashboard" },
+      "shot": { "id": "02-workspace" }
+    }
+  ]
+}
