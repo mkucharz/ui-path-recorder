@@ -15,15 +15,55 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { after, before, test } from 'node:test';
 import { chromium } from 'playwright-core';
 import { writeReview } from '../lib/review.mjs';
 
-/** 1×1 transparent PNG: a slide needs a file, not a picture, to be navigable. */
-const PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
-  'base64',
-);
+/**
+ * A real PNG of the size a shot claims to be.
+ *
+ * The slideshow's job is to fit a picture of *its* proportions inside a frame of
+ * the player's, so the fixture has to carry those proportions: a 1×1 stand-in
+ * would let a stage that does not contain a portrait figure pass.
+ */
+function png(width, height) {
+  const row = Buffer.alloc(1 + width * 3); // filter byte + RGB triplets
+  const raw = Buffer.concat(Array.from({ length: height }, () => row));
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(body) >>> 0);
+    const head = Buffer.alloc(4);
+    head.writeUInt32BE(data.length);
+    return Buffer.concat([head, body, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // colour type: truecolour
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', zlib.deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+let crcTable = null;
+function crc32(buffer) {
+  if (!crcTable) {
+    crcTable = Array.from({ length: 256 }, (_, n) => {
+      let c = n;
+      for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      return c >>> 0;
+    });
+  }
+  let crc = 0xffffffff;
+  for (const byte of buffer) crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  return crc ^ 0xffffffff;
+}
 
 const SHOTS = [
   { id: '01-signin', file: '01-signin.png', step: 2, expect: ['#signin-card', '#email'], width: 952, height: 956 },
@@ -51,7 +91,7 @@ async function render(over = {}) {
   const outDir = path.join(tmp, `run-${runs++}`);
   await mkdir(outDir, { recursive: true });
   const shots = over.shots ?? SHOTS;
-  if (shots) for (const shot of shots) await writeFile(path.join(outDir, shot.file), PNG);
+  if (shots) for (const shot of shots) await writeFile(path.join(outDir, shot.file), png(shot.width, shot.height));
   const file = await writeReview({
     plan: { tutorial: 'demo', baseUrl: 'http://app.test', locale: 'en-US', viewport: { width: 1600, height: 900 } },
     planPath: '/plans/demo.plan.json',
@@ -150,6 +190,27 @@ test('the controls arrive only once they work', async () => {
   assert.match(html, /closest\('video, input, textarea, select'\)/);
 });
 
+test('every slide plays in the same 16:9 frame', async () => {
+  const { html } = await render();
+  // The player is a box, not a picture: a portrait crop and a wide frame cannot
+  // be allowed to resize it, because then the page jumps on every step.
+  assert.match(html, /\.deck-stage \{[^}]*aspect-ratio: 16 \/ 9/);
+  assert.match(html, /\.deck-stage \{[^}]*max-width: 1120px/);
+  // The old stage grew with its image, which is the behaviour this replaced.
+  assert.doesNotMatch(html, /min-height: 160px/);
+  // The figure is fitted inside the frame and never enlarged past its pixels.
+  // It is positioned against the stage's own box: a percentage `max-height`
+  // inside a grid area sized by the image is indefinite and resolves to `none`,
+  // which lets a portrait figure overflow the frame instead of fitting it.
+  assert.match(html, /\.deck-stage img \{[^}]*position: absolute/);
+  // Measured against the stage's padding box, so the letterbox gap is taken off
+  // the percentages: `max-height: 100%` would let a full-height figure sit flush
+  // against the border the inset was meant to keep clear.
+  assert.match(html, /\.deck-stage img \{[^}]*max-width: calc\(100% - 2rem\)/);
+  assert.match(html, /\.deck-stage img \{[^}]*max-height: calc\(100% - 2rem\)/);
+  assert.doesNotMatch(html, /object-fit: (cover|fill)/);
+});
+
 test('the slideshow sits with the figures, after the walkthrough', async () => {
   const withVideo = await render({ videos: [{ file: 'video/01-main.webm', page: 1 }] });
   const deck = withVideo.html.indexOf('id="deck"');
@@ -189,14 +250,20 @@ test('arrow keys, thumbnails and the counter move together', async (t) => {
     await page.goto(`file://${path.join(outDir, 'review.html')}`);
 
     const state = () =>
-      page.evaluate(() => ({
-        src: document.querySelector('#deck-img').getAttribute('src'),
-        alt: document.querySelector('#deck-img').alt,
-        count: document.querySelector('#deck-count').textContent.trim(),
-        cap: document.querySelector('#deck-cap').textContent.trim(),
-        current: [...document.querySelectorAll('#deck-strip a')].map((a) => a.getAttribute('aria-current')),
-        width: Number(document.querySelector('#deck-img').getAttribute('width')),
-      }));
+      page.evaluate(() => {
+        const stage = document.querySelector('#deck-stage').getBoundingClientRect();
+        const img = document.querySelector('#deck-img').getBoundingClientRect();
+        return {
+          src: document.querySelector('#deck-img').getAttribute('src'),
+          alt: document.querySelector('#deck-img').alt,
+          count: document.querySelector('#deck-count').textContent.trim(),
+          cap: document.querySelector('#deck-cap').textContent.trim(),
+          current: [...document.querySelectorAll('#deck-strip a')].map((a) => a.getAttribute('aria-current')),
+          width: Number(document.querySelector('#deck-img').getAttribute('width')),
+          stage: { width: Math.round(stage.width), height: Math.round(stage.height) },
+          img: { width: Math.round(img.width), height: Math.round(img.height) },
+        };
+      });
 
     const first = await state();
     assert.equal(first.src, '01-signin.png');
@@ -205,6 +272,14 @@ test('arrow keys, thumbnails and the counter move together', async (t) => {
     // The slide is sized before its file is swapped, so the stage does not jump
     // between a portrait crop and a wide frame.
     assert.equal(first.width, 952);
+    // The frame is the player's, not the picture's: 16:9 whatever the slide is.
+    assert.ok(Math.abs(first.stage.height - (first.stage.width * 9) / 16) <= 1, `the frame is 16:9 (${first.stage.width}x${first.stage.height})`);
+    // And the figure is contained in it rather than cropped — a portrait crop
+    // uses the frame's height, it does not run past it, and it keeps the
+    // letterbox gap the inset asks for instead of sitting on the border.
+    assert.ok(first.img.height <= first.stage.height && first.img.width <= first.stage.width, 'the figure fits the frame');
+    assert.ok(first.img.height >= first.stage.height - 40, `the portrait figure uses the frame's height (${first.img.height} of ${first.stage.height})`);
+    assert.ok(first.img.height <= first.stage.height - 30, `and keeps the letterbox gap (${first.img.height} of ${first.stage.height})`);
 
     const history = await page.evaluate(() => history.length);
 
@@ -215,6 +290,7 @@ test('arrow keys, thumbnails and the counter move together', async (t) => {
     assert.equal(second.alt, '02-workspace');
     assert.equal(second.width, 1505);
     assert.deepEqual(second.current, ['false', 'true', 'false']);
+    assert.deepEqual(second.stage, first.stage, 'the frame does not move between slides');
     assert.match(second.cap, /^02-workspace 1505×541px · 753css · step 7$/);
     assert.equal(await page.evaluate(() => location.hash), '#fig-2');
 

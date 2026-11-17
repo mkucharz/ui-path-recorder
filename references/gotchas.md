@@ -129,6 +129,13 @@ disagree is if the run wrote two different sets of figures.
 **One figure is not a slideshow.** Below two shots the section is not rendered at
 all: arrows over a single slide are a control that cannot do anything.
 
+**The stage is a fixed 16:9 box, not a picture that sizes itself.** A portrait
+crop followed by a wide app shot used to resize the stage on every step, which
+reads as the page jumping; the player is now the frame and the figure is fitted
+inside it (`max-width`/`max-height`, never enlarged). Do not give the image
+`width: 100%` or an `object-fit` that crops it — the `width`/`height` attributes
+only carry the incoming picture's proportions for the moment before it decodes.
+
 **Stepping through slides is not history.** The slide goes in the URL as
 `#fig-2` (so a review comment can point at one) with `history.replaceState`, not a
 hash assignment: pressing back after looking at nine figures should leave the
@@ -142,6 +149,16 @@ figure underneath it. Space is the page's scroll key, so it advances only in
 fullscreen, where there is no page to scroll.
 
 ## Video
+
+**A figure's capture window is not part of the video.** Every figure hides the
+pointer, the caption and the panel, and the page repaints — so the recorder
+pauses for the capture and holds the frame that is already on screen. It drops
+frames by *capture time*, not arrival time: the screencast delivers
+asynchronously, so a bare frame composited while the chrome was hidden can arrive
+after the resume, and dropping by arrival lets exactly the frame the pause exists
+to prevent into the video. `showCursor()` resolves on the frame that carries the
+restored chrome for the same reason. If you add another hide/show pair, wrap it in
+`pause()`/`resume()` or expect a one-frame flash.
 
 **The pointer in a recording is a depiction, not a capture.** Playwright's
 screencast draws no mouse at all — a real OS cursor is never in the frame, which is
@@ -228,6 +245,17 @@ that stops at the page load; put the sentence on the step that lands on the new
 screen (after its `waitFor`) instead. The `.vtt` is unaffected either way, because
 its cue is the step's own clock.
 
+**A step that says nothing takes the subtitle with it, so a guard between two
+narrated steps flickers.** The pill belongs to its step: the next step clears it,
+even if that step is a 10 ms `expect` and the one after it captions the same
+screen. A viewer sees the subtitle blink rather than pause, and a recording shows
+it as one blank frame. The validator warns about that shape — fold the guard into
+a neighbour (`expect` runs last in the step, so two guards on one screen combine
+cleanly) or give the quiet step a line. A `hold`, `waitFor`, `pause`, `waitHidden` or `shot` makes
+the silence deliberate and is not warned about. This is why
+`plans/examples/signin-captions.plan.json` guards `#password` and `#submit` on the
+step that already inspected the form instead of spending a step on it.
+
 **A caption is a line, and `--no-humanize` does not burn it in.** Over 160
 characters, carrying a newline, empty, or on a step with no action: refused before
 the browser opens. The pill is drawn by the humanizer's overlay, so the raw cut
@@ -245,12 +273,34 @@ the work. A row over 48 characters, a step carrying only `check`, more than ten
 items, or `video.checklist` with nothing to tick: refused before the browser
 opens.
 
-**A checklist panel is docked over the app, so the viewport decides what it
-covers.** It is 300 px by default (220–380 configurable), capped at 30% of the
-frame, and drawn over the page rather than shrinking it. A viewport under 1280 px
-triggers the warning in the log; a plan recorded at 900 px with a 380 px panel is
-a video of a panel with an app behind it. Pick the side the app leaves empty, and
-check the panel against a real frame — `--speed 20`, extract one.
+**An `overlay` panel covers the app, so the viewport decides how much.** It is
+300 px by default (220–380 configurable), capped at 30% of the frame, and drawn
+over the page rather than shrinking it. A viewport under 1280 px triggers the
+warning in the log; a plan recorded at 900 px with a 380 px panel is a video of a
+panel with an app behind it. Pick the side the app leaves empty, and check the
+panel against a real frame — `--speed 20`, extract one.
+
+**A `dock` panel reserves its column instead of covering one.** The page is laid
+out beside the panel, so the app gets `viewport − width` pixels and a 1920×1080
+recording is a true 16:9 composition. Three things bite:
+
+- **The app must be designed for the narrower column.** The reservation is a
+  margin on the root element; a page painted in `100vw` (or a fixed-width layout
+  wider than the column) ignores it and is clipped or scrolled. Look at one frame
+  before publishing.
+- **The reservation outlives the panel.** It is set at first paint and kept while
+  the panel is removed for a figure, so a figure shows the same narrow page the
+  video did. Do not expect a full-width capture from a docked run.
+- **The viewport must have room for both.** A dock that leaves the app under
+  1280 px logs a warning; 1920−360 = 1560 is the shipped example
+  (`plans/examples/signin-sidebar.plan.json`), 1600−360 = 1240 is the one the
+  warning is about.
+- **Everything centred in the frame follows the reservation.** The subtitle is
+  the one that shows: centred on the frame it sits under the middle of page +
+  list, which reads as shifted off the screen it is captioning. It is centred on
+  the app column (`--pc-dock-shift`) and bounded by it, and a card — which
+  reserves nothing — still centres on the whole frame. A new fixed, centred
+  overlay should do the same, or it will look off by half the panel.
 
 **A hard navigation takes the panel with the document.** Like the caption, the
 list is redrawn by the first `arrive()`/`hold`/`settle()` after a `goto`. It is

@@ -67,7 +67,7 @@ import { writeReview } from '../lib/review.mjs';
 import { createHuman, resolveOptions } from '../lib/human.mjs';
 import { buildVtt, cuesForRecording, vttFor } from '../lib/captions.mjs';
 import { cardFitWarning, cardHtml, cardOptions } from '../lib/cards.mjs';
-import { NARROW_VIEWPORT, checklistOptions } from '../lib/checklist.mjs';
+import { NARROW_VIEWPORT, checklistOptions, checklistReserve } from '../lib/checklist.mjs';
 import { createRecorder } from '../lib/recorder.mjs';
 import { actionOf, createTimeline } from '../lib/timeline.mjs';
 
@@ -412,12 +412,19 @@ if (humanizeOn) {
   // seen in the finished recording.
   const checklist = checklistOptions(plan);
   if (checklist) {
-    const width = Math.round(Math.min(checklist.width, viewport.width * 0.3));
-    console.log(`  checklist: ${checklist.items.length} item(s)  side=${checklist.side}  width=${width}px`);
+    const width = checklist.layout === 'dock' ? checklistReserve(checklist) : Math.round(Math.min(checklist.width, viewport.width * 0.3));
+    console.log(
+      `  checklist: ${checklist.items.length} item(s)  side=${checklist.side}  width=${width}px${checklist.layout === 'dock' ? '  docked (the page is laid out beside it)' : ''}`,
+    );
     if (viewport.width < NARROW_VIEWPORT) {
       console.warn(
         `  warning: viewport is ${viewport.width}px wide; a ${checklist.side} checklist takes ${width}px of it\n` +
           `  -- widen the viewport or narrow "video.checklist.width" — the panel is docked over the app`,
+      );
+    } else if (checklist.layout === 'dock' && viewport.width - width < NARROW_VIEWPORT) {
+      console.warn(
+        `  warning: the docked panel leaves the app ${viewport.width - width}px of the ${viewport.width}px viewport\n` +
+          `  -- widen the viewport or narrow "video.checklist.width"; the app lays out in what is left`,
       );
     }
   }
@@ -612,6 +619,9 @@ async function trackPage(opened) {
   human.setPage(opened);
   return opened;
 }
+
+/** The recorder feeding the page in front of us, or null in a raw cut. */
+const recorderFor = (target) => pageLog.find((entry) => entry.page === target)?.recorder ?? null;
 
 if (loginMode) {
   const loginUrl = flag('--login-url');
@@ -1036,6 +1046,14 @@ try {
       // The pointer and its ripple are a depiction for the viewer. A figure is
       // evidence, so it must contain neither — and it is hidden before the
       // capture, not cropped out afterwards.
+      //
+      // Hiding the chrome repaints the page, so the recording is paused across
+      // the capture: the frame already on screen is held, and a single frame of
+      // a pointerless, panel-less page never reaches the video. Resume only
+      // after the chrome is back, or the first frame of the gap becomes that
+      // frame instead.
+      const recorder = recorderFor(page);
+      recorder?.pause();
       await human.hideCursor();
       const shotOpts = { animations: 'disabled', caret: 'hide', mask: masks, maskColor: plan.maskColor ?? '#0a0e14' };
       let raw;
@@ -1104,6 +1122,7 @@ try {
       // The video stays on the frame the figure describes long enough to read
       // it, then the pointer comes back for the next action.
       await human.showCursor();
+      recorder?.resume();
       await human.hold(spec.holdMs ?? humanOptions.shotHoldMs);
       if (only === spec.id) break;
     }
@@ -1125,7 +1144,9 @@ try {
   if (!error.step && currentStep) error.step = currentStep;
   if (error.step) {
     console.error(`\n  FAILED at step ${error.step}: ${error.message}`);
-    // Evidence is a picture of the page, not of the pointer.
+    // Evidence is a picture of the page, not of the pointer — and the same
+    // pause that keeps it out of a figure keeps it out of the video.
+    recorderFor(page)?.pause();
     await human.hideCursor();
     const stem = await writeEvidence({ page, dir: FAILED, step: error.step, message: error.message }).catch(() => null);
     if (stem) console.error(`  evidence: ${path.relative(process.cwd(), stem)}.{png,html,txt}`);

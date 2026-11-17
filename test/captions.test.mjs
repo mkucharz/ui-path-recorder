@@ -188,3 +188,35 @@ test('the plan contract accepts a caption and refuses one that is not a subtitle
     /keep it under 160/,
   );
 });
+
+test('a silent step between two captioned ones blanks the pill, and says so', () => {
+  const plan = (steps) => ({ baseUrl: 'https://example.test', steps });
+  const open = { name: 'open', caption: 'Open the page.', goto: '/' };
+  const type = { name: 'type', caption: 'Type it.', fill: { selector: '#a', value: 'x' } };
+
+  // A guard is over in milliseconds: the pill goes and comes back, which a
+  // viewer reads as a flicker.
+  const { warnings } = validate(plan([open, { name: 'guard', expect: { selector: '#b' } }, type]));
+  assert.equal(warnings.length, 1, warnings.join('\n'));
+  assert.match(warnings[0], /step #2 \(guard\) says nothing between two captioned steps/);
+  assert.match(warnings[0], /Fold its guard into a neighbour or give it a caption/);
+
+  // A hold or a figure is a silence the plan asked for, so it is not a flicker —
+  // and neither is any of the other keys that keep a step on screen.
+  assert.deepEqual(validate(plan([open, { name: 'beat', hold: 800 }, type])).warnings, []);
+  assert.deepEqual(validate(plan([open, { name: 'beat', pause: 400 }, type])).warnings, []);
+  assert.deepEqual(validate(plan([open, { name: 'late', waitFor: { selector: '#b' } }, type])).warnings, []);
+  assert.deepEqual(validate(plan([open, { name: 'quiet', waitHidden: { selector: '#b' } }, type])).warnings, []);
+  assert.deepEqual(validate(plan([open, { name: 'figure', shot: { id: 'screen' } }, type])).warnings, []);
+  // Giving the quiet step a line of its own is the other way out.
+  assert.deepEqual(
+    validate(plan([open, { name: 'guard', caption: 'Still the same screen.', expect: { selector: '#b' } }, type]))
+      .warnings,
+    [],
+  );
+  // And a plan that never captions anything is not flickering anything.
+  assert.deepEqual(
+    validate(plan([{ goto: '/' }, { expect: { selector: '#b' } }, { fill: { selector: '#a', value: 'x' } }])).warnings,
+    [],
+  );
+});

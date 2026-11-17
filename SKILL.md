@@ -123,12 +123,21 @@ with, so it writes the track only and warns; see `references/plan-format.md` →
 `caption`, and `plans/examples/signin-captions.plan.json`.
 
 A recording can also **tick a checklist off beside it**: `"check": "…"` on a step
-adds that row to a small panel docked over the page, ticked the moment the step
-starts. The rows are the steps — there is no list in the plan to drift — and the
-panel is hidden with the pointer for every figure, so the figures stay
-byte-identical. `video.checklist` sets its heading, side, width and tick colour;
-a viewport under 1280 px warns about the share of the frame it takes. See
-`references/plan-format.md` → `check`, and `plans/examples/signin-checklist.plan.json`.
+adds that row to a small panel, ticked the moment the step starts. The rows are
+the steps — there is no list in the plan to drift — and the panel is hidden with
+the pointer for every figure, so the figures stay byte-identical.
+
+It has two layouts. `"layout": "overlay"` (default) floats a translucent card over
+the app and changes nothing about the page. `"layout": "dock"` reserves a column
+of its own and lays the page out beside it, so nothing is covered and a 1920×1080
+frame is a real 16:9 composition — that is the one to use when the recording is
+going to a video player. `side` is `right` or `left` in either layout, and a dock
+takes that edge from the page. `video.checklist` sets its heading, the short
+second line under it (`subtitle`), side, width, layout and tick colour; a viewport
+under 1280 px warns about the share the panel takes, and a dock that leaves the
+app under 1280 px warns again. See `references/plan-format.md` → `check`, and
+`plans/examples/signin-checklist.plan.json` (overlay) or
+`plans/examples/signin-sidebar.plan.json` (docked, 1920×1080).
 
 And it can **open and close on a card**: `video.intro` says what the walkthrough
 is for before the app appears, `video.outro` closes on the same checklist filled
@@ -161,7 +170,9 @@ click on a thumbnail jumps to one, `#fig-2` in the URL points at a single slide,
 and `Present` goes full screen (there a click on the figure is the next button).
 What a slide says is the tile's own record — id, both sizes, the step, the
 asserted text — so stepping through the run in order is how you notice that step
-4's figure shows step 5's screen.
+4's figure shows step 5's screen. The stage is a fixed 16:9 frame, the shape of
+the recording itself: a portrait crop and a wide app shot cannot resize it, so
+the page does not jump as you step.
 
 When the run recorded a video, the same page carries the player and a chapter
 list built from `.timeline.json` — clicking a chapter seeks the player in place

@@ -291,8 +291,10 @@
           "description": "The appearance of the checklist panel. The items are the steps that carry a `check` — there is no list to write here.",
           "properties": {
             "title": { "type": "string", "default": "What you'll do", "description": "The heading above the rows. An empty string hides it." },
-            "side": { "enum": ["left", "right"], "default": "right", "description": "Which edge the panel is docked to. Pick the side the app leaves empty." },
-            "width": { "type": "integer", "minimum": 220, "maximum": 380, "default": 300, "description": "Panel width in CSS pixels, capped at 30% of the viewport. Narrower rows than 220 crowd the labels; wider than 380 the panel covers the app." },
+            "subtitle": { "type": "string", "default": "", "maxLength": 80, "description": "A short second line under the heading: what the list is for, in under 80 characters. One line in the plan — a narrow panel wraps it — and an empty string leaves the heading alone." },
+            "side": { "enum": ["left", "right"], "default": "right", "description": "Which edge the panel takes. Pick the side the app leaves empty. In `dock` it is also the edge the page gives up." },
+            "width": { "type": "integer", "minimum": 220, "maximum": 380, "default": 300, "description": "Panel width in CSS pixels. In `overlay` it is capped at 30% of the viewport; docked it keeps its width, because the page gives up exactly that column. Narrower than 220 the rows crowd their labels; wider than 380 the panel dominates a 16:9 frame." },
+            "layout": { "enum": ["overlay", "dock"], "default": "overlay", "description": "overlay floats the panel over the app on a translucent card; dock reserves a column of its own, so the page is laid out beside the panel and nothing is covered. A docked panel keeps its width instead of capping at 30% of the viewport, and an app painted in 100vw units ignores the reservation." },
             "accent": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$", "default": "#7c9cf5", "description": "Colour of a completed tick: #rgb or #rrggbb." }
           }
         },

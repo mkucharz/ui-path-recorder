@@ -38,9 +38,9 @@ const frame = (width, height, at, viewport = { width, height }) => ({
 });
 
 /** A pump that records what it was asked to write, so the file is not needed. */
-function recording(fps = 25, tailMs = 1_000) {
+function recording(fps = 25, tailMs = 1_000, extra = {}) {
   const writes = [];
-  const pump = createFramePump({ fps, tailMs, write: (data, count) => writes.push({ data, count }) });
+  const pump = createFramePump({ fps, tailMs, write: (data, count) => writes.push({ data, count }), ...extra });
   return { pump, writes, frames: () => writes.reduce((sum, write) => sum + write.count, 0) };
 }
 
@@ -71,6 +71,59 @@ test('a frame of another size is dropped, and the frame before it holds', () => 
   assert.equal(writes[1].count, 2);
   assert.ok(writes[1].data.equals(jpeg(1600, 900)), 'the held frame is the last good one');
   assert.equal(pump.dropped, 1, 'the good frame is not counted as dropped');
+});
+
+test('a pause holds the frame on screen instead of showing the capture window', () => {
+  // The pump reads the wall clock through `now`, so the window it opens is on the
+  // same clock as the frames' timestamps and this test can own both.
+  let clock = T0;
+  const { pump, writes } = recording(25, 1_000, { now: () => clock });
+  const good = (at) => frame(1600, 900, at);
+  pump.push(good(0));
+  pump.push(good(40));
+  // One frame on screen, one written.
+  assert.equal(writes.length, 1);
+
+  // The pointer and the checklist are hidden for a figure: frames of a page with
+  // no chrome are produced while the capture is taken.
+  clock = T0 + 60;
+  pump.pause();
+  const bare = good(80);
+  pump.push(bare);
+  pump.push(good(120));
+  clock = T0 + 140;
+  pump.resume();
+  assert.equal(writes.length, 1, 'nothing is written for the capture window');
+
+  // A frame captured just before the pause is still the real page, even though
+  // it arrives late: only the hidden window is filtered, not everything late.
+  const beforePause = good(59);
+  pump.push(beforePause);
+  assert.equal(writes.length, 1, 'a pre-pause frame does not force a write yet');
+
+  // The next good frame flushes the last real one across the whole gap, so the
+  // video keeps its duration and never shows the bare page.
+  pump.push(good(160));
+  assert.equal(writes.length, 2);
+  assert.equal(writes[1].count, 3, 'the gap is filled by the frame that was already up');
+  assert.ok(!writes.some((write) => write.data === bare.data), 'the bare frame never reached the encoder');
+
+  // And the delivery lag is what the filter is for: a frame captured inside the
+  // window that arrives *after* the resume is still not part of the video.
+  const lateBare = good(100);
+  pump.push(lateBare);
+  assert.ok(!writes.some((write) => write.data === lateBare.data), 'a late frame from the window is filtered too');
+  assert.equal(pump.dropped, 0, 'a deliberate capture window is not a dropped frame');
+
+  // Resume is not a re-arm: a further pause is held the same way.
+  clock = T0 + 200;
+  pump.pause();
+  const hiddenAgain = good(200);
+  pump.push(hiddenAgain);
+  clock = T0 + 220;
+  pump.resume();
+  pump.push(good(240));
+  assert.ok(!writes.some((write) => write.data === hiddenAgain.data));
 });
 
 test('a frame laid out for another viewport is dropped even at the same size', () => {

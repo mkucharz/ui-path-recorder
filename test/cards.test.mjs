@@ -29,7 +29,7 @@ const PLAN = {
   video: {
     intro: { title: 'Deploy the stack', subtitle: 'Four services, one run.', bullets: ['Bring your own domain', 'Roughly ten minutes'] },
     outro: { title: 'That is the whole path', bullets: ['Re-run it whenever the app changes'] },
-    checklist: { title: 'Setup', accent: '#f5a97f' },
+    checklist: { title: 'Setup', subtitle: 'Three steps to a running install.', accent: '#f5a97f' },
   },
   steps: [
     { goto: '/', check: 'Open the installer' },
@@ -76,6 +76,10 @@ test('the intro is 0 of N and the end card is all N', () => {
   // the panel read as one recording rather than two artefacts.
   assert.match(intro, /<h2>Setup<\/h2>/);
   assert.match(intro, /#f5a97f/);
+  // The panel's second line comes with the heading, above the rows it describes.
+  assert.match(intro, /<h2>Setup<\/h2>[\s\S]*<p class="pc-check-sub">Three steps to a running install\.<\/p>[\s\S]*<ol class="pc-rows">/);
+  // A plan with no second line draws none, rather than an empty paragraph.
+  assert.doesNotMatch(cardHtml({ ...PLAN, video: { ...PLAN.video, checklist: { title: 'Setup' } } }, 'intro'), /<p class="pc-check-sub"/);
   // A card shows the rows the panel shows, and nothing the panel does not: the
   // counter goes at the end, not a number beside every row.
   assert.match(intro, /grid-template-columns: 1\.05em 1fr/);

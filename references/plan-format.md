@@ -283,7 +283,11 @@ Rules worth knowing:
 
 - **No `caption` on the next step clears it.** A subtitle never outlives the
   screen it described, and the `.vtt` cue stops at the same boundary the pill
-  does.
+  does. That also means a step that says nothing between two that do blanks the
+  pill for as long as it lasts — harmless for a `hold`, a **flicker** for a
+  guard. A silent step with no `hold`, `waitFor`, `pause`, `waitHidden` or `shot`
+  between two captioned ones is warned about; fold its guard into a neighbour
+  instead.
 - **Consecutive steps with the same caption are one cue**, so a two-step screen
   does not blink a subtitle on and off.
 - **A cue shorter than 1.2 s is lengthened** to its step's own boundary: a click
@@ -304,7 +308,7 @@ The shipped example is `plans/examples/signin-captions.plan.json`.
 { "check": "Sign in with your email", "fill": { "selector": "#email", "value": "${email}" } }
 ```
 
-A short line for the checklist panel docked beside the recording. The panel's rows
+A short line for the checklist panel beside the recording. The panel's rows
 **are** the steps that carry a `check`, in the order they first appear: there is
 no second list to keep in sync, so the panel cannot promise a step the path does
 not run, and re-ordering the plan re-orders the panel.
@@ -325,18 +329,22 @@ not run, and re-ordering the plan re-orders the panel.
 - `--no-humanize` has no overlay to draw with, so the recording carries no panel
   and the run logs a warning.
 
-How the panel looks is `video.checklist` (below). The shipped example is
-`plans/examples/signin-checklist.plan.json`.
+How the panel looks — and whether it floats over the page or docks beside it —
+is `video.checklist` (below). The shipped examples are
+`plans/examples/signin-checklist.plan.json` (overlay),
+`plans/examples/signin-sidebar.plan.json` (docked, 1920×1080) and
+`plans/examples/signin-sidebar-left.plan.json` (the same on the left edge).
 
 ## `video` — how the recording is drawn
 
-Optional. These keys describe the picture, never the path. The panel is an
-overlay, so it applies to a humanized run (`--video` turns that on); the cards are
-page content and appear in the raw cut too, but only in a run that records.
+Optional. These keys describe the picture, never the path. The panel is drawn by
+the humanizer's overlay, so it applies to a humanized run (`--video` turns that
+on); the cards are page content and appear in the raw cut too, but only in a run
+that records.
 
 | Key | | |
 |---|---|---|
-| `checklist` | — | `{ title, side, width, accent }` for the panel beside the video. |
+| `checklist` | — | `{ title, subtitle, side, width, layout, accent }` for the panel beside the video. |
 | `intro` | — | The title card the video opens on. `{ title, subtitle?, bullets? }`. |
 | `outro` | — | The end card the video closes on. Same shape. |
 | `cardMs` | `2200` | How long each card is held, divided by `humanize.speed` like every other delay. |
@@ -346,21 +354,45 @@ page content and appear in the raw cut too, but only in a run that records.
 | Key | Default | |
 |---|---|---|
 | `title` | `"What you'll do"` | Heading above the rows. An empty string hides it. |
-| `side` | `"right"` | `left` or `right`. Pick the side the app leaves empty; a panel over a sidebar is a panel over evidence. |
-| `width` | `300` | 220–380 CSS pixels, capped at 30% of the viewport. Narrower crowds the labels, wider covers the app. |
+| `subtitle` | `""` | A short second line under the heading — what the list is for, in under 80 characters. One line in the plan (a newline is refused), but it is not one drawn line: a 220 px panel wraps a full-length one to four rows, so keep it a phrase. An empty string, or no key, leaves the heading alone. |
+| `side` | `"right"` | `left` or `right`. Pick the side the app leaves empty; a panel over a sidebar is a panel over evidence. In `dock` it is also the edge the page gives up. |
+| `width` | `300` | 220–380 CSS pixels. In `overlay` it is capped at 30% of the viewport; in `dock` it keeps its width, because the page gives up exactly that column. |
+| `layout` | `"overlay"` | `overlay` floats a translucent card over the app; `dock` reserves a column of its own and lays the page out beside it. |
 | `accent` | `"#7c9cf5"` | Colour of a completed tick, `#rgb` or `#rrggbb`. |
 
-The panel is docked *over* the app rather than shrinking it, so its width is a
-share of the frame: a viewport narrower than 1280 px logs a warning naming that
-share, because 30% of a 900 px page is a different video from 30% of 1600.
+The heading and its second line are one block above the rows: the uppercase
+heading says what this is, the line says why it is there, and either may be empty.
+A panel with a heading alone draws exactly the panel it drew before `subtitle`
+existed.
+
+`overlay` changes nothing about the page — the card blurs what is under it, so a
+control behind it is still readable — and its width is a share of the frame: a
+viewport narrower than 1280 px logs a warning, because 30% of a 900 px page is a
+different video from 30% of 1600.
+
+`dock` is the one that makes a 16:9 composition: the page is laid out beside the
+panel instead of under it, nothing is covered, and the app gets
+`viewport − width` pixels. Two consequences worth planning for: the app must
+be designed for a narrower column (a page painted in `100vw` units ignores the
+reservation), and a dock that leaves the app under 1280 px logs its own warning.
+The reservation is set on the root element at the document's first paint and stays
+when the panel is hidden for a figure, so the page does not reflow between the
+video and the picture of it. The subtitle follows the reservation too: it is
+centred on the app column rather than on the frame, so the caption sits under the
+page it is captioning instead of drifting towards the list. A card is a document
+of its own, never reserves anything, and centres on the whole frame.
 
 Like the subtitle pill, the panel is drawn dark whatever the plan's
 `colorScheme`: it is a recording decoration, not part of the app, and a dark
 panel on a light page reads as an overlay rather than as a broken screen.
 
 ```json
-"video": { "checklist": { "title": "Sign-in check", "width": 320 } }
+"video": { "checklist": { "title": "Sign-in check", "subtitle": "Four steps, one workspace", "width": 320 } }
+"video": { "checklist": { "title": "Sign-in checklist", "layout": "dock", "width": 360 } }
+"video": { "checklist": { "title": "Sign-in checklist", "layout": "dock", "side": "left", "width": 360 } }
 ```
+Each line is the whole block for one recording: overlay, docked on the right (the
+default), docked on the left.
 
 ### `video.intro` / `video.outro`
 
