@@ -126,6 +126,21 @@ with your email"), not as the action ("click #email") — the subtitle says what
 happening, the checklist says what is now done. Between four and ten items is a
 glance; more is a document (`plan-format.md` → `check`).
 
+A recorded run can also open and close on a card, which is where the video says
+what it is for and what the viewer now has:
+
+```json
+"video": {
+  "intro": { "title": "Sign in to your workspace", "subtitle": "One card, two fields, and you are in." },
+  "outro": { "title": "That is the whole path", "bullets": ["Every step is also a screenshot"] }
+}
+```
+
+Write them last, from the plan you ended up with rather than the one you meant to
+write: a title that describes a step you cut is the one kind of drift a card
+cannot detect, because the card is the video's own voice. The checklists on both
+cards come from the steps, so they need nothing here.
+
 Then, for a page that settles slowly:
 
 ```json

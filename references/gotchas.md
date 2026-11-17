@@ -236,6 +236,34 @@ re-run every tick; a row ticked before the navigation therefore appears
 already-ticked on the new page. Ticking in the panel itself happens only while
 the panel is on screen — which is what makes one run of ticks, not two.
 
+**A card is recorded content, not a decoration — so it needs `--video` and it
+survives `--no-humanize`.** `video.intro` and `video.outro` are ordinary HTML
+documents set in the page before the app opens and after the last step. That
+ordering is the whole reason they work in the raw cut, where no overlay is
+installed at all; a card drawn by the humanizer would vanish with `--no-humanize`.
+The other half of the same rule: a run *without* `--video` records nothing, so it
+never shows a card — a figure run opens on the app.
+
+**A card is a whole screen, and a screen can overflow.** The contract caps the
+text (60-character title, 120 subtitle, 6 × 60 bullets) but not the pixels, and
+a maximal card on a 16:9 frame is a tight fit: at 1600×900 it fills the frame,
+and on a short frame (a 1600×700 window, or a 1280×720 viewport with ten rows and
+six bullets) the bottom is genuinely cut off. The runner measures the rendered
+card and says so, naming the overflow and the frame height, so it is never a
+silent cut. If you see that warning, drop a bullet or a row, or record taller.
+
+**A card must not be given a `caption` or a `check`.** It is not a step: it has no
+page, no duration of its own and no row in the panel. Its chapter is added by the
+runner (`action: "card"`), and it carries the *whole* checklist — `0 / N` in,
+`N / N` out — derived from the steps that carry a `check`. Writing that list a
+second time on the card is exactly the drift the derivation exists to prevent.
+
+**One card may be asked for on its own, and neither is a promise about the run.**
+`intro` without `outro` (or the reverse) is legal and common while authoring.
+The end card is skipped by `--only` and never shown after a failure, because a
+recap that says "done" over a run that died is a claim the video would repeat
+every time it is watched.
+
 ## What the runner cannot do
 
 - **Know a selector was right for the screen you meant.** The guards are the only

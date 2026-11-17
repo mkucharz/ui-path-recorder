@@ -337,6 +337,43 @@ player to the moment it ticked — the one part of a checklist a still cannot pr
 
 `plans/examples/signin-checklist.plan.json` is the shipped example.
 
+### A title card and an end card
+
+A recording that starts mid-app is a video that began before you pressed play:
+the first frame is a login form with no statement of what the video is for, and
+the last is a screen that looks like the recording stopped rather than ended.
+Two cards fix that, and — again — they are plan content:
+
+```json
+"video": {
+  "intro": { "title": "Sign in to your workspace", "subtitle": "One card, two fields, and a checklist that fills in.", "bullets": ["The screen you already use", "About thirty seconds"] },
+  "outro": { "title": "That is the whole path", "bullets": ["Every step is also a screenshot"] },
+  "cardMs": 2400
+}
+```
+
+Both cards carry **the same checklist** the panel ticks — at `0 / N` on the way in
+and `N / N`, all struck through, on the way out — so the title cannot promise a
+step the path does not run and the recap cannot claim something the video never
+did. They take the theme from the plan's `colorScheme`, and they carry no URL bar,
+no breadcrumb and no overlay: the card is the recording speaking, not a browser
+window.
+
+A card is an ordinary HTML document, not an overlay drawing like the pointer and
+the panel. That is why it survives `--no-humanize` — the raw cut opens on the
+title too — and why `--video` is still required: a card is a *recorded frame*, so a
+figure run never opens on one. `cardMs` (2200 by default) is divided by
+`--speed` with every other delay, and a card whose content is taller than the
+frame is measured and named rather than silently cut off:
+
+```
+  cards: intro + outro  2400ms each
+  warning: the outro card is 24px taller than the 900px frame: its bottom is not in the recording (fewer bullets, shorter rows, or a taller viewport)
+```
+
+`plans/examples/signin-walkthrough.plan.json` is the whole thing in one plan:
+title card, subtitles, a panel that ticks itself off, and an end card.
+
 ## The guards
 
 The runner refuses to write a figure when the screen does not prove it is the

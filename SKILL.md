@@ -130,6 +130,15 @@ byte-identical. `video.checklist` sets its heading, side, width and tick colour;
 a viewport under 1280 px warns about the share of the frame it takes. See
 `references/plan-format.md` → `check`, and `plans/examples/signin-checklist.plan.json`.
 
+And it can **open and close on a card**: `video.intro` says what the walkthrough
+is for before the app appears, `video.outro` closes on the same checklist filled
+in. A card is plain HTML shown in the page — not an overlay — so it survives
+`--no-humanize`, and it needs `--video` to be recorded at all. Both carry the
+checklist the panel ticks (`0 / N` in, `N / N` out) and take the theme from
+`colorScheme`; `cardMs` sets the hold (2200 ms, divided by `--speed`). See
+`references/plan-format.md` → `video.intro`, and
+`plans/examples/signin-walkthrough.plan.json` for the whole package in one plan.
+
 ### 4. Read the evidence, not the error
 
 A first run over an unseen page is wrong about a selector. When it fails, the
@@ -232,6 +241,7 @@ lib/human.mjs               how a recorded run is driven: pointer, travel, typin
 lib/recorder.mjs            how a recording is made: frames, resampling, ffmpeg
 lib/captions.mjs            a step's subtitle → the pill in the picture and its .vtt
 lib/checklist.mjs           the rows a recording ticks: derived from steps, drawn by human.mjs
+lib/cards.mjs               the intro and end cards: a whole screen of HTML, checklist included
 lib/timeline.mjs            where each step started/ended, and the video chapters
 lib/ingest.mjs              figures → WebP + manifest
 ```

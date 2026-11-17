@@ -66,6 +66,7 @@ import { writeEvidence } from '../lib/evidence.mjs';
 import { writeReview } from '../lib/review.mjs';
 import { createHuman, resolveOptions } from '../lib/human.mjs';
 import { buildVtt, cuesForRecording, vttFor } from '../lib/captions.mjs';
+import { cardFitWarning, cardHtml, cardOptions } from '../lib/cards.mjs';
 import { NARROW_VIEWPORT, checklistOptions } from '../lib/checklist.mjs';
 import { createRecorder } from '../lib/recorder.mjs';
 import { actionOf, createTimeline } from '../lib/timeline.mjs';
@@ -214,6 +215,13 @@ const humanizeOn = humanizeFlag ?? (video || plan?.humanize?.enabled === true);
 const humanOptions = resolveOptions(plan?.humanize ?? {}, { speed: speedFlag === null ? plan?.humanize?.speed : Number(speedFlag) });
 // Logged, never inferred: a run you cannot replay is a video you cannot re-shoot.
 const humanSeed = seedFlag ?? plan?.humanize?.seed ?? `run-${stamp}`;
+
+/**
+ * The intro and end cards, when the plan asks for any. They are recorded frames,
+ * so they only exist in a `--video` run: a figure run opens on the app, never on
+ * a title card.
+ */
+const cards = video ? cardOptions(plan, { speed: humanOptions.speed }) : null;
 
 let page;
 const fail = (step, msg) => {
@@ -424,8 +432,13 @@ if (humanizeOn) {
   }
   const checked = plan?.steps.filter((step) => step.check).length ?? 0;
   if (video && checked) {
-    console.warn(`  warning: ${checked} step(s) carry a check; --no-humanize draws no checklist`);
+    console.warn(`  warning: ${checked} step(s) carry a check; --no-humanize draws no checklist panel beside the page`);
   }
+}
+
+if (cards) {
+  const kinds = [cards.intro ? 'intro' : null, cards.outro ? 'outro' : null].filter(Boolean);
+  console.log(`  cards: ${kinds.join(' + ')}  ${cards.ms}ms each`);
 }
 
 const shutdown = async () => {
@@ -526,11 +539,16 @@ async function collectExtras() {
  * The first page of the context. `--video` needs Playwright's own ffmpeg, which
  * is a separate download; a missing one is a setup problem, so it gets the
  * command that fixes it rather than a Playwright stack trace.
+ *
+ * `prepare` runs between the page existing and the recorder starting, which is
+ * the only window in which the first recorded frame can be something other than
+ * the app — an intro card, on the page the video will go on to show.
  */
-async function openPage() {
+async function openPage({ prepare } = {}) {
   let opened;
   try {
     opened = context.pages()[0] ?? (await context.newPage());
+    if (prepare) await prepare(opened);
     return await trackPage(opened);
   } catch (error) {
     if (error.ffmpegMissing || /ffmpeg/i.test(error.message)) {
@@ -540,6 +558,32 @@ async function openPage() {
     }
     throw error;
   }
+}
+
+/**
+ * Put a card on the page.
+ *
+ * Cards are page content, not overlay drawings: they are shown before the app is
+ * opened and after it is finished, so they need no app and no humanizer — which
+ * is what makes them work in the raw cut. The overlay still installs into every
+ * document, so it is hidden afterwards; otherwise the card would carry a pointer
+ * and the checklist panel over its own checklist.
+ */
+async function showCard(target, kind) {
+  await target.setContent(cardHtml(plan, kind), { waitUntil: 'load' });
+  await target.evaluate(() => window.__pathCursorHide?.()).catch(() => {});
+  // A card is a whole screen, so one that is taller than the frame is content the
+  // finished video silently does not show. It is measured on the rendered card,
+  // because how many pixels a line takes is not a property of the plan.
+  const box = await target
+    .evaluate(() => {
+      const main = document.querySelector('main');
+      if (!main) return null;
+      return { contentHeight: main.getBoundingClientRect().height, padding: parseFloat(getComputedStyle(document.body).paddingTop) || 0 };
+    })
+    .catch(() => null);
+  const warning = box && cardFitWarning({ kind, contentHeight: box.contentHeight, frameHeight: viewport.height, padding: box.padding });
+  if (warning) console.warn(`  warning: ${warning}`);
 }
 
 /**
@@ -640,7 +684,7 @@ for (const [flagName, value] of [
   }
 }
 
-page = await openPage();
+page = await openPage({ prepare: cards?.intro ? (opened) => showCard(opened, 'intro') : undefined });
 page.setDefaultTimeout(20_000);
 // The pointer waits somewhere plausible on the first frame, so it travels into
 // the first target instead of appearing on top of it.
@@ -744,6 +788,23 @@ const timeline = createTimeline({
 // fill on a field that vanished) is attributed to a step and leaves evidence
 // instead of printing a one-line message with no page to look at.
 let currentStep = null;
+
+/**
+ * The intro card is already on the page (it had to be there before the recorder
+ * started), so all that is left is to leave it up for as long as the plan asked
+ * and mark it as a chapter: a viewer who wants to skip the title has somewhere to
+ * seek to, and one who scrubs back finds it again.
+ *
+ * A plain timer rather than the humanizer's `hold`, because the raw cut has no
+ * humanizer — and the card is a frame of the recording either way.
+ */
+const waitMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+if (cards?.intro) {
+  const intro = timeline.begin({ index: 0, name: 'intro', action: 'card' });
+  intro.page(1);
+  console.log('  card: intro');
+  await waitMs(cards.ms);
+}
 try {
   for (const [i, step] of plan.steps.entries()) {
     const label = `#${i + 1}${step.name ? ` ${step.name}` : ''}`;
@@ -1046,6 +1107,19 @@ try {
       await human.hold(spec.holdMs ?? humanOptions.shotHoldMs);
       if (only === spec.id) break;
     }
+  }
+
+  // The end card is the last frame, so it is set after the path rather than drawn
+  // over it: no overlay, no app, just the list this run ticked off. It is skipped
+  // for `--only` (a replay up to one figure is not a finished walkthrough) and
+  // the failure path never reaches it, because a card that says "done" after a
+  // failed run is a lie the video would tell every time it is watched.
+  if (cards?.outro && !only) {
+    const outro = timeline.begin({ index: plan.steps.length + 1, name: 'outro', action: 'card' });
+    outro.page(pageLog.length);
+    console.log('  card: outro');
+    await showCard(page, 'outro');
+    await waitMs(cards.ms);
   }
 } catch (error) {
   if (!error.step && currentStep) error.step = currentStep;
