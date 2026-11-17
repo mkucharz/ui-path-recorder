@@ -222,6 +222,7 @@ captures/<run>/             figures + review.html + .shots.json + .vars.json
 scripts/path-shots.mjs      the runner
 lib/human.mjs               how a recorded run is driven: pointer, travel, typing
 lib/recorder.mjs            how a recording is made: frames, resampling, ffmpeg
+lib/captions.mjs            a step's subtitle → the pill in the picture and its .vtt
 lib/timeline.mjs            where each step started/ended, and the video chapters
 lib/ingest.mjs              figures → WebP + manifest
 ```
