@@ -329,23 +329,45 @@ subtitle, so the row and the voice change together.
   ○ Enter your password         1 / 4
 ```
 
-It is docked over the app at the right edge (300 px by default, capped at 30% of
-the viewport), not built into the page, so the page is not resized for it and it
-can be removed for every figure exactly like the pointer — a captioned,
-checklist-ticked run's figures are still byte-identical to a plain run's.
-`video.checklist` changes its heading, side, width and tick colour, and a viewport
-under 1280 px gets a warning naming the share the panel takes:
+It comes in **two layouts**, and the difference is what happens to the page:
+
+- `"layout": "overlay"` (the default) floats a translucent card over the app at
+  the right edge (300 px by default, capped at 30% of the viewport). Nothing about
+  the page changes, which is right for an app that fills its window — the tick
+  still reads behind the panel because the card blurs what is under it.
+- `"layout": "dock"` reserves a column instead of covering one: the page is laid
+  out beside the panel, so no control is ever hidden and the whole frame is one
+  composition — app on the left, list on the right. That is what a 1920×1080
+  recording needs to be a real 16:9 frame rather than an app with a card on top.
+
+```json
+"video": { "checklist": { "title": "Sign-in checklist", "layout": "dock", "width": 360 } }
+```
+
+Either way the panel is *not* built into the page: it can be removed for every
+figure exactly like the pointer, so a captioned, checklist-ticked run's figures are
+still byte-identical to a plain run's. A docked run keeps the reserved column
+while the panel is off screen — the picture must show the page the video showed,
+and a page that reflowed for the capture would not be that page.
+
+`video.checklist` changes its heading, side, width, layout and tick colour. A
+viewport under 1280 px gets a warning naming the share the panel takes, and a dock
+that would leave the app itself narrower than 1280 px gets its own:
 
 ```
   checklist: 4 item(s)  side=right  width=300px
   warning: viewport is 900px wide; a right checklist takes 270px of it
+  checklist: 4 item(s)  side=right  width=360px  docked (the page is laid out beside it)
+  warning: the docked panel leaves the app 1240px of the 1600px viewport
 ```
 
 `--no-humanize` draws neither the subtitles nor the panel, and says so. The
 review sheet lists the checklist the video ticks, each row a link that seeks the
 player to the moment it ticked — the one part of a checklist a still cannot prove.
 
-`plans/examples/signin-checklist.plan.json` is the shipped example.
+`plans/examples/signin-checklist.plan.json` is the shipped overlay example;
+`plans/examples/signin-sidebar.plan.json` is the docked one, at 1920×1080 with a
+360 px column (1560 px for the app).
 
 ### A title card and an end card
 

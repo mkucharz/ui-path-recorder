@@ -1,0 +1,64 @@
+{
+  "tutorial": "signin-sidebar",
+  "description": "The same sign-in flow with the checklist docked in a column of its own: the page is laid out beside the panel instead of underneath it, so a 1920x1080 frame is one 16:9 composition — app on the left, list on the right, nothing covered.",
+  "baseUrl": "${SIGNIN_URL}",
+  "locale": "en-US",
+  "viewport": { "width": 1920, "height": 1080 },
+  "colorScheme": "dark",
+  "deviceScaleFactor": 2,
+  "humanize": {
+    "seed": "signin-sidebar-v1",
+    "shotHoldMs": 1600
+  },
+  "video": {
+    "checklist": {
+      "title": "Sign-in checklist",
+      "side": "right",
+      "width": 360,
+      "layout": "dock"
+    }
+  },
+  "vars": {
+    "lang": { "literal": "en" },
+    "email": { "literal": "reader@acme.example" },
+    "password": { "literal": "not-a-real-password" }
+  },
+  "steps": [
+    {
+      "name": "open the sign-in page",
+      "caption": "Open the sign-in page for your workspace.",
+      "check": "Open your workspace",
+      "goto": "/?lang=${lang}"
+    },
+    {
+      "name": "the form is on screen",
+      "caption": "Sign in with the address and password you already use.",
+      "check": "Sign in with your email",
+      "expect": { "selector": ["#signin-card", "#email"] },
+      "shot": { "id": "01-signin", "clip": "#signin-card", "pad": 48 }
+    },
+    {
+      "name": "fill the email",
+      "caption": "Type the email address on your account.",
+      "fill": { "selector": "#email", "value": "${email}" }
+    },
+    {
+      "name": "fill the password",
+      "caption": "Then the password.",
+      "check": "Enter your password",
+      "fill": { "selector": "#password", "value": "${password}" }
+    },
+    {
+      "name": "sign in",
+      "caption": "Choose Sign in.",
+      "click": "#submit"
+    },
+    {
+      "name": "the workspace is on screen",
+      "caption": "You land in your workspace, signed in.",
+      "check": "Land in your workspace",
+      "expect": { "selector": "#dashboard" },
+      "shot": { "id": "02-workspace" }
+    }
+  ]
+}

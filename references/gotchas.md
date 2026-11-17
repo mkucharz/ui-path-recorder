@@ -255,12 +255,28 @@ the work. A row over 48 characters, a step carrying only `check`, more than ten
 items, or `video.checklist` with nothing to tick: refused before the browser
 opens.
 
-**A checklist panel is docked over the app, so the viewport decides what it
-covers.** It is 300 px by default (220–380 configurable), capped at 30% of the
-frame, and drawn over the page rather than shrinking it. A viewport under 1280 px
-triggers the warning in the log; a plan recorded at 900 px with a 380 px panel is
-a video of a panel with an app behind it. Pick the side the app leaves empty, and
-check the panel against a real frame — `--speed 20`, extract one.
+**An `overlay` panel covers the app, so the viewport decides how much.** It is
+300 px by default (220–380 configurable), capped at 30% of the frame, and drawn
+over the page rather than shrinking it. A viewport under 1280 px triggers the
+warning in the log; a plan recorded at 900 px with a 380 px panel is a video of a
+panel with an app behind it. Pick the side the app leaves empty, and check the
+panel against a real frame — `--speed 20`, extract one.
+
+**A `dock` panel reserves its column instead of covering one.** The page is laid
+out beside the panel, so the app gets `viewport − width` pixels and a 1920×1080
+recording is a true 16:9 composition. Three things bite:
+
+- **The app must be designed for the narrower column.** The reservation is a
+  margin on the root element; a page painted in `100vw` (or a fixed-width layout
+  wider than the column) ignores it and is clipped or scrolled. Look at one frame
+  before publishing.
+- **The reservation outlives the panel.** It is set at first paint and kept while
+  the panel is removed for a figure, so a figure shows the same narrow page the
+  video did. Do not expect a full-width capture from a docked run.
+- **The viewport must have room for both.** A dock that leaves the app under
+  1280 px logs a warning; 1920−360 = 1560 is the shipped example
+  (`plans/examples/signin-sidebar.plan.json`), 1600−360 = 1240 is the one the
+  warning is about.
 
 **A hard navigation takes the panel with the document.** Like the caption, the
 list is redrawn by the first `arrive()`/`hold`/`settle()` after a `goto`. It is

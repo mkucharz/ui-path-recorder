@@ -293,6 +293,7 @@
             "title": { "type": "string", "default": "What you'll do", "description": "The heading above the rows. An empty string hides it." },
             "side": { "enum": ["left", "right"], "default": "right", "description": "Which edge the panel is docked to. Pick the side the app leaves empty." },
             "width": { "type": "integer", "minimum": 220, "maximum": 380, "default": 300, "description": "Panel width in CSS pixels, capped at 30% of the viewport. Narrower rows than 220 crowd the labels; wider than 380 the panel covers the app." },
+            "layout": { "enum": ["overlay", "dock"], "default": "overlay", "description": "overlay floats the panel over the app on a translucent card; dock reserves a column of its own, so the page is laid out beside the panel and nothing is covered. A docked panel keeps its width instead of capping at 30% of the viewport, and an app painted in 100vw units ignores the reservation." },
             "accent": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$", "default": "#7c9cf5", "description": "Colour of a completed tick: #rgb or #rrggbb." }
           }
         },

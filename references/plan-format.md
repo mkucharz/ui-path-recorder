@@ -325,18 +325,21 @@ not run, and re-ordering the plan re-orders the panel.
 - `--no-humanize` has no overlay to draw with, so the recording carries no panel
   and the run logs a warning.
 
-How the panel looks is `video.checklist` (below). The shipped example is
-`plans/examples/signin-checklist.plan.json`.
+How the panel looks — and whether it floats over the page or docks beside it —
+is `video.checklist` (below). The shipped examples are
+`plans/examples/signin-checklist.plan.json` (overlay) and
+`plans/examples/signin-sidebar.plan.json` (docked, 1920×1080).
 
 ## `video` — how the recording is drawn
 
-Optional. These keys describe the picture, never the path. The panel is an
-overlay, so it applies to a humanized run (`--video` turns that on); the cards are
-page content and appear in the raw cut too, but only in a run that records.
+Optional. These keys describe the picture, never the path. The panel is drawn by
+the humanizer's overlay, so it applies to a humanized run (`--video` turns that
+on); the cards are page content and appear in the raw cut too, but only in a run
+that records.
 
 | Key | | |
 |---|---|---|
-| `checklist` | — | `{ title, side, width, accent }` for the panel beside the video. |
+| `checklist` | — | `{ title, side, width, layout, accent }` for the panel beside the video. |
 | `intro` | — | The title card the video opens on. `{ title, subtitle?, bullets? }`. |
 | `outro` | — | The end card the video closes on. Same shape. |
 | `cardMs` | `2200` | How long each card is held, divided by `humanize.speed` like every other delay. |
@@ -347,12 +350,24 @@ page content and appear in the raw cut too, but only in a run that records.
 |---|---|---|
 | `title` | `"What you'll do"` | Heading above the rows. An empty string hides it. |
 | `side` | `"right"` | `left` or `right`. Pick the side the app leaves empty; a panel over a sidebar is a panel over evidence. |
-| `width` | `300` | 220–380 CSS pixels, capped at 30% of the viewport. Narrower crowds the labels, wider covers the app. |
+| `width` | `300` | 220–380 CSS pixels. In `overlay` it is capped at 30% of the viewport; in `dock` it keeps its width, because the page gives up exactly that column. |
+| `layout` | `"overlay"` | `overlay` floats a translucent card over the app; `dock` reserves a column of its own and lays the page out beside it. |
 | `accent` | `"#7c9cf5"` | Colour of a completed tick, `#rgb` or `#rrggbb`. |
 
-The panel is docked *over* the app rather than shrinking it, so its width is a
-share of the frame: a viewport narrower than 1280 px logs a warning naming that
-share, because 30% of a 900 px page is a different video from 30% of 1600.
+`overlay` changes nothing about the page — the card blurs what is under it, so a
+control behind it is still readable — and its width is a share of the frame: a
+viewport narrower than 1280 px logs a warning, because 30% of a 900 px page is a
+different video from 30% of 1600.
+
+`dock` is the one that makes a 16:9 composition: the page is laid out beside the
+panel instead of under it, nothing is covered, and the app gets
+`viewport − width` pixels. Two consequences worth planning for: the app must
+be designed for a narrower column (a page painted in `100vw` units ignores the
+reservation), and a dock that leaves the app under 1280 px logs its own warning.
+The reservation is set on the root element at the document's first paint and stays
+when the panel is hidden for a figure, so the page does not reflow between the
+video and the picture of it. A card is a document of its own and never reserves
+anything.
 
 Like the subtitle pill, the panel is drawn dark whatever the plan's
 `colorScheme`: it is a recording decoration, not part of the app, and a dark
@@ -360,6 +375,7 @@ panel on a light page reads as an overlay rather than as a broken screen.
 
 ```json
 "video": { "checklist": { "title": "Sign-in check", "width": 320 } }
+"video": { "checklist": { "title": "Sign-in checklist", "layout": "dock", "width": 360 } }
 ```
 
 ### `video.intro` / `video.outro`

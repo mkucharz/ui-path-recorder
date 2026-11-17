@@ -18,6 +18,7 @@ import {
   checklistCss,
   checklistItems,
   checklistOptions,
+  checklistReserve,
   squash,
 } from '../lib/checklist.mjs';
 import { validate } from '../lib/plan.mjs';
@@ -95,6 +96,10 @@ test('a plan refuses a checklist it cannot draw', () => {
   assert.throws(() => validate(withVideo({ checklist: { side: 'middle' } })), /must be "left" or "right"/);
   assert.throws(() => validate(withVideo({ checklist: { width: 100 } })), /width" must be 220–380 pixels/);
   assert.throws(() => validate(withVideo({ checklist: { width: 'wide' } })), /width" must be 220–380 pixels/);
+  assert.throws(() => validate(withVideo({ checklist: { layout: 'sidebar' } })), /layout" must be "overlay" or "dock"/);
+  // The docked layout is valid, and validating it must not need a wider viewport:
+  // whether the app has room left is a warning the run prints, not a typo.
+  assert.deepEqual(validate(withVideo({ checklist: { layout: 'dock' } })).warnings, []);
   assert.throws(() => validate(withVideo({ checklist: { accent: 'blue' } })), /accent" must be a #rgb or #rrggbb colour/);
   assert.throws(() => validate(withVideo({ checklist: { title: 7 } })), /title" must be a string/);
   // A panel configured for a list nobody ticks would draw an empty box.
@@ -121,6 +126,42 @@ test('a valid checklist validates and warns about nothing', () => {
   // The items alone are enough: the block is decoration.
   assert.deepEqual(validate(PLAN).warnings, []);
   assert.ok(NARROW_VIEWPORT >= 1280, 'a narrow-warning threshold below 1280 would fire on a normal 1440p page');
+});
+
+test('the panel floats over the page unless the plan docks it', () => {
+  // Nothing about an existing plan changes: the overlay covers the app and the
+  // page gives up no space for it.
+  const floated = checklistOptions(PLAN);
+  assert.equal(floated.layout, 'overlay');
+  assert.equal(checklistReserve(floated), 0);
+
+  const docked = checklistOptions({ ...PLAN, video: { checklist: { layout: 'dock', width: 360 } } });
+  assert.equal(docked.layout, 'dock');
+  assert.equal(checklistReserve(docked), 360);
+  // A half-pixel width is rounded once, here, so the stylesheet and the page
+  // cannot disagree about where the panel begins.
+  assert.equal(checklistReserve({ layout: 'dock', width: 319.6 }), 320);
+
+  // A typo is not a wish: it falls back to the layout that changes nothing about
+  // the page rather than silently docking an app that was never measured for it.
+  assert.equal(checklistOptions({ ...PLAN, video: { checklist: { layout: 'sidebar' } } }).layout, 'overlay');
+  assert.equal(checklistOptions({ ...PLAN, video: { checklist: { layout: null } } }).layout, 'overlay');
+});
+
+test('the two layouts are two different panels, not one recoloured', () => {
+  const css = checklistCss();
+  // The overlay is translucent and blurs what is under it, which is the whole
+  // reason it may sit on top of a control: you can still see the control.
+  assert.match(css, /#__path_checklist\{[^}]*background:rgba\(/);
+  assert.match(css, /#__path_checklist\{[^}]*backdrop-filter:blur\(/);
+  // The docked panel is opaque and full height: it is the second column of the
+  // page, so there is nothing of the app behind it to blur.
+  assert.match(css, /#__path_checklist\.pc-dock\{[^}]*top:0;bottom:0/);
+  assert.match(css, /#__path_checklist\.pc-dock\{[^}]*backdrop-filter:none/);
+  assert.match(css, /#__path_checklist\.pc-dock\{[^}]*background:#0d121b/);
+  // And the page reserves that column on the root, on the side the panel is on.
+  assert.match(css, /html\[data-pc-dock="right"\]\{margin-right:var\(--pc-dock/);
+  assert.match(css, /html\[data-pc-dock="left"\]\{margin-left:var\(--pc-dock/);
 });
 
 /* ------------------------------------------------------------------ *
@@ -178,6 +219,13 @@ const waitForPanel = (page) =>
   page.waitForFunction(() => {
     const el = document.getElementById('__path_checklist');
     return Boolean(el && el.classList.contains('pc-in') && el.querySelector('.pc-count')?.textContent);
+  });
+
+/** The entrance is a transition, so a rect read too early is still sliding. */
+const settled = (page) =>
+  page.waitForFunction(() => {
+    const el = document.getElementById('__path_checklist');
+    return Boolean(el) && getComputedStyle(el).transform === 'none';
   });
 
 
@@ -263,6 +311,98 @@ test('the overlay draws the panel, ticks it, and hides it for a capture', async 
     drawn = await page.evaluate(PANEL);
     assert.equal(drawn.count, `${drawn.done.length} / 3`);
     assert.equal(drawn.done.length, 3);
+  } finally {
+    await context.close();
+    await browser.close();
+  }
+});
+
+test('a docked panel takes a column of the page instead of covering it', async (t) => {
+  const browser = await launch();
+  if (!browser) return t.skip('no browser to draw with');
+
+  const APP = `<!doctype html><html><head><style>
+    html,body{margin:0;height:100%}body{background:#111}main{height:100%;background:#1b2130}
+  </style></head><body><main id="app"></main></body></html>`;
+  const CARD = `<!doctype html><html data-pc-card><head><style>
+    html,body{margin:0;height:100%}body{background:#0a0e14}
+  </style></head><body><main>Done</main></body></html>`;
+
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  try {
+    await context.route('http://dock.test/**', (route) =>
+      route.fulfill({
+        contentType: 'text/html',
+        body: new URL(route.request().url()).pathname === '/done' ? CARD : APP,
+      }),
+    );
+    const page = await context.newPage();
+    const human = createHuman({
+      context,
+      page,
+      plan: {
+        viewport: { width: 1440, height: 900 },
+        humanize: { seed: 'dock', loadFade: 0 },
+        video: { checklist: { title: 'Setup', layout: 'dock', width: 360 } },
+        steps: [{ goto: '/', check: 'Open the installer' }, { check: 'Sign in as the operator' }, { check: 'Pick the target' }],
+      },
+      speed: 200,
+    });
+    human.attachInit();
+    await page.goto('http://dock.test/');
+    await human.begin();
+    await waitForPanel(page);
+    await settled(page);
+
+    /** The column the page laid itself out in, and where the panel begins. */
+    const geometry = () =>
+      page.evaluate(() => {
+        const app = document.getElementById('app')?.getBoundingClientRect() ?? document.body.getBoundingClientRect();
+        const panel = document.getElementById('__path_checklist')?.getBoundingClientRect() ?? null;
+        const root = document.documentElement;
+        return {
+          docked: root.getAttribute('data-pc-dock'),
+          // The box the document actually laid out in: the root's margin is what
+          // the reservation is, and clientWidth does not subtract it.
+          column: Math.round(document.body.getBoundingClientRect().width),
+          appRight: Math.round(app.right),
+          panel: panel && { left: Math.round(panel.left), right: Math.round(panel.right), top: Math.round(panel.top), bottom: Math.round(panel.bottom), width: Math.round(panel.width) },
+        };
+      });
+
+    let drawn = await geometry();
+    assert.equal(drawn.docked, 'right', 'the page is told to reserve the right column from its first paint');
+    // The app lays out in what is left — the panel is a column, not a sheet of
+    // glass over the last 360px of a 1440px app.
+    assert.equal(drawn.column, 1080);
+    assert.equal(drawn.appRight, 1080);
+    assert.ok(drawn.panel.left >= drawn.appRight, `the panel starts where the app ends (${drawn.panel.left} >= ${drawn.appRight})`);
+    assert.equal(drawn.panel.right, 1440, 'and ends at the right edge of the frame');
+    assert.equal(drawn.panel.top, 0);
+    assert.equal(drawn.panel.bottom, 900, 'a docked panel is full height, not a card in the middle');
+
+    // A figure may not carry video chrome, but it must show the page the video
+    // showed: removing the panel must not hand the app its 360px back.
+    await human.hideCursor();
+    assert.equal(await page.evaluate(PANEL), null, 'the panel is gone while the capture is taken');
+    drawn = await geometry();
+    assert.equal(drawn.docked, 'right', 'the reservation survives the panel being removed');
+    assert.equal(drawn.column, 1080, 'so the page does not reflow for the picture');
+
+    await human.showCursor();
+    await waitForPanel(page);
+    await settled(page);
+    drawn = await geometry();
+    assert.equal(drawn.column, 1080);
+    assert.equal(drawn.panel.left, 1080, 'the panel comes back to the column it reserved');
+
+    // A card is a document of its own with no app to make room for, so it opts
+    // out: the intro and the recap stay centred instead of pushed left.
+    await page.goto('http://dock.test/done');
+    await human.arrive();
+    drawn = await geometry();
+    assert.equal(drawn.docked, null, 'a card reserves no column');
+    assert.equal(drawn.column, 1440);
   } finally {
     await context.close();
     await browser.close();

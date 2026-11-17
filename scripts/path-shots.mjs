@@ -67,7 +67,7 @@ import { writeReview } from '../lib/review.mjs';
 import { createHuman, resolveOptions } from '../lib/human.mjs';
 import { buildVtt, cuesForRecording, vttFor } from '../lib/captions.mjs';
 import { cardFitWarning, cardHtml, cardOptions } from '../lib/cards.mjs';
-import { NARROW_VIEWPORT, checklistOptions } from '../lib/checklist.mjs';
+import { NARROW_VIEWPORT, checklistOptions, checklistReserve } from '../lib/checklist.mjs';
 import { createRecorder } from '../lib/recorder.mjs';
 import { actionOf, createTimeline } from '../lib/timeline.mjs';
 
@@ -412,12 +412,19 @@ if (humanizeOn) {
   // seen in the finished recording.
   const checklist = checklistOptions(plan);
   if (checklist) {
-    const width = Math.round(Math.min(checklist.width, viewport.width * 0.3));
-    console.log(`  checklist: ${checklist.items.length} item(s)  side=${checklist.side}  width=${width}px`);
+    const width = checklist.layout === 'dock' ? checklistReserve(checklist) : Math.round(Math.min(checklist.width, viewport.width * 0.3));
+    console.log(
+      `  checklist: ${checklist.items.length} item(s)  side=${checklist.side}  width=${width}px${checklist.layout === 'dock' ? '  docked (the page is laid out beside it)' : ''}`,
+    );
     if (viewport.width < NARROW_VIEWPORT) {
       console.warn(
         `  warning: viewport is ${viewport.width}px wide; a ${checklist.side} checklist takes ${width}px of it\n` +
           `  -- widen the viewport or narrow "video.checklist.width" — the panel is docked over the app`,
+      );
+    } else if (checklist.layout === 'dock' && viewport.width - width < NARROW_VIEWPORT) {
+      console.warn(
+        `  warning: the docked panel leaves the app ${viewport.width - width}px of the ${viewport.width}px viewport\n` +
+          `  -- widen the viewport or narrow "video.checklist.width"; the app lays out in what is left`,
       );
     }
   }
