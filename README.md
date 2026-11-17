@@ -183,6 +183,13 @@ in the URL points at a single slide, and `Present` goes full screen with a click
 on the figure as the next button. A slide's caption is the tile's own record, so
 the two views cannot disagree.
 
+The player is a **fixed 16:9 frame** — the shape a video player uses, and the
+shape the recording already is. A portrait crop followed by a wide app shot would
+otherwise resize the stage on every step, which reads as the page jumping rather
+than the figure changing; inside the frame a figure is letterboxed at its own
+proportions and never enlarged past its pixels. `Present` keeps the same frame on
+whatever it is shown on.
+
 ## A video a reader can follow
 
 `--video` records the run — which on its own is not worth watching. Playwright's

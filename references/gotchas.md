@@ -129,6 +129,13 @@ disagree is if the run wrote two different sets of figures.
 **One figure is not a slideshow.** Below two shots the section is not rendered at
 all: arrows over a single slide are a control that cannot do anything.
 
+**The stage is a fixed 16:9 box, not a picture that sizes itself.** A portrait
+crop followed by a wide app shot used to resize the stage on every step, which
+reads as the page jumping; the player is now the frame and the figure is fitted
+inside it (`max-width`/`max-height`, never enlarged). Do not give the image
+`width: 100%` or an `object-fit` that crops it — the `width`/`height` attributes
+only carry the incoming picture's proportions for the moment before it decodes.
+
 **Stepping through slides is not history.** The slide goes in the URL as
 `#fig-2` (so a review comment can point at one) with `history.replaceState`, not a
 hash assignment: pressing back after looking at nine figures should leave the

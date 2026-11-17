@@ -168,7 +168,9 @@ click on a thumbnail jumps to one, `#fig-2` in the URL points at a single slide,
 and `Present` goes full screen (there a click on the figure is the next button).
 What a slide says is the tile's own record — id, both sizes, the step, the
 asserted text — so stepping through the run in order is how you notice that step
-4's figure shows step 5's screen.
+4's figure shows step 5's screen. The stage is a fixed 16:9 frame, the shape of
+the recording itself: a portrait crop and a wide app shot cannot resize it, so
+the page does not jump as you step.
 
 When the run recorded a video, the same page carries the player and a chapter
 list built from `.timeline.json` — clicking a chapter seeks the player in place
