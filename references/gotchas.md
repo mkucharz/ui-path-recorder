@@ -196,6 +196,23 @@ clock and never are. `--speed` rescales every delay without changing the sampled
 path, so a fast test run and the final take share chapter *names*, not chapter
 seconds. Shoot at `--speed 1` with a pinned `--seed`; test at 20.
 
+**A subtitle is drawn in the page, so a navigation takes it with the document.**
+That is the one place a caption can go missing mid-step: a `click` that posts a
+form and loads a new page loses the pill until the runner next waits for the page
+— `arrive()` (every `goto`), `hold`, and the `settle()` before a figure all say it
+again. So a caption on a step that ends in a hard navigation reads as a subtitle
+that stops at the page load; put the sentence on the step that lands on the new
+screen (after its `waitFor`) instead. The `.vtt` is unaffected either way, because
+its cue is the step's own clock.
+
+**A caption is a line, and `--no-humanize` does not burn it in.** Over 160
+characters, carrying a newline, empty, or on a step with no action: refused before
+the browser opens. The pill is drawn by the humanizer's overlay, so the raw cut
+(`--no-humanize`) records no subtitles at all — the `.vtt` is still written and
+the run prints a warning. The pill is hidden for every figure and every piece of
+evidence along with the pointer, which is why a captioned run's PNGs stay
+byte-identical to a plain run's.
+
 ## What the runner cannot do
 
 - **Know a selector was right for the screen you meant.** The guards are the only

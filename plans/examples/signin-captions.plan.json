@@ -1,0 +1,56 @@
+{
+  "tutorial": "signin-captions",
+  "description": "The same sign-in card, narrated: every step carries the subtitle a reader sees while the recording plays, and the run writes the same text beside the video as a WebVTT file.",
+  "baseUrl": "${SIGNIN_URL}",
+  "locale": "en-US",
+  "viewport": { "width": 1600, "height": 900 },
+  "colorScheme": "dark",
+  "deviceScaleFactor": 2,
+  "humanize": {
+    "seed": "signin-captions-v1",
+    "shotHoldMs": 1600
+  },
+  "vars": {
+    "lang": { "literal": "en" },
+    "email": { "literal": "reader@acme.example" },
+    "password": { "literal": "not-a-real-password" }
+  },
+  "steps": [
+    {
+      "name": "open the sign-in page",
+      "caption": "Open the sign-in page for your workspace.",
+      "goto": "/?lang=${lang}"
+    },
+    {
+      "name": "the form is on screen",
+      "caption": "Sign in with the address and password you already use.",
+      "expect": { "selector": ["#signin-card", "#email"] },
+      "shot": { "id": "01-signin", "clip": "#signin-card", "pad": 48 }
+    },
+    {
+      "name": "this screen still signs in with a password",
+      "expect": { "selector": ["#password", "#submit"] }
+    },
+    {
+      "name": "fill the email",
+      "caption": "Type the email address on your account.",
+      "fill": { "selector": "#email", "value": "${email}" }
+    },
+    {
+      "name": "fill the password",
+      "caption": "Then the password.",
+      "fill": { "selector": "#password", "value": "${password}" }
+    },
+    {
+      "name": "sign in",
+      "caption": "Choose Sign in.",
+      "click": "#submit"
+    },
+    {
+      "name": "the workspace is on screen",
+      "caption": "You land in your workspace, signed in.",
+      "expect": { "selector": "#dashboard" },
+      "shot": { "id": "02-workspace" }
+    }
+  ]
+}

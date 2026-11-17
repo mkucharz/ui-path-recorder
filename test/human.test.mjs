@@ -20,6 +20,8 @@ function fakePage({ width = 900, height = 700, box = { x: 100, y: 100, width: 12
   const moves = [];
   const keys = [];
   const calls = [];
+  /** What the overlay was asked to draw, with the arguments it was given. */
+  const overlay = [];
   const page = {
     viewportSize: () => ({ width, height }),
     mouse: {
@@ -34,6 +36,7 @@ function fakePage({ width = 900, height = 700, box = { x: 100, y: 100, width: 12
     },
     evaluate: async (_fn, arg) => {
       calls.push(arg?.name);
+      if (arg?.name) overlay.push({ name: arg.name, args: arg.args ?? [] });
       return undefined;
     },
   };
@@ -49,7 +52,7 @@ function fakePage({ width = 900, height = 700, box = { x: 100, y: 100, width: 12
       return this;
     },
   };
-  return { page, locator, moves, keys, calls };
+  return { page, locator, moves, keys, calls, overlay };
 }
 
 const human = ({ page, speed = 200, seed = 'unit', enabled = true } = {}) =>
@@ -167,6 +170,32 @@ test('the pointer is hidden for a capture and shown again after it', async () =>
   await humanizer.hideCursor();
   await humanizer.showCursor();
   assert.deepEqual(calls, ['__pathCursorHide', '__pathCursorShow']);
+});
+
+test('a caption is drawn, cleared by an empty one, and said again after a page swap', async () => {
+  const { page, overlay, calls } = fakePage();
+  const humanizer = human({ page });
+
+  await humanizer.caption('Open the sign-in page.');
+  assert.deepEqual(overlay.at(-1), { name: '__pathCaption', args: ['Open the sign-in page.'] });
+  // Whitespace collapses, because a subtitle is a line rather than a block.
+  await humanizer.caption('  Open  the sign-in\npage.  ');
+  assert.deepEqual(overlay.at(-1), { name: '__pathCaption', args: ['Open the sign-in page.'] });
+
+  // A navigation replaces the document that held the caption. `arrive()` is
+  // where the runner waits for the new one, so it must say it again — otherwise
+  // a caption set on a `goto` step would never be seen.
+  calls.length = 0;
+  await humanizer.arrive();
+  assert.ok(calls.includes('__pathCaption'), 'the caption follows the page it describes');
+
+  // A step with no caption clears it: no subtitle outlives the screen it
+  // described.
+  await humanizer.caption('');
+  assert.deepEqual(overlay.at(-1), { name: '__pathCaption', args: [''] });
+  calls.length = 0;
+  await humanizer.hold(1);
+  assert.ok(!calls.includes('__pathCaption'), 'a cleared caption is not repeated');
 });
 
 test('the same seed produces the same scheduled delay', async () => {

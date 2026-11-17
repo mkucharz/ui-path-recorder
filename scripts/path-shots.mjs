@@ -65,6 +65,7 @@ import { createVars, loadPlan, PlanError } from '../lib/plan.mjs';
 import { writeEvidence } from '../lib/evidence.mjs';
 import { writeReview } from '../lib/review.mjs';
 import { createHuman, resolveOptions } from '../lib/human.mjs';
+import { buildVtt, cuesForRecording, vttFor } from '../lib/captions.mjs';
 import { createRecorder } from '../lib/recorder.mjs';
 import { actionOf, createTimeline } from '../lib/timeline.mjs';
 
@@ -397,6 +398,14 @@ const pageLog = [];
 let videoFiles = [];
 if (humanizeOn) {
   console.log(`  humanize: on   seed=${humanSeed}  speed=${humanOptions.speed}${video ? '' : '  (no --video: pacing only)'}`);
+} else {
+  // Captions are drawn by the overlay, which a raw cut does not install. The
+  // .vtt is still written, but the recording itself will carry no subtitles and
+  // that is worth saying once rather than discovering in a finished file.
+  const captioned = plan?.steps.filter((step) => step.caption).length ?? 0;
+  if (video && captioned) {
+    console.warn(`  warning: ${captioned} step(s) carry a caption; --no-humanize leaves it to the .vtt track`);
+  }
 }
 
 const shutdown = async () => {
@@ -450,11 +459,43 @@ async function logVideo() {
   console.log(`  seed:  ${humanSeed}   (re-run with --seed ${humanSeed} to replay the same path)`);
 }
 
+/**
+ * The subtitles, written beside the recordings.
+ *
+ * A step's `caption` is drawn in the page, which makes the recording explain
+ * itself anywhere it is played — but burned-in text is pixels: it cannot be
+ * searched, turned off or translated. The same timeline therefore also becomes a
+ * WebVTT file a `<track>`, a docs page or a video host can read, and the two
+ * cannot disagree because both are the step's own clock.
+ *
+ * Written after the run (including a run that failed late, whose video is still
+ * worth watching), because a cue's end is the next step's start.
+ */
+async function writeCaptions() {
+  if (!video || !videoFiles.length) return;
+  const json = timeline.toJSON();
+  const written = [];
+  for (const recording of videoFiles) {
+    const cues = cuesForRecording(json, recording);
+    if (!cues.length) continue;
+    const file = vttFor(recording.file);
+    const note = [json.tutorial ?? json.plan, `${cues.length} cue(s)`, json.seed ? `seed ${json.seed}` : null]
+      .filter(Boolean)
+      .join(' · ');
+    await mkdir(path.dirname(path.join(OUT, file)), { recursive: true });
+    await writeFile(path.join(OUT, file), buildVtt(cues, { note }));
+    recording.captionsFile = file;
+    written.push(`${file} (${cues.length} cue${cues.length === 1 ? '' : 's'})`);
+  }
+  if (written.length) console.log(`  captions: ${written.join(', ')}`);
+}
+
 /** Artefacts to link from the review sheet beyond the figures themselves. */
 async function collectExtras() {
   const extras = [];
   if (video) {
     for (const v of videoFiles) extras.push(v.file);
+    for (const v of videoFiles) if (v.captionsFile) extras.push(v.captionsFile);
     if (!videoFiles.length) extras.push('video/');
   }
   if (trace) extras.push('trace.zip');
@@ -687,7 +728,7 @@ try {
   for (const [i, step] of plan.steps.entries()) {
     const label = `#${i + 1}${step.name ? ` ${step.name}` : ''}`;
     currentStep = label;
-    const record = timeline.begin({ index: i + 1, name: step.name ?? null, action: actionOf(step) });
+    const record = timeline.begin({ index: i + 1, name: step.name ?? null, action: actionOf(step), caption: step.caption ?? null });
     // Which tab this step runs in. A `clickNewPage` flow continues in a second
     // recording, and a chapter that seeks into the wrong one lands on a screen
     // the step never showed — so the tab is recorded per step, not once.
@@ -712,6 +753,11 @@ try {
         continue;
       }
     }
+    // The step's subtitle, in the picture for as long as the step runs. A step
+    // without one clears the last, so a caption can never outlive the screen it
+    // described. It is set before `goto`, because `arrive()` is what says it
+    // again once the new document exists.
+    await human.caption(step.caption ?? '');
     if (step.goto) {
       const url = expand(step.goto);
       await page.goto(url.startsWith('http') ? url : `${baseUrl}${url}`, { waitUntil: 'domcontentloaded' });
@@ -991,6 +1037,9 @@ try {
   await logVideo();
   timeline.setVideos(videoFiles);
   timeline.close();
+  // Before the timeline is written, so `.timeline.json` names the `.vtt` beside
+  // each recording: the two files are copied around together.
+  await writeCaptions().catch(() => {});
   if (video || human.enabled) await timeline.write(OUT).catch(() => {});
   // A plan that fails late has still banked every figure before the failure, and
   // those are exactly what a reviewer needs to see next to the evidence.
@@ -1020,6 +1069,7 @@ timeline.setVideos(videoFiles);
 timeline.close();
 await writeFile(metaPath, JSON.stringify(shotMeta, null, 2) + '\n');
 await writeVars();
+await writeCaptions();
 if (video || human.enabled) await timeline.write(OUT);
 const extras = await collectExtras();
 if (review && (shots.length || videoFiles.length)) {

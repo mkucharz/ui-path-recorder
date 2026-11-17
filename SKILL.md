@@ -113,6 +113,15 @@ captures the frames itself and drops the ones that are not the page's shape,
 holding the frame before them across the gap; `frames dropped: N` in the log says
 how many, and it is normally a small number.
 
+A recorded plan can also **narrate itself**: `"caption": "…"` on a step is drawn
+into the picture for that step (a bottom-centre pill, hidden for every figure) and
+written beside the recording as `video/01-main.vtt`, so the video reads in any
+player and the subtitles stay switchable, searchable and translatable. The
+sentence belongs in the plan next to the step it describes — afterwards, in a
+video editor, it is a claim nobody checks. `--no-humanize` has no overlay to draw
+with, so it writes the track only and warns; see `references/plan-format.md` →
+`caption`, and `plans/examples/signin-captions.plan.json`.
+
 ### 4. Read the evidence, not the error
 
 A first run over an unseen page is wrong about a selector. When it fails, the

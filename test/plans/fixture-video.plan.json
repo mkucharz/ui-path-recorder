@@ -16,11 +16,12 @@
     "password": { "env": "FIXTURE_PASSWORD" }
   },
   "steps": [
-    { "name": "open the app", "goto": "/?flash=1" },
+    { "name": "open the app", "caption": "Open the app.", "goto": "/?flash=1" },
     { "name": "dismiss the cookie banner", "clickIfPresent": { "selector": "#cookie-deny" } },
     { "name": "let the first paint settle", "waitHidden": { "selector": "#flash-bar" } },
     {
       "name": "sign-in card",
+      "caption": "The card asks for the operator's email.",
       "expect": "Welcome back",
       "shot": { "id": "01-welcome", "clip": "#card", "pad": 16 }
     },
@@ -30,6 +31,7 @@
     { "name": "the second screen replaces the first in place", "waitFor": { "text": "Step 2 — choose a target" } },
     {
       "name": "second screen, full frame",
+      "caption": "Four services will be created.",
       "expect": "The installer will create four services",
       "shot": { "id": "02-step2" }
     },
@@ -38,6 +40,7 @@
     { "name": "read the generated password", "setVar": { "name": "token", "from": { "selector": "#secret" } } },
     {
       "name": "a scraped value reaches a later step",
+      "caption": "A value read off the page comes back.",
       "goto": "/?token=${token}",
       "waitFor": { "selector": "#echoed" },
       "expect": "Signed in with ${token}",
