@@ -143,6 +143,16 @@ fullscreen, where there is no page to scroll.
 
 ## Video
 
+**A figure's capture window is not part of the video.** Every figure hides the
+pointer, the caption and the panel, and the page repaints — so the recorder
+pauses for the capture and holds the frame that is already on screen. It drops
+frames by *capture time*, not arrival time: the screencast delivers
+asynchronously, so a bare frame composited while the chrome was hidden can arrive
+after the resume, and dropping by arrival lets exactly the frame the pause exists
+to prevent into the video. `showCursor()` resolves on the frame that carries the
+restored chrome for the same reason. If you add another hide/show pair, wrap it in
+`pause()`/`resume()` or expect a one-frame flash.
+
 **The pointer in a recording is a depiction, not a capture.** Playwright's
 screencast draws no mouse at all — a real OS cursor is never in the frame, which is
 why a plain recording is so hard to follow. The pointer in `--video` output is an
