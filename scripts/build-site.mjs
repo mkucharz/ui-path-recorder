@@ -421,13 +421,13 @@ try {
   // The plan block is the one piece of source the page asks a reader to read, so
   // it is coloured here rather than by a script in the browser — see
   // `lib/json-highlight.mjs`.
+  if (!PLAN_BLOCK.test(template)) {
+    throw new Error('site/index.html has no <code class="json"> block to highlight');
+  }
   const body = template.replace(
     PLAN_BLOCK,
     (whole, source) => `<code class="json">${highlightJson(source)}</code>`,
   );
-  if (body === template) {
-    throw new Error('site/index.html has no <code class="json"> block to highlight');
-  }
 
   const html = body
     .replace('<!-- site:styles -->', `<style>${checklistCss('.theme .pc-panel')}</style>`)

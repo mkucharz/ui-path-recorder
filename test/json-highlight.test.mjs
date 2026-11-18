@@ -40,9 +40,19 @@ test('a plan is JSON an agent writes, so quotes, angles and ampersands survive',
   const awkward = '{"name":"Tom & Jerry <script>alert(1)</script>","n":1}';
   const html = highlightJson(awkward);
   assert.equal(asText(html), awkward);
+  // Decoding alone would pass even if `&` were left bare, so the escaping itself
+  // is asserted: every `&` in the source is `&amp;` in the output.
+  assert.match(html, /Tom &amp; Jerry &lt;script&gt;/);
+  assert.doesNotMatch(html.replace(/<\/?span[^>]*>/g, ''), /&(?!amp;|lt;|gt;)/);
   // Nothing in the output can open a tag the source did not describe.
   assert.doesNotMatch(html.replace(/<\/?span[^>]*>/g, ''), /<script>/);
-  assert.match(html, /&lt;script&gt;/);
+});
+
+test('a variable is escaped like the text around it, quotes and all', () => {
+  const source = '{"baseUrl": "${A<B&C}", "note": "\\\\"quoted\\\\""}';
+  const html = highlightJson(source);
+  assert.equal(asText(html), source);
+  assert.match(html, /<span class="j-v">\$\{A&lt;B&amp;C\}<\/span>/);
 });
 
 test('keys and strings are different things, and a colon decides which', () => {
@@ -55,6 +65,8 @@ test('keys and strings are different things, and a colon decides which', () => {
   assert.doesNotMatch(html, /<span class="j-k">"\/login"/);
   // The colon itself is dimmed, not styled like either side of it.
   assert.match(html, /<span class="j-p">:<\/span>/);
+  // A key is a key however much room the author left before the colon.
+  assert.match(highlightJson('{"a"        : 1}'), /<span class="j-k">"a"<\/span>/);
 });
 
 test('a number inside a string is a string, and a number is a number', () => {
@@ -79,6 +91,25 @@ test('${…} is interpolation, so it is marked inside the string that holds it',
   const plain = highlightJson('{"n": "no var here"}');
   assert.doesNotMatch(plain, /class="j-v"/);
   assert.match(plain, /<span class="j-s">"no var here"<\/span>/);
+});
+
+test('the text around a variable survives it, before and after, twice over', () => {
+  // A single `${…}` filling the whole string leaves the parts list empty on both
+  // sides, which is the case where re-weaving the text and the marks cannot go
+  // wrong. A prefix and a suffix is where it can.
+  const source = '{"cmd": "run ${A} then ${B} done"}';
+  const html = highlightJson(source);
+  assert.equal(asText(html), source);
+  assert.match(
+    html,
+    /<span class="j-s">"run <span class="j-v">\$\{A\}<\/span> then <span class="j-v">\$\{B\}<\/span> done"<\/span>/,
+  );
+});
+
+test('a variable in a key is still a key', () => {
+  const html = highlightJson('{"${field}": true}');
+  assert.match(html, /<span class="j-k">"\$\{field\}"<\/span>/);
+  assert.doesNotMatch(html, /class="j-v"/);
 });
 
 test('an empty or whitespace block is not a crash', () => {
