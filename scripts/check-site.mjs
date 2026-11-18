@@ -25,6 +25,7 @@
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { PLAN_BLOCK } from '../lib/json-highlight.mjs';
 
 const HERE = path.resolve(import.meta.dirname, '..');
 const ARGS = process.argv.slice(2);
@@ -117,9 +118,30 @@ if (!BUILT) {
   }
   if (!existsSync(path.join(root, 'style.css'))) fail('site/style.css is missing');
   if (!/\bhref="style\.css"/.test(html)) fail('index.html: does not reference style.css');
+  // The plan block is the page's one piece of source, and the build colours it by
+  // parsing it. So: exactly one marker — the build replaces only the first, and a
+  // second one would be left grey with nothing to say so — and it has to parse,
+  // because the highlighter reads JSON and a typo would otherwise be coloured as
+  // though it were one.
+  const blocks = html.match(/<code class="json">/g) ?? [];
+  if (blocks.length !== 1) {
+    fail(`index.html: <code class="json"> must appear exactly once (found ${blocks.length})`);
+  } else {
+    const plan = PLAN_BLOCK.exec(html);
+    try {
+      JSON.parse(plan[1]);
+    } catch (error) {
+      fail(`index.html: the plan block is not valid JSON (${error.message})`);
+    }
+  }
 } else {
   for (const slot of SLOTS) {
     if (html.includes(`<!-- site:${slot} -->`)) fail(`index.html: <!-- site:${slot} --> was not filled by the build`);
+  }
+  // Proves the build ran the highlighter rather than shipping the template's
+  // plain text: a key span and a punctuation span are what it emits.
+  if (!/class="j-k"/.test(html) || !/class="j-p"/.test(html)) {
+    fail('index.html: the plan block was not highlighted by the build');
   }
 }
 

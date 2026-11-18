@@ -37,6 +37,7 @@ import { spawn } from 'node:child_process';
 import { findFfmpeg } from '../lib/recorder.mjs';
 import { startStaticServer } from '../lib/serve.mjs';
 import { checklistCss, checklistOptions, checklistPanelHtml } from '../lib/checklist.mjs';
+import { highlightJson, PLAN_BLOCK } from '../lib/json-highlight.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const SITE = path.join(ROOT, 'site');
@@ -417,7 +418,18 @@ try {
     });
   }
 
-  const html = template
+  // The plan block is the one piece of source the page asks a reader to read, so
+  // it is coloured here rather than by a script in the browser — see
+  // `lib/json-highlight.mjs`.
+  const body = template.replace(
+    PLAN_BLOCK,
+    (whole, source) => `<code class="json">${highlightJson(source)}</code>`,
+  );
+  if (body === template) {
+    throw new Error('site/index.html has no <code class="json"> block to highlight');
+  }
+
+  const html = body
     .replace('<!-- site:styles -->', `<style>${checklistCss('.theme .pc-panel')}</style>`)
     .replace('<!-- site:hero -->', heroMarkup)
     .replace('<!-- site:gallery -->', built.map(({ entry, run, media }) => cardMarkup(entry, run, media)).join('\n'))

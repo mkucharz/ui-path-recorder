@@ -218,6 +218,19 @@ pre code {
   color: inherit; white-space: pre;
 }
 
+/* The plan block, coloured at build time (`lib/json-highlight.mjs`). Four roles,
+   no rainbow: the palette has one saturated colour and it goes to the two things
+   a reader hunts for — the key that names a step kind, and a `${…}` variable. A
+   string is a string and reads as body text; the brightest ink is for the values
+   that carry numbers; braces and commas step back so they stop competing with the
+   keys beside them. */
+pre code .j-k { color: var(--accent) }
+pre code .j-v { color: var(--accent); font-style: italic }
+pre code .j-s { color: var(--ink-body) }
+pre code .j-n,
+pre code .j-l { color: var(--ink) }
+pre code .j-p { color: var(--ink-faint) }
+
 /* ------------------------------------------------------------------ *
  * Hero
  * ------------------------------------------------------------------ */
