@@ -170,15 +170,13 @@ async function record({ planPath, dir, url, video = false, seed = null }) {
  * exists only in the video, so a still of the panel is a frame of the recording:
  * ffmpeg cuts it, and nothing here draws it.
  */
-async function frame({ video, at, out, crop = null }) {
+async function frame({ video, at, out }) {
   const ffmpeg = await findFfmpeg();
   if (!ffmpeg) {
-    throw new Error('no ffmpeg found — the stills on this page are frames of its recordings (npx playwright install ffmpeg)');
+    throw new Error('no ffmpeg found — the social card is a frame of a recording (npx playwright install ffmpeg)');
   }
   mkdirSync(path.dirname(out), { recursive: true });
-  const args = ['-y', '-loglevel', 'error', '-ss', String(at / 1000), '-i', video, '-frames:v', '1'];
-  if (crop) args.push('-vf', `crop=${crop.width}:${crop.height}:${crop.x}:${crop.y}`);
-  args.push(out);
+  const args = ['-y', '-loglevel', 'error', '-ss', String(at / 1000), '-i', video, '-frames:v', '1', out];
   const code = await new Promise((resolve, reject) => {
     const child = spawn(ffmpeg, args, { stdio: ['ignore', 'ignore', 'inherit'] });
     child.on('error', reject);
@@ -290,8 +288,12 @@ function swatchesFor(name) {
 function themeMarkup(theme, panel) {
   const preset = readJson(`themes/${theme.name}.json`);
   const markup = checklistPanelHtml({ ...panel, width: null, tokens: preset.tokens, done: Math.max(0, panel.items.length - 1) });
+  // The panel is chrome, so it is `aria-hidden`; a figure that showed nothing to
+  // a screen reader would be a blank box. The description names the palette and
+  // what the rows are, which is what a reader is meant to compare.
+  const description = `The same sign-in checklist panel in the ${theme.name} palette, with ${Math.max(0, panel.items.length - 1)} of its ${panel.items.length} rows ticked.`;
   return `        <figure class="theme">
-          <div class="palette">${markup}</div>
+          <div class="palette" role="img" aria-label="${esc(description)}">${markup}</div>
           <figcaption>
             <span class="name">"video": { "theme": "${esc(theme.name)}" }</span>
             ${swatchesFor(theme.name)}

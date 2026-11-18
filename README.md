@@ -617,6 +617,9 @@ matching what it reported).
 The site — [mkucharz.github.io/ui-path-recorder](https://mkucharz.github.io/ui-path-recorder/) —
 is `site/` plus `node scripts/build-site.mjs`: the page is a template and its
 examples are recorded from the plans in this repo during the deploy, so nothing
-binary is committed and no figure on it can come from anywhere else.
+binary is committed and no figure on it can come from anywhere else. The one
+exception is the palette strip, which is not a picture at all: it is the
+recorder's own panel stylesheet with each preset's tokens set, generated into the
+page at build time (`lib/checklist.mjs` → `checklistCss`, `checklistPanelHtml`).
 
 MIT.

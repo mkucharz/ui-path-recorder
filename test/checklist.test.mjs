@@ -19,6 +19,7 @@ import {
   checklistCss,
   checklistItems,
   checklistOptions,
+  checklistPanelHtml,
   checklistReserve,
   squash,
 } from '../lib/checklist.mjs';
@@ -90,6 +91,64 @@ test('the stylesheet carries the panel and the animation it needs', () => {
   // inserted instead — see the navigation case below.
   assert.doesNotMatch(css, /transition:\s*none/);
   assert.match(css, /--pc-accent/);
+});
+
+test('the stylesheet can be scoped, and unscoped it is byte-identical', () => {
+  // A recording styles the fixed panel id; the site draws the same panel inside a
+  // figure and needs the same stylesheet under its own selector. One stylesheet,
+  // two homes — so a colour cannot differ between the picture and the thing it
+  // pictures.
+  const fixed = checklistCss();
+  assert.match(fixed, /#__path_checklist/);
+  assert.doesNotMatch(fixed, /\.theme/);
+
+  const scoped = checklistCss('.theme .pc-panel');
+  assert.doesNotMatch(scoped, /#__path_checklist/);
+  assert.match(scoped, /\.theme \.pc-panel\{[^}]*position:fixed/);
+  // Same declarations in the same order, only the selector moved: a scoped copy
+  // that also restyled something would be a second stylesheet.
+  assert.equal(scoped.replaceAll('.theme .pc-panel', '#__path_checklist'), fixed);
+});
+
+/* ------------------------------------------------------------------ *
+ * The panel as a fragment
+ * ------------------------------------------------------------------ */
+
+test('the panel fragment is the panel: rows, ticks, count line, and text as text', () => {
+  const html = checklistPanelHtml({
+    title: 'Sign-in check',
+    subtitle: 'Four steps, one workspace.',
+    items: ['Open your workspace', '<script>alert(1)</script>', 'Press "enter"'],
+    done: 2,
+    width: 320,
+  });
+
+  assert.match(html, /class="pc-panel[^"]*\bpc-dock"/);
+  assert.match(html, /class="pc-head">Sign-in check</);
+  assert.match(html, /class="pc-sub">Four steps, one workspace\.</);
+  assert.equal((html.match(/<li class="pc-item/g) ?? []).length, 3);
+  assert.equal((html.match(/<li class="pc-item pc-done"/g) ?? []).length, 2);
+  assert.match(html, />2 \/ 3</);
+  // A label containing markup is a label, not markup.
+  assert.doesNotMatch(html, /<script>/);
+  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  // The width arrives as a token, the way a recording configures the panel.
+  assert.match(html, /--pc-w:320px/);
+  // It is chrome, not content: a screen reader gets the page, not a second copy.
+  assert.match(html, /aria-hidden="true"/);
+});
+
+test('a token value is escaped, because CSS values may hold a quote', () => {
+  // `tokenValueProblem` allows a quoted font stack, and an unescaped `"` would
+  // end the attribute. The parser decodes `&quot;` back inside it, so the value
+  // arrives at CSS unchanged.
+  const html = checklistPanelHtml({
+    items: ['One'],
+    done: 0,
+    tokens: { '--pc-font-family': '"SF Pro Text", sans-serif' },
+  });
+  assert.match(html, /--pc-font-family:&quot;SF Pro Text&quot;, sans-serif/);
+  assert.equal((html.match(/"/g) ?? []).length % 2, 0);
 });
 
 /* ------------------------------------------------------------------ *

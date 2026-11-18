@@ -86,14 +86,16 @@ if (h1s !== 1) fail(`index.html: expected exactly one <h1>, found ${h1s}`);
 // into. The page is otherwise HTML and a stylesheet, and the footer says so — an
 // external script, a second inline one, or a `src=` is a different page and has to
 // come with a new sentence rather than slip in.
-const scripts = [...html.matchAll(/<script\b([^>]*)>/gi)];
+const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
 if (scripts.length > 1) fail(`index.html: expected at most one <script>, found ${scripts.length}`);
-for (const [, attrs] of scripts) {
-  if (/\bsrc\s*=/i.test(attrs)) fail('index.html: the dialog script must be inline, not a second request');
-  if (/\btype\s*=\s*"(?!text\/javascript)/i.test(attrs)) fail('index.html: unexpected <script type>');
-}
-if (scripts.length === 1 && !/showModal\(\)/.test(html)) {
-  fail('index.html: a <script> appeared that is not the video dialog; the footer claims a page of HTML, a stylesheet and that one script');
+for (const [, scriptAttrs, body] of scripts) {
+  if (/\bsrc\s*=/i.test(scriptAttrs)) fail('index.html: the dialog script must be inline, not a second request');
+  if (/\btype\s*=\s*"(?!text\/javascript)/i.test(scriptAttrs)) fail('index.html: unexpected <script type>');
+  // The job is the dialog, so the proof is in the body: a second script that
+  // happens to leave `showModal()` elsewhere on the page does not qualify.
+  if (!/showModal\(\)/.test(body)) {
+    fail('index.html: a <script> appeared that is not the video dialog; the footer claims a page of HTML, a stylesheet and that one script');
+  }
 }
 
 // Every in-page anchor must land on something. A dead `#how` is a nav that does
