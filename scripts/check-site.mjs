@@ -103,15 +103,17 @@ if (h1s !== 1) fail(`index.html: expected exactly one <h1>, found ${h1s}`);
 const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
 if (scripts.length > 1) fail(`index.html: expected at most one <script>, found ${scripts.length}`);
 for (const [, scriptAttrs, body] of scripts) {
-  if (/\bsrc\s*=/i.test(scriptAttrs)) fail('index.html: the dialog script must be inline, not a second request');
+  if (/\bsrc\s*=/i.test(scriptAttrs)) fail('index.html: the page\'s one script must be inline, not a second request');
   if (/\btype\s*=\s*"(?!text\/javascript)/i.test(scriptAttrs)) fail('index.html: unexpected <script type>');
   // Both jobs are proved in the body, so a script that replaces this one and
   // leaves `showModal(` somewhere on the page does not qualify.
   if (!/showModal\(\)/.test(body)) {
-    fail('index.html: a <script> appeared that is not the video dialog; the footer claims a page of HTML, a stylesheet and that one script');
+    fail('index.html: a <script> appeared that does not open the video dialog; the footer claims a page of HTML, a stylesheet and that one script');
   }
-  if (!/navigator\.clipboard/.test(body)) {
-    fail('index.html: the one script must also copy a command, or the copy buttons are dead');
+  // The call, not the name: `navigator.clipboard` alone is satisfied by a comment
+  // or a feature test, which is exactly how a dead copy button would ship.
+  if (!/navigator\.clipboard\.writeText\(/.test(body)) {
+    fail('index.html: the one script must copy a command through navigator.clipboard.writeText, or the copy buttons are dead');
   }
 }
 
@@ -160,15 +162,17 @@ if (!BUILT) {
   // A copy button is revealed by the script and labelled by it, so it must ship
   // hidden — a reader without JavaScript would otherwise be offered a button that
   // does nothing — and it needs the code it copies beside it in a `.snippet`.
-  const snippets = html.split('<div class="snippet">').slice(1);
+  // Split on the class as written, whatever else the tag carries, and read the
+  // attributes individually so their order is not a rule.
+  const snippets = html.split(/<div\b[^>]*\bclass="[^"]*\bsnippet\b[^"]*"[^>]*>/).slice(1);
   for (const chunk of snippets) {
-    const body = chunk.slice(0, chunk.indexOf('</div>'));
+    const body = chunk.slice(0, chunk.search(/<\/div>/));
     if (!/<pre><code>/.test(body)) fail('index.html: a .snippet holds no <pre><code> to copy');
-    if (!/<button[^>]*\bdata-copy\b[^>]*\bhidden\b/.test(body)) {
-      fail('index.html: a .snippet holds no hidden copy button');
-    }
+    const tags = [...body.matchAll(/<button\b[^>]*>/g)].map((match) => match[0]);
+    const copies = tags.filter((tag) => /\bdata-copy\b/.test(tag) && /\bhidden\b/.test(tag));
+    if (!copies.length) fail('index.html: a .snippet holds no hidden copy button');
   }
-  const copyButtons = (html.match(/<button[^>]*\bdata-copy\b/g) ?? []).length;
+  const copyButtons = (html.match(/<button\b[^>]*\bdata-copy\b/g) ?? []).length;
   if (copyButtons !== snippets.length) {
     fail(`index.html: ${copyButtons} copy button(s) for ${snippets.length} command block(s)`);
   }

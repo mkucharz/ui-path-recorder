@@ -236,9 +236,6 @@ pre code .j-p { color: var(--ink-faint) }
  * ------------------------------------------------------------------ */
 
 .install { margin: 1.6rem 0 1.4rem }
-/* 35rem, not 34: the command is 547px with its padding and borders, so a 34rem
-   block hid its last few characters behind a horizontal scroll. */
-.install pre { max-width: 35rem }
 .install .snippet { margin-bottom: .6rem }
 
 /* A command with a copy button. The button goes directly under the block, right-
@@ -250,6 +247,13 @@ pre code .j-p { color: var(--ink-faint) }
    dead control. */
 .snippet { width: fit-content; max-width: 100%; margin: 0 0 1.1rem }
 .snippet pre { margin: 0 0 .5rem }
+
+/* The command sits within a few pixels of its block's width, so the difference
+   between "fits" and "hides its last argument behind a scrollbar" is a font
+   metric — a wider default mono, a longer command. Wrapping is the fallback, and
+   it is the one the page already trusts on a phone; `anywhere` is what lets a
+   URL break instead of overflow. At today's metrics this changes nothing. */
+.snippet pre code { white-space: pre-wrap; overflow-wrap: anywhere }
 
 .copy {
   display: block;
