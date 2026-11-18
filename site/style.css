@@ -127,8 +127,9 @@ section:first-of-type { border-top: 0 }
 .hero .cta { max-width: 62ch }
 /* The install row is a command and its button side by side, so it is not held to
    the prose measure: at 62ch the button would take the last of the line's width
-   and wrap `-g` onto a second one. It hugs its content (`fit-content`), so this
-   is a ceiling, not a width. */
+   and wrap `-g` onto a second one. This is only a ceiling for a future, longer
+   command — the row itself hugs its content (`.snippet` is `fit-content`), so the
+   block is 630px, not this. */
 .hero .install { max-width: 44rem }
 
 .rail {
@@ -258,13 +259,17 @@ pre code .j-p { color: var(--ink-faint) }
 .snippet pre code { white-space: pre-wrap; overflow-wrap: anywhere }
 
 /* A fixed width, so the label's "Copied" cannot reflow the row and re-wrap the
-   command it just copied — the button is a control, not a box that grows. */
+   command it just copied — the button is a control, not a box that grows. The
+   width has to hold the longest label the script can produce, "Select, copy" (the
+   no-clipboard fallback), which is why there is no padding: the user agent's 1px
+   6px default was enough to push that label onto two lines. */
 .copy {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 4.8rem;
+  padding: 0;
   font: 500 .74rem/1 var(--sans);
   border: 1px solid var(--line-strong);
   border-radius: 9px;
