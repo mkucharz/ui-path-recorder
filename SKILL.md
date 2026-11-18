@@ -25,13 +25,18 @@ a recording a person can watch, driven at human pace with a visible pointer.
 Once per checkout, from the directory that holds this file:
 
 ```bash
-npm install && npx playwright install chromium   # ffmpeg only for --video
+npm install && npx playwright-core install chromium   # ffmpeg only for --video
 ```
 
 `node scripts/path-shots.mjs` resolves `playwright-core` from that
 `node_modules`, so a skill unpacked from a release tarball needs this before its
 first run. If a browser is already on the machine, `CHROME=/path/to/chrome`
 skips the download.
+
+`playwright-core`, not `playwright`: a bare `npx playwright` would fetch a
+different Playwright from the registry whose browser build need not be the one
+this tree pins, and it fails at launch with `Executable doesn't exist …`. The core
+package's CLI installs the revision `package.json` pins.
 
 ## When to use
 
@@ -101,7 +106,7 @@ them. Add `--only <shot-id>` to replay the plan up to one figure.
 `--video` records the walkthrough **and drives the page like a person**: a
 visible pointer travelling along a curved path, a dwell before each press, typing
 a character at a time, and a beat of stillness on each figure. It needs
-`npx playwright install ffmpeg` once. Figures are byte-identical with and without
+`npx playwright-core install ffmpeg` once. Figures are byte-identical with and without
 it — the pointer is hidden for every capture — so the only thing it changes is
 pacing, which is why it is on by default for a recording.
 

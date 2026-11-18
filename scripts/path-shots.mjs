@@ -86,7 +86,7 @@ const USAGE = `usage:
   --profile <dir>   keep the session in a browser profile on this host (implies a visible window)
   --login           open that profile for a human to sign in, then exit
   --login-done-file an agent on another host signals "signed in" with touch <file>
-  --video           record the run to <out>/video/*.webm (needs ffmpeg: npx playwright install ffmpeg)
+  --video           record the run to <out>/video/*.webm (needs ffmpeg: npx playwright-core install ffmpeg)
                     and drive it like a person: pointer, curved travel, typing cadence, dwell
   --no-humanize     with --video, record the raw machine-speed cut instead
   --seed <s>        seed the humanizer (default: derived from the run stamp; logged as seed=)
@@ -103,7 +103,7 @@ const USAGE = `usage:
   --channel <name>  launch a specific browser channel (chrome, msedge, chromium)
   CHROME=<path>     launch a specific browser binary instead of the bundled one
 
-  A browser must exist: npx playwright install chromium, or CHROME=/path/to/chrome.`;
+  A browser must exist: npx playwright-core install chromium, or CHROME=/path/to/chrome.`;
 
 /** Flags that consume the next argument, so it is not mistaken for the plan. */
 const VALUE_FLAGS = new Set([
@@ -392,7 +392,7 @@ for (const candidate of launchCandidates()) {
 if (!context) {
   console.error(`\n  could not launch a browser. Tried: ${launchCandidates().map((c) => c.executablePath ?? c.channel ?? 'bundled').join(', ')}`);
   console.error(`  last error: ${lastLaunchError?.message?.split('\n')[0] ?? 'unknown'}`);
-  console.error('  fix: npx playwright install chromium   (or CHROME=/path/to/chrome)\n');
+  console.error('  fix: npx playwright-core install chromium   (or CHROME=/path/to/chrome)\n');
   process.exit(2);
 }
 
@@ -566,7 +566,7 @@ async function openPage({ prepare } = {}) {
     return await trackPage(opened);
   } catch (error) {
     if (error.ffmpegMissing || /ffmpeg/i.test(error.message)) {
-      console.error("\n  --video needs Playwright's ffmpeg:   npx playwright install ffmpeg\n");
+      console.error("\n  --video needs Playwright's ffmpeg:   npx playwright-core install ffmpeg\n");
       await shutdown();
       process.exit(2);
     }

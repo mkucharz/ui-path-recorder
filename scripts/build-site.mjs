@@ -173,7 +173,7 @@ async function record({ planPath, dir, url, video = false, seed = null }) {
 async function frame({ video, at, out }) {
   const ffmpeg = await findFfmpeg();
   if (!ffmpeg) {
-    throw new Error('no ffmpeg found — the social card is a frame of a recording (npx playwright install ffmpeg)');
+    throw new Error('no ffmpeg found — the social card is a frame of a recording (npx playwright-core install ffmpeg)');
   }
   mkdirSync(path.dirname(out), { recursive: true });
   const args = ['-y', '-loglevel', 'error', '-ss', String(at / 1000), '-i', video, '-frames:v', '1', out];

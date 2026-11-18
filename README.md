@@ -63,12 +63,18 @@ Pin a release instead of a branch when the plan matters more than the novelty �
 The CLI on its own:
 
 ```bash
-npm install                    # playwright-core, plus optional sharp
-npx playwright install chromium
-npx playwright install ffmpeg  # only for --video
+npm install                         # playwright-core, plus optional sharp
+npx playwright-core install chromium
+npx playwright-core install ffmpeg  # only for --video
 # or point at a browser you already have:
 export CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 ```
+
+`playwright-core`, not `playwright`: this tree depends on the core package, and a
+bare `npx playwright` fetches a *different* Playwright from the registry whose
+browser build need not be the one `package.json` pins — which fails at launch with
+`Executable doesn't exist … chromium-<n>`. The core package's own CLI installs the
+exact revision, so the number always matches.
 
 ## Try it in 30 seconds — no account, no network
 
@@ -535,7 +541,7 @@ the script waits for that file instead of a keypress.
 | `--profile <dir>` | keep the session in a profile on this host (implies a visible window) |
 | `--login` | open that profile for a human, then exit |
 | `--login-done-file <f>` | an agent on another host signals "signed in" with `touch <f>` |
-| `--video` | record the walkthrough to `<out>/video/01-main.webm` **and drive it like a person** (needs `npx playwright install ffmpeg`) |
+| `--video` | record the walkthrough to `<out>/video/01-main.webm` **and drive it like a person** (needs `npx playwright-core install ffmpeg`) |
 | `--no-humanize` | with `--video`, record the raw machine-speed cut instead |
 | `--seed <s>` | seed the humanizer (default `run-<stamp>`, logged as `seed=`) |
 | `--speed <n>` | scale every human delay: 1 natural, 20 a fast test run |
