@@ -1,0 +1,20 @@
+{
+  "description": "Catppuccin, mocha flavour: base and mantle for the two surfaces, the text → subtext → overlay ramp for the three levels of secondary text, and mauve as the accent. Catppuccin ships four flavours; only the dark ones suit a chrome whose whole premise is a dark panel over a page it does not own, so latte (the light flavour) is deliberately not offered and mocha is the default dark one. Geometry and font are not part of the palette, so they keep the chrome's own.",
+  "source": "https://github.com/catppuccin/palette — palette.json v1.8.0, flavour \"mocha\": base #1e1e2e, mantle #181825, surface0 #313244, surface1 #45475a, surface2 #585b70, overlay1 #7f849c, overlay2 #9399b2, subtext0 #a6adc8, subtext1 #bac2de, text #cdd6f4, mauve #cba6f7",
+  "tokens": {
+    "--pc-surface": "rgba(30,30,46,.9)",
+    "--pc-surface-strong": "#181825",
+    "--pc-border": "#313244",
+    "--pc-border-soft": "color-mix(in oklab, #45475a 70%, transparent)",
+    "--pc-shadow": "rgba(17,17,27,.55)",
+    "--pc-shadow-soft": "rgba(17,17,27,.45)",
+    "--pc-text": "#cdd6f4",
+    "--pc-text-body": "#bac2de",
+    "--pc-muted": "#a6adc8",
+    "--pc-muted-soft": "#9399b2",
+    "--pc-done": "#7f849c",
+    "--pc-mark": "#1e1e2e",
+    "--pc-accent": "#cba6f7",
+    "--pc-ring": "#585b70"
+  }
+}

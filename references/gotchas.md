@@ -358,6 +358,15 @@ the app's theme, at the cost of only working where the app defines it. The prese
 is a copy and copies rot: `node scripts/check-panel-theme.mjs --app-css PATH`
 re-reads each derived value from the stylesheet it came from.
 
+**A palette's comment colour is not a caption colour.** Dracula's `#6272a4` is its
+comments, and it sits at 3:1 on Dracula's own background — a fine one-line comment,
+a poor subtitle. `themes/dracula.json` therefore lifts Comment toward Foreground
+for `--pc-muted` and `--pc-muted-soft` (dimmer text is still dimmer, just readable),
+and a fourth preset should measure its dimmest documented neutral against the
+surface it actually lands on instead of trusting the palette's intent. Same rule for
+geometry: a palette documents colours, so a preset from one sets the colour tokens
+and leaves `--pc-radius` and `--pc-font-family` to the chrome.
+
 **A colour token must be read with its default as the fallback.** A plan that
 points a token at a variable the page does not define (`var(--color-accent)` on a
 fixture) produces a declaration that is *invalid at computed-value time*: the

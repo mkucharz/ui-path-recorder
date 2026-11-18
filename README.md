@@ -413,7 +413,12 @@ on a themed product, on apple.com, or on a fixture:
 
 The first names a preset in `themes/` — `memory` is the Memory web UI's dark
 palette, copied into literal `oklch()` values so it renders on a page that never
-loaded the product's stylesheet. The second replaces individual values. The third
+loaded the product's stylesheet. Two more ship with it: `dracula` (the night
+palette's ink-violet surfaces and purple ticks) and `catppuccin-mocha` (Catppuccin's
+mocha flavour — base and mantle surfaces, mauve ticks; mocha is one of four
+flavours, and only the dark ones suit a panel that is dark by design). Neither
+invents a radius or a font: a third-party palette documents colours, so the chrome
+keeps its own geometry. The second replaces individual values. The third
 adopts the app's own palette, which only resolves on a page that defines
 `--color-primary`; where it does not, the chrome falls back to its own default
 rather than losing the colour. That is the difference between a preset (portable)

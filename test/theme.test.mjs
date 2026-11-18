@@ -162,6 +162,33 @@ test('the shipped presets are well formed', () => {
   }
 });
 
+test('the presets a plan can name ship under their own names', () => {
+  // The names are the API: a plan that says `"theme": "catppuccin"` is refused, so
+  // the flavour is part of the name rather than a default nobody can see.
+  assert.deepEqual(presetNames().sort(), ['catppuccin-mocha', 'dracula', 'memory']);
+});
+
+test('no preset is a second name for another, or for the default chrome', () => {
+  // A preset that changed nothing draws the panel it always drew while the plan
+  // says it asked for something else — the one failure a screenshot cannot show,
+  // because a fine-looking panel is exactly what it produces.
+  const names = presetNames();
+  for (const name of names) {
+    const tokens = presets()[name].tokens;
+    const changed = Object.keys(tokens).filter((token) => tokens[token] !== TOKEN_DEFAULTS[token]);
+    assert.ok(changed.length >= 10, `${name} only changes ${changed.length} token(s) from the default chrome`);
+  }
+  for (let i = 0; i < names.length; i += 1) {
+    for (let j = i + 1; j < names.length; j += 1) {
+      assert.notDeepEqual(
+        presets()[names[i]].tokens,
+        presets()[names[j]].tokens,
+        `${names[i]} and ${names[j]} are the same palette under two names`,
+      );
+    }
+  }
+});
+
 test('a preset is literal values, so it renders on a page with no CSS', () => {
   // `var(--color-primary)` in a preset would resolve on the product's own pages
   // and turn into nothing anywhere else — the opposite of what a preset is for.
@@ -372,10 +399,38 @@ test('a theme reaches the panel that is actually painted', async (t) => {
     });
 
     // Themed: a literal preset changes what the browser paints, on a page that
-    // defined none of these properties itself.
+    // defined none of these properties itself. Every shipped preset is drawn, not
+    // just the one this test was written for: a copy-paste preset that kept a
+    // value would paint the default chrome and still look perfectly fine.
+    const backgrounds = new Map();
+    for (const name of presetNames()) {
+      const themed = await drawPanel(browser, { ...HUMAN_PLAN, video: { theme: name } });
+      assert.notEqual(themed.background, 'rgba(10, 13, 20, 0.84)', `${name} did not reach the painted panel`);
+      backgrounds.set(name, themed.background);
+    }
+    assert.equal(
+      new Set(backgrounds.values()).size,
+      backgrounds.size,
+      `two presets paint the same surface: ${[...backgrounds].map(([name, colour]) => `${name}=${colour}`).join(', ')}`,
+    );
+
     const memory = await drawPanel(browser, { ...HUMAN_PLAN, video: { theme: 'memory' } });
-    assert.notEqual(memory.background, 'rgba(10, 13, 20, 0.84)', 'the preset did not reach the painted panel');
     assert.equal(memory.radius, '8px', 'the Memory preset is 0.5rem at 16px');
+
+    // A palette documents colours, not geometry: a preset taken from one must not
+    // invent a radius the chrome did not have.
+    const dracula = await drawPanel(browser, { ...HUMAN_PLAN, video: { theme: 'dracula' } });
+    assert.equal(dracula.radius, '14px', 'a colour-only preset must keep the chrome default radius');
+
+    // The docked sidebar paints `--pc-surface-strong`, which is the surface the
+    // plan asked about when it docked the panel — the floating card's token is not
+    // the one a docked recording ever sees.
+    const docked = await drawPanel(browser, {
+      ...HUMAN_PLAN,
+      video: { theme: 'dracula', checklist: { layout: 'dock' } },
+    });
+    assert.equal(docked.docked, true, 'the docked layout was not applied');
+    assert.equal(docked.background, 'rgb(33, 34, 44)', 'the docked panel did not take the preset surface');
 
     // An explicit token wins over the preset it came with — and may read the
     // app's own palette, the case a literal preset cannot cover because `var()`
