@@ -12,8 +12,9 @@
  * - the slots are the only contract between the two, and `check-site.mjs`
  *   refuses a template that has lost one.
  *
- * Every run is seeded by its plan (`humanize.seed`), so the recording is the same
- * every time it is built.
+ * A plan that declares `humanize.seed` is reproduced beat for beat; the ones that
+ * do not are seeded here (`site-<key>`), so a build is the same twice even when
+ * the plan left the pacing free.
  *
  * Two artefacts the plans cannot express are derived here instead. The theme strip
  * is one plan recorded three times with a different `video.theme`, and a still of
@@ -45,10 +46,10 @@ const RUNS = [
     key: 'overlay',
     plan: 'plans/examples/signin.plan.json',
     tag: 'Overlay · the default frame',
-    title: 'Two figures and no chrome',
+    title: 'Two figures, no panel',
     caption:
-      'A 1100×760 frame and a clip on the sign-in card. No panel, no cursor, no subtitle: nothing is added to the app after the fact.',
-    alt: 'The bundled example app’s sign-in card, recorded at 2× on its own with nothing drawn over it.',
+      'A 1100×760 frame and a clip on the sign-in card. No panel and no subtitle — the app and the pointer moving through it, drawn while the page runs rather than edited in afterwards.',
+    alt: 'A recording of the bundled example app’s sign-in card with no checklist panel, only the pointer moving through the form.',
     video: true,
   },
   {
@@ -131,9 +132,10 @@ const readJson = (file) => {
  * a synchronous child would block the event loop and the recording would wait
  * forever for a page that can never be answered.
  */
-async function record({ planPath, dir, url, video = false }) {
+async function record({ planPath, dir, url, video = false, seed = null }) {
   const args = [path.join(ROOT, 'scripts', 'path-shots.mjs'), planPath, '--out', dir, '--review'];
   if (video) args.push('--video');
+  if (seed) args.push('--seed', seed);
   process.stdout.write(`  record ${path.relative(ROOT, planPath)} → ${path.relative(ROOT, dir)}\n`);
   const code = await new Promise((resolve, reject) => {
     const child = spawn(process.execPath, args, {
@@ -272,7 +274,7 @@ function themeMarkup(theme, still) {
   return `      <figure class="theme">
         <div class="frame"><img src="assets/theme-${theme.name}/panel.png" width="${still.width}" height="${still.height}" loading="lazy" decoding="async" alt="The checklist panel with three of its four rows ticked, recorded with the ${esc(theme.name)} palette."></div>
         <figcaption>
-          <span class="name">"theme": "${esc(theme.name)}"</span>
+          <span class="name">"video": { "theme": "${esc(theme.name)}" }</span>
           ${swatchesFor(theme.name)}
           <span class="from">from ${esc(theme.from)}</span>
         </figcaption>
@@ -329,7 +331,11 @@ const beatBeforeEnd = (timeline) => Math.max(0, timeline.steps.at(-1).startMs - 
 try {
   for (const entry of RUNS) {
     const dir = path.join(WORK, entry.key);
-    const result = await record({ planPath: path.join(ROOT, entry.plan), dir, url: server.url, video: entry.video });
+    // A plan that pins its seed is the authority; one that leaves pacing free gets
+    // a stable seed here, so the page does not change because a build ran at a
+    // different second.
+    const seed = readJson(entry.plan).humanize?.seed ?? `site-${entry.key}`;
+    const result = await record({ planPath: path.join(ROOT, entry.plan), dir, url: server.url, video: entry.video, seed });
     if (!result.ok) {
       failed.push({ key: entry.key, dir });
       continue;
@@ -367,7 +373,6 @@ try {
   for (const theme of THEMES) {
     const plan = structuredClone(themeSource);
     plan.tutorial = `signin-theme-${theme.name}`;
-    plan.deviceScaleFactor = 1; // three stills, not three 4K sheets
     plan.video = { ...(plan.video ?? {}), theme: theme.name };
     const planPath = path.join(WORK, 'plans', `${theme.name}.plan.json`);
     writeFileSync(planPath, `${JSON.stringify(plan, null, 2)}\n`);
@@ -382,13 +387,15 @@ try {
     const at = beatBeforeEnd(timeline);
     const panel = { width: plan.video.checklist.width ?? 320, side: plan.video.checklist.side ?? 'right' };
     const across = timeline.viewport.width;
-    const panelX = panel.side === 'left' ? 0 : across - panel.width;
-    // A little of the app at the panel's edge, so the crop shows the panel's own
-    // shadow and border against something rather than floating in a void.
+    // A sliver of the app at the panel's inner edge, so the crop shows the panel's
+    // own shadow and border against something rather than floating in a void — and
+    // the crop stops at the frame edge, because the panel is flush with it.
+    const sliver = 12;
+    const cropWidth = Math.min(across, panel.width + sliver);
     const crop = {
-      x: Math.max(0, panelX - 12),
+      x: panel.side === 'left' ? 0 : across - cropWidth,
       y: 0,
-      width: Math.min(across, panel.width + 24),
+      width: cropWidth,
       height: Math.min(timeline.viewport.height, 340),
     };
     const panelPng = path.join(OUT, 'assets', `theme-${theme.name}`, 'panel.png');

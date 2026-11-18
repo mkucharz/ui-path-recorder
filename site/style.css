@@ -128,7 +128,7 @@ section:first-of-type { border-top: 0 }
 .num {
   margin: .55rem 0 0;
   font: .8rem/1 var(--mono); letter-spacing: .06em;
-  color: var(--surface2);
+  color: var(--overlay2);
 }
 
 /* ------------------------------------------------------------------ *
@@ -164,7 +164,7 @@ p { margin: 0 0 1rem }
 .eyebrow {
   margin: 0;
   font: .72rem/1.4 var(--mono); letter-spacing: .12em; text-transform: uppercase;
-  color: var(--overlay1);
+  color: var(--overlay2);
 }
 
 .lede { font-size: 1.1rem; color: var(--subtext1) }
@@ -347,7 +347,7 @@ pre code {
 .card-tag {
   margin: 0 0 .45rem;
   font: .72rem/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase;
-  color: var(--overlay1);
+  color: var(--overlay2);
 }
 .card-links {
   display: flex; flex-wrap: wrap; gap: .45rem 1.1rem;
@@ -372,7 +372,7 @@ pre code {
   color: var(--text);
   margin-bottom: .1rem;
 }
-.theme .from { display: block; font-size: .78rem; color: var(--overlay1) }
+.theme .from { display: block; font-size: .78rem; color: var(--overlay2) }
 
 .swatches { display: flex; gap: .3rem; margin: .5rem 0 .35rem; padding: 0; list-style: none }
 .swatches li {
@@ -387,7 +387,7 @@ pre code {
 table.flags { width: 100%; border-collapse: collapse; margin: .5rem 0 1rem; font-size: .9rem }
 table.flags th {
   text-align: left; font: .72rem/1.4 var(--mono); letter-spacing: .1em;
-  text-transform: uppercase; color: var(--overlay1);
+  text-transform: uppercase; color: var(--overlay2);
   padding: 0 .7rem .35rem 0;
 }
 table.flags td { padding: .5rem .7rem .5rem 0; border-top: 1px solid var(--surface0); vertical-align: top }
@@ -403,7 +403,7 @@ footer > p {
   max-width: var(--page); margin: 0 auto .6rem; padding-inline: var(--gutter);
   font-size: .85rem; color: var(--subtext0);
 }
-footer .version { font-family: var(--mono); font-size: .92em; color: var(--overlay1) }
+footer .version { font-family: var(--mono); font-size: .92em; color: var(--overlay2) }
 
 /* ------------------------------------------------------------------ *
  * Narrow
@@ -419,10 +419,10 @@ footer .version { font-family: var(--mono); font-size: .92em; color: var(--overl
 @media (max-width: 34rem) {
   body { font-size: 15.5px }
   h1 br { display: none }
-  /* A clone URL is longer than a phone is wide. Wrapping beats a horizontal
-     scrollbar on the one command a reader is most likely to copy. */
-  .install pre { white-space: pre-wrap; overflow-wrap: anywhere }
-  .install pre code { white-space: inherit }
+  /* A clone URL and a JSON line are both longer than a phone is wide. Wrapping
+     beats a horizontal scrollbar on text a reader is likely to copy. */
+  pre { white-space: pre-wrap; overflow-wrap: anywhere }
+  pre code { white-space: inherit }
   table.flags td:first-child { width: auto; white-space: normal }
   table.flags, table.flags tbody, table.flags tr, table.flags td { display: block; width: 100% }
   table.flags thead { display: none }

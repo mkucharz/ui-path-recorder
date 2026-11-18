@@ -147,9 +147,10 @@ npx playwright install chromium</code></pre>
             id, refused before a browser opens</dd></div>
         </dl>
         <p class="fine">
-          On failure the run leaves <code>failures/&lt;stamp&gt;--&lt;step&gt;.txt</code>
-          ending with <code>on screen:</code> — every button and input on the page,
-          so the plan is fixed from evidence instead of someone's description of it.
+          On failure the run leaves <code>failures/&lt;stamp&gt;--&lt;step&gt;.txt</code>,
+          and its last section is <code>on screen:</code> — every button, link and
+          input the page was actually showing, so the plan is fixed from evidence
+          instead of someone's description of it.
         </p>
       </div>
     </div>
@@ -171,12 +172,15 @@ npx playwright install chromium</code></pre>
         <h3 id="themes">The same sidebar, three palettes</h3>
         <p>
           One plan, three themes. The chrome's colours are tokens, so a plan names a
-          palette instead of a stylesheet: <code>"theme": "memory"</code> is
+          palette instead of a stylesheet:
+          <code>"video": { "theme": "memory" }</code> is
           <a href="https://github.com/mkucharz/ui-path-recorder/blob/main/themes/memory.json">the
           product's own dark theme</a>, and <code>dracula</code> and
-          <code>catppuccin-mocha</code> ship beside it. None of them invents a
-          radius or a font — a palette documents colours, so the chrome keeps its
-          own geometry.
+          <code>catppuccin-mocha</code> ship beside it. A preset holds literal values,
+          so it renders on a page that defines no CSS of its own. Two of the three
+          document nothing but colour; <code>memory</code> also names the product's
+          radius and font, because it is the product's theme and the panel should
+          look like part of it.
         </p>
         <div class="themes"><!-- site:themes --></div>
       </div>
@@ -215,7 +219,10 @@ open captures/fixture-*/review.html</code></pre>
   "locale": "en-US",
   "viewport": { "width": 1600, "height": 900 },
   "colorScheme": "dark",
-  "vars": { "email": { "literal": "admin@example.com" } },
+  "vars": {
+    "email": { "literal": "admin@example.com" },
+    "password": { "env": "INSTANCE_PASSWORD" }
+  },
   "steps": [
     { "name": "open", "goto": "/login" },
     { "name": "dismiss the cookie banner", "clickIfPresent": { "selector": "#cookie-deny" } },
@@ -239,7 +246,7 @@ open captures/fixture-*/review.html</code></pre>
 
         <h3>The flags that matter</h3>
         <table class="flags">
-          <thead><tr><th>Flag</th><th></th></tr></thead>
+          <thead><tr><th scope="col">Flag</th><th scope="col">What it does</th></tr></thead>
           <tbody>
             <tr><td><code>--review</code></td><td>write <code>review.html</code> into the run directory</td></tr>
             <tr><td><code>--video</code></td><td>record the walkthrough and drive it like a person (needs <code>ffmpeg</code>)</td></tr>

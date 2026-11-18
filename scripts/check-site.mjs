@@ -125,7 +125,10 @@ const localPath = (raw) => {
 };
 
 let checked = 0;
-for (const match of html.matchAll(/(href|src)="([^"]+)"/g)) {
+// `poster` is in here on purpose: it is a URL the browser fetches to draw a
+// video before play, so it has the same rules as `src` — a root-absolute one
+// 404s on a project site just as a stylesheet would.
+for (const match of html.matchAll(/(href|src|poster)="([^"]+)"/g)) {
   const [, attribute, value] = match;
   if (VIRTUAL.test(value)) {
     // `//host/x` is protocol-relative: not ours, and not how a project site links.
@@ -187,10 +190,9 @@ if (BUILT) {
 
   for (const block of html.match(/<video\b[^>]*>[\s\S]*?<\/video>/gi) ?? []) {
     const open = attrs(/^<video\b[^>]*>/i.exec(block)[0]);
+    // A poster is a URL, so the scan above already proved it is relative and
+    // resolves. This asks whether it is there at all.
     if (!open.poster) fail('index.html: a <video> has no poster (a reader who cannot play it, or who asked for reduced motion, sees a blank box)');
-    else if (!/^(https?:|\/)/.test(open.poster) && !existsSync(path.resolve(root, open.poster))) {
-      fail(`index.html: <video poster="${open.poster}"> does not exist`);
-    }
     if (!/<source\b[^>]*src="/i.test(block)) fail('index.html: a <video> has no <source>');
   }
 

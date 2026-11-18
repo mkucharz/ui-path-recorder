@@ -12,11 +12,12 @@ on:
     branches: [main]
     paths:
       - 'site/**'
-      - 'scripts/build-site.mjs'
-      - 'scripts/check-site.mjs'
+      - 'scripts/**'
+      - 'lib/**'
       - 'plans/**'
       - 'examples/**'
       - 'themes/**'
+      - 'package*.json'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -73,6 +74,10 @@ jobs:
           path: |
             .site/.work/**/failures/
             .site/.work/**/review.html
+          # `.site` is a hidden directory, and upload-artifact skips hidden paths
+          # by default — which would make this step upload nothing at all, on the
+          # one run that needs it.
+          include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7
 
