@@ -25,6 +25,7 @@
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { PLAN_BLOCK } from '../lib/json-highlight.mjs';
 
 const HERE = path.resolve(import.meta.dirname, '..');
 const ARGS = process.argv.slice(2);
@@ -59,6 +60,19 @@ try {
 
 const failures = [];
 const fail = (message) => failures.push(message);
+
+/**
+ * What a reader sees: the spans removed, the entities the highlighter emits put
+ * back. Used in built mode to compare the coloured block with the template it
+ * came from, which is the whole claim — the colour is added, the text is not
+ * touched.
+ */
+const textOf = (html) =>
+  html
+    .replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
 
 const attrs = (tag) => {
   const found = {};
@@ -117,9 +131,55 @@ if (!BUILT) {
   }
   if (!existsSync(path.join(root, 'style.css'))) fail('site/style.css is missing');
   if (!/\bhref="style\.css"/.test(html)) fail('index.html: does not reference style.css');
+  // The plan block is the page's one piece of source, and the build colours it by
+  // parsing it. So: exactly one marker — the build replaces only the first, and a
+  // second one would be left grey with nothing to say so — a closing tag, and it
+  // has to parse, because the highlighter reads JSON and a typo would otherwise be
+  // coloured as though it were one.
+  const blocks = html.match(/<code class="json">/g) ?? [];
+  const plan = PLAN_BLOCK.exec(html);
+  if (blocks.length !== 1) {
+    fail(`index.html: <code class="json"> must appear exactly once (found ${blocks.length})`);
+  } else if (!plan) {
+    fail('index.html: the <code class="json"> block has no closing </code>');
+  } else if (/<\/?(?:pre|code)\b|class="json"/.test(plan[1])) {
+    // A missing `</code>` makes the lazy match run to the *next* block's close,
+    // so the capture holds markup. Parsed as JSON it would report a syntax error
+    // at a position that points at the wrong element.
+    fail('index.html: the <code class="json"> block runs past its own element (a </code> is missing)');
+  } else {
+    try {
+      JSON.parse(plan[1]);
+    } catch (error) {
+      fail(`index.html: the plan block is not valid JSON (${error.message})`);
+    }
+  }
 } else {
   for (const slot of SLOTS) {
     if (html.includes(`<!-- site:${slot} -->`)) fail(`index.html: <!-- site:${slot} --> was not filled by the build`);
+  }
+  // Proves the build coloured the template's plan rather than shipping its plain
+  // text, and that colouring did not alter it: the block's characters survive
+  // every span, and the four roles the plan is made of are all present.
+  const builtPlan = PLAN_BLOCK.exec(html);
+  const templatePlan = (() => {
+    try {
+      return PLAN_BLOCK.exec(readFileSync(path.join(HERE, 'site', 'index.html'), 'utf8'));
+    } catch {
+      return null;
+    }
+  })();
+  if (!templatePlan) {
+    fail('index.html: cannot read site/index.html to compare the built plan against');
+  } else if (!builtPlan) {
+    fail('index.html: the built plan block is not a <code class="json"> block');
+  } else if (textOf(builtPlan[1]) !== templatePlan[1]) {
+    fail('index.html: the built plan block is not the template\'s text');
+  }
+  for (const role of ['j-k', 'j-s', 'j-n', 'j-p']) {
+    if (!builtPlan?.[1].includes(`class="${role}"`)) {
+      fail(`index.html: the built plan block has no ${role} token`);
+    }
   }
 }
 
