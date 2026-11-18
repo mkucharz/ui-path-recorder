@@ -23,11 +23,13 @@
     "lib/",
     "examples/",
     "plans/schema.json",
+    "themes/",
     "references/"
   ],
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "check": "for f in scripts/path-shots.mjs lib/*.mjs test/*.mjs; do node --check \"$f\" || exit 1; done; echo 'syntax ok'",
+    "theme:check": "node scripts/check-panel-theme.mjs",
     "shots": "node scripts/path-shots.mjs",
     "ingest": "node lib/ingest.mjs",
     "prepare": "node --check scripts/path-shots.mjs"

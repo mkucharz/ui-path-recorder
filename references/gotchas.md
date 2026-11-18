@@ -337,6 +337,46 @@ The end card is skipped by `--only` and never shown after a failure, because a
 recap that says "done" over a run that died is a claim the video would repeat
 every time it is watched.
 
+**The chrome is styled with custom properties, not utility classes.** The panel
+and the cards are drawn over a page this repo does not own, and a Tailwind class
+only exists if *that page's* stylesheet contains it — so `class="bg-base-100"` is
+the product's own colour on the product's pages and nothing at all on apple.com.
+A custom property is a value the browser resolves at paint time, which is why the
+same plan renders the same chrome anywhere. The names are a closed set of sixteen
+`--pc-*` properties checked by the plan validator: an unknown one is refused,
+because an inherited-and-ignored property is the one mistake that never shows up
+in a run. `checklist.accent` is the shorthand for `--pc-accent`, and setting both
+is refused rather than silently resolved.
+
+**A preset is literal; a `var()` belongs in `tokens`.** `themes/memory.json` holds
+concrete `oklch()` values so `"theme": "memory"` draws the Memory palette on a
+page that never loaded Memory's stylesheet. Putting `var(--color-primary)` in a
+preset would resolve on the product's pages and vanish everywhere else — the
+opposite of what a preset is for, and the theme test refuses it. Inheritance is
+what `video.tokens` is for: `{ "--pc-accent": "var(--color-primary)" }` follows
+the app's theme, at the cost of only working where the app defines it. The preset
+is a copy and copies rot: `node scripts/check-panel-theme.mjs --app-css PATH`
+re-reads each derived value from the stylesheet it came from.
+
+**A colour token must be read with its default as the fallback.** A plan that
+points a token at a variable the page does not define (`var(--color-accent)` on a
+fixture) produces a declaration that is *invalid at computed-value time*: the
+custom property becomes the guaranteed-invalid value, and a consumer written as
+`background:var(--pc-accent)` paints nothing — a tick circle that silently
+disappears, with no warning anywhere. Every consumer therefore reads
+`var(--pc-accent,#7c9cf5)`, which turns "this app had no such colour" into the
+default chrome. `lib/theme.mjs` → `tokenRef` is the only place that string is
+built, and `test/theme.test.mjs` asserts it both in the generated CSS and in a
+painted browser.
+
+**A page with a strict `style-src` would silently drop the chrome.** The overlay is
+injected CSS and DOM, so a target shipping `style-src 'none'` refuses both without
+an error: the recording completes and the finished video has an unstyled panel. The
+context is created with `bypassCSP: true` for exactly that reason — the chrome is a
+property of the recorder, not of whoever wrote the page being recorded. Asserted in
+`test/theme.test.mjs` both ways: a policy that refuses the stylesheet leaves the
+panel transparent, and the bypassed context paints it.
+
 ## What the runner cannot do
 
 - **Know a selector was right for the screen you meant.** The guards are the only

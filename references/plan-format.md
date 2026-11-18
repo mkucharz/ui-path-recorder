@@ -348,6 +348,8 @@ that records.
 | `intro` | — | The title card the video opens on. `{ title, subtitle?, bullets? }`. |
 | `outro` | — | The end card the video closes on. Same shape. |
 | `cardMs` | `2200` | How long each card is held, divided by `humanize.speed` like every other delay. |
+| `theme` | — | Name of a preset in `themes/` (`memory`), applied to the panel and the cards. |
+| `tokens` | — | Chrome palette overrides by CSS custom property, on top of `theme`. |
 
 ### `video.checklist`
 
@@ -358,7 +360,7 @@ that records.
 | `side` | `"right"` | `left` or `right`. Pick the side the app leaves empty; a panel over a sidebar is a panel over evidence. In `dock` it is also the edge the page gives up. |
 | `width` | `300` | 220–380 CSS pixels. In `overlay` it is capped at 30% of the viewport; in `dock` it keeps its width, because the page gives up exactly that column. |
 | `layout` | `"overlay"` | `overlay` floats a translucent card over the app; `dock` reserves a column of its own and lays the page out beside it. |
-| `accent` | `"#7c9cf5"` | Colour of a completed tick, `#rgb` or `#rrggbb`. |
+| `accent` | `"#7c9cf5"` | Colour of a completed tick, `#rgb` or `#rrggbb`. Shorthand for `--pc-accent` in `video.tokens`; setting both is refused. |
 
 The heading and its second line are one block above the rows: the uppercase
 heading says what this is, the line says why it is there, and either may be empty.
@@ -384,7 +386,9 @@ of its own, never reserves anything, and centres on the whole frame.
 
 Like the subtitle pill, the panel is drawn dark whatever the plan's
 `colorScheme`: it is a recording decoration, not part of the app, and a dark
-panel on a light page reads as an overlay rather than as a broken screen.
+panel on a light page reads as an overlay rather than as a broken screen. That
+default is changeable — see `video.theme` below — and a plan that names no theme
+draws exactly this panel.
 
 ```json
 "video": { "checklist": { "title": "Sign-in check", "subtitle": "Four steps, one workspace", "width": 320 } }
@@ -393,6 +397,68 @@ panel on a light page reads as an overlay rather than as a broken screen.
 ```
 Each line is the whole block for one recording: overlay, docked on the right (the
 default), docked on the left.
+
+### `video.theme` / `video.tokens` — the chrome's palette
+
+The panel and the cards are drawn over — and beside — an app nobody in this repo
+wrote, so their colours cannot be utility classes: a Tailwind class only exists
+if the *recorded page's* stylesheet happens to contain it, which is true on one
+site and false on the next. They are **CSS custom properties** instead: a value
+resolved when the browser paints, so the same plan draws the same chrome on a
+Memory gateway, on apple.com, or on a fixture served from localhost.
+
+`theme` names a preset shipped in `themes/`, `tokens` sets any of the properties
+directly, and an explicit token wins over the preset it came with.
+
+| | |
+|---|---|
+| `"theme": "memory"` | The Memory web UI's dark palette — ink-navy surfaces, brass ticks. Literal values, so it renders on a page that defines no CSS of its own. |
+| `"tokens": { "--pc-accent": "#f5a97f" }` | One value replaced. |
+| `"tokens": { "--pc-accent": "var(--color-primary)" }` | Adopt the app's own palette. This only resolves on a page that defines `--color-primary`; where it does not, the chrome falls back to the token's default (the tick stays blue) instead of painting nothing. |
+
+The names are a closed set. A misspelling is refused rather than inherited
+silently:
+
+| Token | Default | |
+|---|---|---|
+| `--pc-surface` | `rgba(10,13,20,.84)` | Panel background; a card's whole background. |
+| `--pc-surface-strong` | `#0d121b` | Docked panel background — opaque, because nothing of the app is behind it. |
+| `--pc-border` | `rgba(255,255,255,.12)` | Panel edge, card rules. |
+| `--pc-border-soft` | `rgba(255,255,255,.09)` | The docked panel's page-side edge. |
+| `--pc-shadow` | `rgba(0,0,0,.45)` | Overlay panel shadow. |
+| `--pc-shadow-soft` | `rgba(0,0,0,.3)` | Docked panel shadow, cast onto the page. |
+| `--pc-text` | `#eef2fa` | Heading, card body text. |
+| `--pc-text-body` | `#c8d1e0` | Checklist rows, card paragraphs. |
+| `--pc-muted` | `#93a0b6` | Uppercase heading over the rows. |
+| `--pc-muted-soft` | `#8593a8` | The second line, the counter. |
+| `--pc-done` | `#79859a` | A ticked row's text. |
+| `--pc-mark` | `#0b0e14` | The tick itself, drawn inside the accent circle. |
+| `--pc-accent` | `#7c9cf5` | The ticked circle. What `checklist.accent` sets. |
+| `--pc-ring` | `rgba(255,255,255,.3)` | An unticked circle. |
+| `--pc-radius` | `14px` | Panel corner radius. A card does not use it. |
+| `--pc-font-family` | system UI stack | Panel and card font. |
+
+Two rules that follow from the vocabulary being a value rather than a class:
+
+- **A preset is literal.** `themes/memory.json` holds concrete `oklch()` values
+  copied from the Memory web UI's theme block, so `"theme": "memory"` draws the
+  product's palette on a page that never loaded the product's stylesheet. A
+  `var(--color-*)` in a preset would resolve on the product's pages and turn into
+  nothing everywhere else, so the preset test refuses one.
+- **`tokens` may be inherited.** That is the other half: recording the Memory app
+  itself, `"tokens": { "--pc-accent": "var(--color-primary)" }` keeps the chrome
+  in step with the app's theme without duplicating sixteen values, and if the app
+  changes its palette the chrome follows.
+
+`scripts/check-panel-theme.mjs` keeps the shipped preset honest: without
+arguments it checks every preset's shape; with `--app-css PATH` it re-reads each
+value the preset derives from the product and fails when one no longer appears
+there. It never runs in this repo's CI — run it after touching `themes/` or the
+web UI's theme:
+
+```bash
+node scripts/check-panel-theme.mjs --app-css ../emergent.memory/apps/web-ui/gateway/webui/css/app.css
+```
 
 ### `video.intro` / `video.outro`
 

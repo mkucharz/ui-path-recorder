@@ -397,6 +397,41 @@ player to the moment it ticked — the one part of a checklist a still cannot pr
 360 px column (1560 px for the app), and `plans/examples/signin-sidebar-left.plan.json`
 is the same panel on the left edge.
 
+### The chrome has a palette, because the app's CSS is not ours
+
+The panel and the cards are drawn over a page this repo does not own, so they
+cannot be styled with utility classes: a Tailwind class only exists if the
+*recorded page's* stylesheet contains it. They are CSS custom properties instead —
+a value the browser resolves at paint time, so the same plan draws the same chrome
+on a themed product, on apple.com, or on a fixture:
+
+```json
+"video": { "theme": "memory" }
+"video": { "tokens": { "--pc-accent": "#f5a97f", "--pc-radius": "0px" } }
+"video": { "tokens": { "--pc-accent": "var(--color-primary)" } }
+```
+
+The first names a preset in `themes/` — `memory` is the Memory web UI's dark
+palette, copied into literal `oklch()` values so it renders on a page that never
+loaded the product's stylesheet. The second replaces individual values. The third
+adopts the app's own palette, which only resolves on a page that defines
+`--color-primary`; where it does not, the chrome falls back to its own default
+rather than losing the colour. That is the difference between a preset (portable)
+and a token (possibly inherited), and both are legitimate. An explicit token wins
+over the preset it came with.
+
+Sixteen `--pc-*` properties are the whole vocabulary — surface, surface-strong,
+border, border-soft, shadow, shadow-soft, text, text-body, muted, muted-soft,
+done, mark, accent, ring, radius, font-family — and a misspelled one is **refused**
+by the plan validator rather than inherited silently. `checklist.accent` is the
+shorthand for `--pc-accent`. A plan that names neither `theme` nor `tokens` draws
+exactly the chrome it always drew, which is why adding a palette changed no figure
+and no existing plan.
+
+`node scripts/check-panel-theme.mjs --app-css <app.css>` re-reads each value the
+Memory preset derives from the product's theme block and fails when the product has
+moved on; the preset is a copy, and copies rot.
+
 ### A title card and an end card
 
 A recording that starts mid-app is a video that began before you pressed play:
