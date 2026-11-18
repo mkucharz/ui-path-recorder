@@ -548,7 +548,7 @@ the script waits for that file instead of a keypress.
 | `--video-fps <n>` | video frame rate (default 25) |
 | `--video-size <WxH>` | shrink the video canvas (default: the viewport). Must have the viewport's shape and be no larger than it — Playwright never scales a recording up, it pads the canvas with a band, so the run is refused instead. 1080p comes from the plan's viewport (`1920x1080`), not from this flag |
 | `--poster <id>` | figure to show in the player before play (default: the first frame) |
-| `--trace` | write `<out>/trace.zip`; open with `npx playwright show-trace` |
+| `--trace` | write `<out>/trace.zip`; open with `npx playwright-core show-trace` |
 | `--vars-out <f>` | where `setVar` values go (default `<out>/.vars.json`, mode 600) |
 | `--no-trim` | do not crop dead space (needs no `sharp`) |
 | `--channel <name>` | launch a specific channel (`chrome`, `msedge`, `chromium`) |

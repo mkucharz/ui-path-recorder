@@ -188,7 +188,7 @@ run writes `failures/<stamp>--<step>.{png,html,txt}`; the `.txt` ends with
 `on screen:` — every button and input label the plan could have used. Fix the
 plan from that, not from a description of the page.
 
-Other useful flags: `--trace` (open with `npx playwright show-trace`),
+Other useful flags: `--trace` (open with `npx playwright-core show-trace`),
 `--profile <dir>` (see step 6), `--video-fps`, `--video-size <WxH>`,
 `--poster <shot-id>`.
 

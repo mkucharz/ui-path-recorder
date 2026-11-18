@@ -97,7 +97,7 @@ const USAGE = `usage:
                     viewport's shape and be no larger than it: Playwright never
                     scales a recording up, it pads the canvas with a band
   --poster <id>     figure to show in the player before play (default: the first frame)
-  --trace           write <out>/trace.zip (open it with: npx playwright show-trace)
+  --trace           write <out>/trace.zip (open it with: npx playwright-core show-trace)
   --vars-out <file> keep values read by setVar (default: <out>/.vars.json, mode 600)
   --no-trim         do not crop dead space (needs no sharp)
   --channel <name>  launch a specific browser channel (chrome, msedge, chromium)
