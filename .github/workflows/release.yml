@@ -70,14 +70,35 @@ jobs:
           # the skill's name, and unpacking into an agent's skills folder has to
           # leave `path-recorder/SKILL.md` behind.
           rm -rf path-recorder dist
-          mkdir -p path-recorder/plans dist
-          cp SKILL.md LICENSE path-recorder/
-          cp -r scripts lib examples themes references path-recorder/
-          cp plans/schema.json path-recorder/plans/
+          mkdir -p path-recorder dist
+          cp SKILL.md LICENSE package.json package-lock.json path-recorder/
+          # `plans/` whole, not just the schema: `SKILL.md` tells the agent to
+          # start from `plans/examples/railway-installer.plan.json`, and a skill
+          # that points at a file it did not ship is worse than one that points
+          # nowhere. `test/` stays out — it is the site's fixture app, and no
+          # instruction in `SKILL.md` names it.
+          cp -r scripts lib examples themes references plans path-recorder/
+          # `package.json` + the lockfile are here so the folder-install path can
+          # resolve `playwright-core`: an unpacked skill has no `node_modules`, and
+          # without a manifest `npm install` has nothing to read.
           tar -czf "dist/path-recorder-skill-v$version.tar.gz" path-recorder
           (cd dist && sha256sum "path-recorder-skill-v$version.tar.gz" > "path-recorder-skill-v$version.tar.gz.sha256")
           tar -tzf "dist/path-recorder-skill-v$version.tar.gz" | sed -n '1,12p'
           du -sh dist/*
+
+      - name: the tarball carries what SKILL.md points at
+        run: |
+          set -euo pipefail
+          # Every relative path SKILL.md names has to be inside the pack. This is
+          # the check that would have caught the first cut shipping the schema and
+          # not one of the six example plans.
+          tar -xzf dist/path-recorder-skill-v*.tar.gz -C /tmp
+          cd /tmp/path-recorder
+          missing=0
+          while read -r ref; do
+            [ -e "$ref" ] || { echo "::error::SKILL.md points at $ref, which the pack does not carry"; missing=1; }
+          done < <(grep -oE '`(plans|references|examples|scripts|lib|themes)/[a-zA-Z0-9_./-]+`' SKILL.md | tr -d '`' | sort -u)
+          [ "$missing" -eq 0 ]
 
       - name: publish
         env:
@@ -85,7 +106,14 @@ jobs:
         run: |
           set -euo pipefail
           version="$(node -p "require('./package.json').version")"
-          gh release create "v$version" dist/* \
-            --title "v$version" \
-            --notes "**The skill, pinned.** \`npx skills add mkucharz/ui-path-recorder@v$version --skill path-recorder -g\` installs this tag; the tarball below unpacks to \`path-recorder/SKILL.md\` for any agent that installs by folder." \
-            --generate-notes
+          notes="**The skill, pinned.** \`npx skills add mkucharz/ui-path-recorder@v$version --skill path-recorder -g\` installs this tag; the tarball below unpacks to \`path-recorder/SKILL.md\` for any agent that installs by folder."
+          # `--generate-notes` would compete with `--notes` for the body, and gh
+          # keeps one silently. One deterministic body beats an ambiguous merge.
+          # The dispatch input says "(re)publish", so an existing release is
+          # edited rather than refused.
+          if gh release view "v$version" >/dev/null 2>&1; then
+            gh release edit "v$version" --title "v$version" --notes "$notes"
+            gh release upload "v$version" dist/* --clobber
+          else
+            gh release create "v$version" dist/* --title "v$version" --notes "$notes"
+          fi

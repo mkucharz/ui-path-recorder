@@ -20,6 +20,19 @@ Two artefacts per walkthrough:
 With `--video` there is a third: the run directory also holds the walkthrough as
 a recording a person can watch, driven at human pace with a visible pointer.
 
+## Setup
+
+Once per checkout, from the directory that holds this file:
+
+```bash
+npm install && npx playwright install chromium   # ffmpeg only for --video
+```
+
+`node scripts/path-shots.mjs` resolves `playwright-core` from that
+`node_modules`, so a skill unpacked from a release tarball needs this before its
+first run. If a browser is already on the machine, `CHROME=/path/to/chrome`
+skips the download.
+
 ## When to use
 
 - A tutorial, guide or runbook needs figures of a real product.
