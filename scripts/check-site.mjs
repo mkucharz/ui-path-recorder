@@ -124,6 +124,27 @@ for (const match of html.matchAll(/href="#([^"]+)"/g)) {
   if (!ids.has(match[1])) fail(`index.html: href="#${match[1]}" names no id`);
 }
 
+// The header's source link is a picture, so it has no text to name it: the name
+// has to be on the element, and the mark has to be hidden from the name
+// computation or a screen reader reads it twice. Neither is visible in a
+// browser, which is why it is checked rather than trusted to review.
+const repoLink = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)]
+  .find(([, linkAttrs]) => /\brepo\b/.test(attrs(linkAttrs).class ?? ''));
+if (!repoLink) {
+  fail('index.html: no header link to the repository (a.repo)');
+} else {
+  const [, repoAttrs, repoInner] = repoLink;
+  const name = attrs(repoAttrs)['aria-label']?.trim();
+  if (!name) fail('index.html: a.repo is an icon link with no aria-label — it would be announced with no name at all');
+  if (!/<svg\b[^>]*\baria-hidden="true"/i.test(repoInner)) {
+    fail('index.html: a.repo\'s <svg> is not aria-hidden — the mark would be announced on top of the label');
+  }
+  if (!/<svg\b[^>]*\bviewBox="/i.test(repoInner)) fail('index.html: a.repo has no <svg viewBox>, so the mark cannot scale');
+  if (textOf(repoInner).trim()) {
+    fail('index.html: a.repo shows text as well as an icon — a label that overrides visible text is a different link');
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * Template mode: the slots the builder fills
  * ------------------------------------------------------------------ */
