@@ -124,6 +124,32 @@ for (const match of html.matchAll(/href="#([^"]+)"/g)) {
   if (!ids.has(match[1])) fail(`index.html: href="#${match[1]}" names no id`);
 }
 
+// The header's source link is a picture, so it has no text to name it: the name
+// has to be on the element, and the mark has to be hidden from the name
+// computation or a screen reader reads it twice. Neither is visible in a
+// browser, which is why it is checked rather than trusted to review.
+const repoLink = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)]
+  .find(([, linkAttrs]) => /\bclass="[^"]*\brepo\b[^"]*"/i.test(linkAttrs));
+if (!repoLink) {
+  fail('index.html: no header link to the repository (an <a class="repo">)');
+} else {
+  const [, repoAttrs, repoInner] = repoLink;
+  const name = attrs(repoAttrs)['aria-label']?.trim();
+  if (!name) fail('index.html: a.repo is an icon link with no aria-label — it would be announced with no name at all');
+  if (!/<svg\b[^>]*\baria-hidden="true"/i.test(repoInner)) {
+    fail('index.html: a.repo\'s <svg> is not aria-hidden — the mark would be announced on top of the label');
+  }
+  if (!/<svg\b[^>]*\bviewBox="/i.test(repoInner)) fail('index.html: a.repo has no <svg viewBox>, so the mark cannot scale');
+  // Same rule the <img> check applies: without a size the 1424px viewBox box is
+  // what a reader sees until the stylesheet loads.
+  if (!/<svg\b[^>]*\bwidth="/i.test(repoInner) || !/<svg\b[^>]*\bheight="/i.test(repoInner)) {
+    fail('index.html: a.repo\'s <svg> has no width/height, so it renders at its viewBox size while the stylesheet loads');
+  }
+  if (textOf(repoInner).trim()) {
+    fail('index.html: a.repo holds text as well as an icon — the name is on the link, so a word here is either a second label or one the aria-label overrides; pick one');
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * Template mode: the slots the builder fills
  * ------------------------------------------------------------------ */

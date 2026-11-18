@@ -103,11 +103,21 @@ img, video { max-width: 100% }
 .top nav a { color: var(--ink-muted); text-decoration: none }
 .top nav a:hover { color: var(--ink) }
 
+/* The source link is an icon, so its name has to come from `aria-label` — a
+   reader with a screen reader still hears "Source on GitHub" while the bar keeps
+   one mark of width instead of a word. The block padding is the click target (a
+   bare 16px glyph is under the 24px minimum) and the matching negative margin
+   keeps that padding out of the layout, so the icon sits in the row the bar
+   already had instead of growing the header. `align-self` is what puts the mark
+   on the nav text's centre: the bar aligns its items on the baseline. */
 .repo {
-  font: .85rem/1 var(--mono); color: var(--ink-muted); text-decoration: none;
-  padding-left: 1.1rem; border-left: 1px solid var(--line);
+  display: inline-flex; align-self: center;
+  padding: .3rem 0 .3rem 1.1rem; margin-block: -.3rem;
+  border-left: 1px solid var(--line);
+  color: var(--ink-muted); text-decoration: none;
 }
-.repo:hover { color: var(--accent) }
+.repo:hover, .repo:focus-visible { color: var(--accent) }
+.repo svg { display: block; width: 1rem; height: 1rem; fill: currentColor }
 
 /* ------------------------------------------------------------------ *
  * Blocks
@@ -554,7 +564,10 @@ footer .version { font-family: var(--mono); font-size: .92em; color: var(--ink-f
   .rail { grid-template-columns: minmax(0, 1fr); gap: .5rem }
   .num { margin: 0 0 .2rem }
   .top nav { order: 3; width: 100%; margin-left: 0; padding-top: .6rem; border-top: 1px solid var(--line) }
-  .repo { margin-left: auto; border-left: 0; padding-left: 0 }
+  /* No divider here, and the icon sits flush with the gutter: the target padding
+     reaches into the gutter and the matching negative margin takes it back out of
+     the layout, so the mark stays where the wordmark's row ends. */
+  .repo { margin-left: auto; margin-right: -.6rem; border-left: 0; padding: .3rem .6rem .3rem 0 }
 }
 
 @media (max-width: 34rem) {
