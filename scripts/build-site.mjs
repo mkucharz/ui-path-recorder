@@ -16,12 +16,16 @@
  * do not are seeded here (`site-<key>`), so a build is the same twice even when
  * the plan left the pacing free.
  *
- * Two artefacts the plans cannot express are derived here instead. The theme strip
- * is one plan recorded three times with a different `video.theme`, and a still of
- * it is a *frame of that recording*: screenshots deliberately hide the panel, so a
- * figure is the wrong source for a picture of the chrome. The social card is the
- * whole frame of one of those recordings. Both are cut by ffmpeg from files this
- * build just produced — nothing is drawn here and no binary is committed.
+ * The social card is the whole frame of one of the gallery recordings, cut by
+ * ffmpeg from a file this build just produced — nothing is drawn here and no
+ * binary is committed.
+ *
+ * The palette strip is the exception in the other direction: it is *not* a
+ * recording. It is the recorder's own panel stylesheet with each preset's tokens
+ * (`lib/checklist.mjs` → `checklistCss`, `checklistPanelHtml`), drawn in the page
+ * — a screenshot of a 360 px panel is unreadable three-up and is a picture of one
+ * moment at one size, while the stylesheet re-renders at any size and cannot
+ * drift from the chrome it describes.
  *
  * Usage: node scripts/build-site.mjs [--keep-work]
  * Exit: 0 built · 1 a recording failed (its failures/ directory is named)
@@ -32,6 +36,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { findFfmpeg } from '../lib/recorder.mjs';
 import { startStaticServer } from '../lib/serve.mjs';
+import { checklistCss, checklistOptions, checklistPanelHtml } from '../lib/checklist.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const SITE = path.join(ROOT, 'site');
@@ -94,14 +99,21 @@ const RUNS = [
   },
 ];
 
-/** The strip: one plan, three palettes. `from` is the preset's own source, shortened. */
+/** The strip: one plan's list, three palettes. `from` is the preset's own source, shortened. */
 const THEMES = [
   { name: 'memory', from: 'the Memory web UI’s own theme' },
   { name: 'dracula', from: 'spec.draculatheme.com' },
   { name: 'catppuccin-mocha', from: 'catppuccin/palette · mocha' },
 ];
 
-/** The plan the strip is recorded from. */
+/**
+ * The list the strip draws.
+ *
+ * It is the checklist of the docked-sidebar plan the gallery records — the same
+ * rows, the same heading — so the three palettes are three dressings of one list
+ * rather than three invented examples. Read from the plan, not typed here: a
+ * plan that renames a step renames it in the strip.
+ */
 const THEME_PLAN = 'plans/examples/signin-sidebar.plan.json';
 
 const read = (file) => readFileSync(path.join(ROOT, file), 'utf8');
@@ -222,26 +234,29 @@ const seconds = (ms) => Math.round(ms / 1000);
  * picture the recording never showed. The frame also carries the panel, which is
  * the part of the recording a reader is being offered.
  */
-function mediaFor({ alt, media }) {
+function mediaFor({ alt, media, label }) {
   const { poster, width, height, video } = media;
   const size = `width="${width}" height="${height}"`;
   if (!video) {
     return `<div class="media"><img src="${poster}" ${size} loading="lazy" decoding="async" alt="${esc(alt)}"></div>`;
   }
-  // The recording draws its own subtitles in, so the track is offered but never
-  // default: a default track would paint a second copy over the same corner.
-  const track = video.captions ? `<track kind="captions" src="${video.captions}" srclang="en" label="Captions">` : '';
-  return `<div class="media"><video controls preload="metadata" playsinline poster="${poster}" ${size} aria-label="${esc(alt)}">
-      <source src="${video.src}" type="video/webm">${track}
-      <p>Your browser cannot play WebM. <a href="${video.src}">Download the recording</a>.</p>
-    </video></div>`;
+  // A card is a poster and a play button; the recording itself opens in the
+  // dialog, at the size of the window rather than of a column. The anchor's href
+  // is the file, so with no script (or in a browser that refuses `<dialog>`) the
+  // click still gets the reader the recording — just not framed.
+  return `<div class="media"><a class="expand" href="${video.src}" data-video="${video.src}"${
+    video.captions ? ` data-captions="${video.captions}"` : ''
+  } data-label="${esc(label)}" aria-label="Play the recording: ${esc(label)}">
+        <img src="${poster}" ${size} loading="lazy" decoding="async" alt="${esc(alt)}">
+        <span class="play" aria-hidden="true"></span>
+      </a></div>`;
 }
 
 function cardMarkup(entry, run, media) {
   const duration = media.video && run.timeline ? ` · ${seconds(run.timeline.durationMs)} s` : '';
   const tag = `${entry.tag} · ${run.figures.length} figure${run.figures.length === 1 ? '' : 's'}${duration}`;
   return `      <article class="card" id="${entry.key}">
-        ${mediaFor({ alt: entry.alt, media })}
+        ${mediaFor({ alt: entry.alt, media, label: entry.title })}
         <div class="body">
           <p class="card-tag">${esc(tag)}</p>
           <h3>${esc(entry.title)}</h3>
@@ -264,21 +279,25 @@ function swatchesFor(name) {
 }
 
 /**
- * One palette: the checklist panel, cut from that palette's recording.
+ * One palette: the checklist panel, drawn by the panel's own stylesheet.
  *
- * The crop is the panel rather than the whole frame because a whole 1920-wide
- * frame three-up on a page is unreadable — the panel is where a preset's surface,
- * border, text, muted and done colours all land.
+ * Not a screenshot. A preset is sixteen custom properties, and the panel is a
+ * stylesheet that reads them — so the honest picture of a preset is the panel
+ * with those properties set, rendered at whatever size the page gives it. That is
+ * also why the strip needs no recording: it shows the chrome, and chrome is
+ * exactly what a plan's `theme` repaints.
  */
-function themeMarkup(theme, still) {
-  return `      <figure class="theme">
-        <div class="frame"><img src="assets/theme-${theme.name}/panel.png" width="${still.width}" height="${still.height}" loading="lazy" decoding="async" alt="The checklist panel with three of its four rows ticked, recorded with the ${esc(theme.name)} palette."></div>
-        <figcaption>
-          <span class="name">"video": { "theme": "${esc(theme.name)}" }</span>
-          ${swatchesFor(theme.name)}
-          <span class="from">from ${esc(theme.from)}</span>
-        </figcaption>
-      </figure>`;
+function themeMarkup(theme, panel) {
+  const preset = readJson(`themes/${theme.name}.json`);
+  const markup = checklistPanelHtml({ ...panel, width: null, tokens: preset.tokens, done: Math.max(0, panel.items.length - 1) });
+  return `        <figure class="theme">
+          <div class="palette">${markup}</div>
+          <figcaption>
+            <span class="name">"video": { "theme": "${esc(theme.name)}" }</span>
+            ${swatchesFor(theme.name)}
+            <span class="from">from ${esc(theme.from)}</span>
+          </figcaption>
+        </figure>`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -294,7 +313,7 @@ const template = (() => {
   }
 })();
 
-const slots = ['hero', 'gallery', 'themes', 'version'];
+const slots = ['styles', 'hero', 'gallery', 'themes', 'version'];
 for (const slot of slots) {
   const found = template.split(`<!-- site:${slot} -->`).length - 1;
   if (found !== 1) {
@@ -365,49 +384,13 @@ try {
 
   if (failed.length) throw new Error('a recording failed');
 
-  // The strip: one plan, three palettes. Each is a whole recording with the
-  // palette injected, and the still is a frame of it cropped to the panel — the
-  // panel is chrome, and chrome is exactly what a plan's `theme` repaints.
-  const themeSource = readJson(THEME_PLAN);
-  const themeRuns = [];
-  for (const theme of THEMES) {
-    const plan = structuredClone(themeSource);
-    plan.tutorial = `signin-theme-${theme.name}`;
-    plan.video = { ...(plan.video ?? {}), theme: theme.name };
-    const planPath = path.join(WORK, 'plans', `${theme.name}.plan.json`);
-    writeFileSync(planPath, `${JSON.stringify(plan, null, 2)}\n`);
-    const dir = path.join(WORK, `theme-${theme.name}`);
-    const result = await record({ planPath, dir, url: server.url, video: true });
-    if (!result.ok) {
-      failed.push({ key: `theme-${theme.name}`, dir });
-      continue;
-    }
-    const timeline = JSON.parse(readFileSync(path.join(dir, '.timeline.json'), 'utf8'));
-    const video = path.join(dir, timeline.videos[0].file);
-    const at = beatBeforeEnd(timeline);
-    const panel = { width: plan.video.checklist.width ?? 320, side: plan.video.checklist.side ?? 'right' };
-    const across = timeline.viewport.width;
-    // A sliver of the app at the panel's inner edge, so the crop shows the panel's
-    // own shadow and border against something rather than floating in a void — and
-    // the crop stops at the frame edge, because the panel is flush with it.
-    const sliver = 12;
-    const cropWidth = Math.min(across, panel.width + sliver);
-    const crop = {
-      x: panel.side === 'left' ? 0 : across - cropWidth,
-      y: 0,
-      width: cropWidth,
-      height: Math.min(timeline.viewport.height, 340),
-    };
-    const panelPng = path.join(OUT, 'assets', `theme-${theme.name}`, 'panel.png');
-    await frame({ video, at, out: panelPng, crop });
-    const still = { width: crop.width, height: crop.height };
-    // The social card wants 16:9 and the whole frame, and one palette is enough.
-    if (theme.name === THEMES[0].name) {
-      await frame({ video, at, out: path.join(OUT, 'assets', 'og.png') });
-    }
-    themeRuns.push({ theme, still });
+  // The strip: one plan's list, three palettes, drawn rather than recorded (see
+  // `themeMarkup`). The rows come from the plan the gallery's docked sidebar is
+  // recorded from, so the strip cannot show a step that sidebar does not run.
+  const themePanel = checklistOptions(readJson(THEME_PLAN));
+  if (!themePanel?.items.length) {
+    throw new Error(`${THEME_PLAN} has no \`check\` steps, so the palette strip has no list to draw`);
   }
-  if (failed.length) throw new Error('a theme recording failed');
 
   const hero = built.find(({ entry }) => entry.key === 'dock-right') ?? built.find(({ media }) => media.video) ?? built[0];
   const { poster, width, height, video } = hero.media;
@@ -422,16 +405,27 @@ try {
       <code>${hero.entry.plan}</code> against the bundled example app: one ${shape} frame, the page and the
       panel side by side.</p>`;
 
+  // The social card is the hero recording's whole frame — 16:9, the shape
+  // `og:image` wants, and the picture the page itself opens with.
+  if (video) {
+    await frame({
+      video: path.join(OUT, video.src),
+      at: beatBeforeEnd(hero.run.timeline),
+      out: path.join(OUT, 'assets', 'og.png'),
+    });
+  }
+
   const html = template
+    .replace('<!-- site:styles -->', `<style>${checklistCss('.theme .pc-panel')}</style>`)
     .replace('<!-- site:hero -->', heroMarkup)
     .replace('<!-- site:gallery -->', built.map(({ entry, run, media }) => cardMarkup(entry, run, media)).join('\n'))
-    .replace('<!-- site:themes -->', themeRuns.map(({ theme, still }) => themeMarkup(theme, still)).join('\n'))
+    .replace('<!-- site:themes -->', THEMES.map((theme) => themeMarkup(theme, themePanel)).join('\n'))
     .replace('<!-- site:version -->', `v${esc(JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version)}`);
 
   writeFileSync(path.join(OUT, 'index.html'), html);
 
   process.stdout.write(
-    `\nbuilt .site/ — ${built.length} example run(s), ${themeRuns.length} palette still(s), ` +
+    `\nbuilt .site/ — ${built.length} example run(s), ${THEMES.length} drawn palette(s), ` +
       `${Math.round((Date.now() - started) / 1000)} s\n`,
   );
 } catch (error) {

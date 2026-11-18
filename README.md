@@ -47,6 +47,21 @@ committing one.
 
 ## Install
 
+As an agent skill — the way this is meant to be used, because the part that needs
+judgement (find the flow, decide which moments a reader needs, read the failure,
+publish the figures) is the agent's half:
+
+```bash
+npx skills add mkucharz/ui-path-recorder --skill path-recorder -g
+```
+
+Pin a release instead of a branch when the plan matters more than the novelty —
+`…ui-path-recorder@v0.2.0`. The tarball attached to
+[the releases](https://github.com/mkucharz/ui-path-recorder/releases) unpacks to
+`path-recorder/SKILL.md`, for an agent that installs by folder.
+
+The CLI on its own:
+
 ```bash
 npm install                    # playwright-core, plus optional sharp
 npx playwright install chromium
@@ -552,12 +567,22 @@ screen, which is what a document should size the figure to.
 ## Use it as an agent skill
 
 `SKILL.md` is written for a coding agent: the workflow, the rules that make a
-figure trustworthy, and the failure loop. Install it as a skill in OpenCode,
-Claude Code or anything that reads a `SKILL.md` directory:
+figure trustworthy, and the failure loop. Install it once and ask for the
+figures:
 
 ```bash
-git clone https://github.com/mkucharz/ui-path-recorder ~/.config/opencode/skills/path-recorder
+npx skills add mkucharz/ui-path-recorder --skill path-recorder -g
 ```
+
+No CLI on the box, or an agent that just reads a folder? The skill is one
+directory — clone it where your agent looks:
+
+```bash
+git clone https://github.com/mkucharz/ui-path-recorder ~/.config/opencode/skills/path-recorder  # OpenCode, Codex, Cursor
+git clone https://github.com/mkucharz/ui-path-recorder ~/.claude/skills/path-recorder            # Claude Code
+```
+
+The walkthrough lives at <https://mkucharz.github.io/ui-path-recorder/>.
 
 ## Tests
 

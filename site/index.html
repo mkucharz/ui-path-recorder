@@ -6,7 +6,7 @@
 <title>ui-path-recorder — reproducible documentation figures from a committed plan</title>
 <meta name="description" content="Record a path through a live UI once, then re-run it whenever the docs go stale: reproducible, reviewable figures and a walkthrough video from a committed Playwright plan.">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#1e1e2e">
+<meta name="theme-color" content="#0e1017">
 <meta property="og:type" content="website">
 <meta property="og:title" content="ui-path-recorder">
 <meta property="og:description" content="A path through a live UI, recorded once and re-run whenever the docs go stale.">
@@ -15,8 +15,8 @@
 <meta property="og:image:width" content="1920">
 <meta property="og:image:height" content="1080">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23cba6f7'/%3E%3Cpath d='M9 16.5 13.5 21 23 11' fill='none' stroke='%231e1e2e' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d99f36'/%3E%3Cpath d='M9 16.5 13.5 21 23 11' fill='none' stroke='%23201301' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<!-- site:styles --><link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -45,10 +45,12 @@
       your documentation stop depending on who held the screenshot tool.
     </p>
     <div class="install">
-      <pre><code>git clone https://github.com/mkucharz/ui-path-recorder
-cd ui-path-recorder &amp;&amp; npm install
-npx playwright install chromium</code></pre>
-      <p class="fine">Node 20+. <code>ffmpeg</code> is only needed for <code>--video</code>.</p>
+      <pre><code>npx skills add mkucharz/ui-path-recorder --skill path-recorder -g</code></pre>
+      <p class="fine">
+        The skill is the way in: install it once, then ask your agent for the
+        figures. Node 20+, and <code>ffmpeg</code> only for <code>--video</code>.
+        <a href="#use">Running the CLI directly</a> works too.
+      </p>
     </div>
     <p class="cta">
       <a class="button" href="#use">Try it in 30 seconds</a>
@@ -162,26 +164,18 @@ npx playwright install chromium</code></pre>
       <div>
         <h2>Use it</h2>
 
-        <h3>Thirty seconds, no account</h3>
-        <p>
-          The repo ships a fixture app that is hostile in the three ways real apps
-          are: a cookie banner, a control painted before its script hides it, and a
-          second screen that replaces the first without changing the URL.
-        </p>
-        <pre><code>node test/serve.mjs --port 8099 &amp;
-
-FIXTURE_URL=http://127.0.0.1:8099 FIXTURE_PASSWORD=correct-horse \
-  node scripts/path-shots.mjs test/plans/fixture.plan.json --review
-
-open captures/fixture-*/review.html</code></pre>
-        <p class="fine">
-          Those two variables belong to the <em>fixture plan</em>, not to the tool:
-          the plan declares <code>"baseUrl": "${FIXTURE_URL}"</code> and
-          <code>"password": {"env": "FIXTURE_PASSWORD"}</code>, so the run follows
-          whatever port the server bound and no credential sits in the plan.
+        <p class="lede narrow">
+          A run is a plan plus the command that plays it. The plan is the artefact
+          you write, commit and review — the URL, the credentials by environment
+          variable, the steps, and which of them are figures — so start there and
+          the command has nothing left to decide.
         </p>
 
         <h3>A plan</h3>
+        <p>
+          One JSON file per walkthrough. Steps run in order, names are for humans,
+          and a step that carries a <code>shot</code> becomes a figure:
+        </p>
         <pre><code>{
   "tutorial": "signin",
   "baseUrl": "${INSTANCE_URL}",
@@ -213,6 +207,52 @@ open captures/fixture-*/review.html</code></pre>
           <a href="https://github.com/mkucharz/ui-path-recorder/tree/main/plans/examples">plans/examples</a>.
         </p>
 
+        <h3>Play it: thirty seconds, no account</h3>
+        <p>
+          The repo ships a fixture plan and a fixture app that is hostile in the
+          three ways real apps are: a cookie banner, a control painted before its
+          script hides it, and a second screen that replaces the first without
+          changing the URL. Play that plan before writing your own:
+        </p>
+        <pre><code>node test/serve.mjs --port 8099 &amp;
+
+FIXTURE_URL=http://127.0.0.1:8099 FIXTURE_PASSWORD=correct-horse \
+  node scripts/path-shots.mjs test/plans/fixture.plan.json --review
+
+open captures/fixture-*/review.html</code></pre>
+        <p class="fine">
+          Those two variables belong to the <em>fixture plan</em>, not to the tool:
+          the plan declares <code>"baseUrl": "${FIXTURE_URL}"</code> and
+          <code>"password": {"env": "FIXTURE_PASSWORD"}</code>, so the run follows
+          whatever port the server bound and no credential sits in the plan.
+        </p>
+
+        <h3>Install it as a skill</h3>
+        <p>
+          The skill is the intended way in. <code>SKILL.md</code> teaches a coding
+          agent the workflow — find the flow in the source, write the plan, run it,
+          read the failure, publish the figures — and the rules that make a figure
+          worth trusting. You ask for documentation figures; the agent writes the
+          plan.
+        </p>
+        <pre><code>npx skills add mkucharz/ui-path-recorder --skill path-recorder -g</code></pre>
+        <p class="fine">
+          <a href="https://github.com/vercel-labs/skills"><code>skills</code></a> is
+          the agent-skills CLI: it installs into whichever of OpenCode, Claude Code,
+          Codex, Cursor and the rest it finds, and records what it installed in
+          <code>skills-lock.json</code>. Pin a release rather than a branch:
+        </p>
+        <pre><code>npx skills add mkucharz/ui-path-recorder@v0.2.0 --skill path-recorder -g</code></pre>
+        <p class="fine">
+          No CLI, or an agent that just reads a folder? The skill is one directory —
+          clone it into the skills folder your agent watches, or unpack the release
+          tarball there:
+        </p>
+        <pre><code>git clone https://github.com/mkucharz/ui-path-recorder \
+  ~/.config/opencode/skills/path-recorder   # OpenCode, Codex, Cursor
+git clone https://github.com/mkucharz/ui-path-recorder \
+  ~/.claude/skills/path-recorder            # Claude Code</code></pre>
+
         <h3>The flags that matter</h3>
         <table class="flags">
           <thead><tr><th scope="col">Flag</th><th scope="col">What it does</th></tr></thead>
@@ -226,15 +266,6 @@ open captures/fixture-*/review.html</code></pre>
           </tbody>
         </table>
 
-        <h3>As an agent skill</h3>
-        <p>
-          <a href="https://github.com/mkucharz/ui-path-recorder/blob/main/SKILL.md">SKILL.md</a>
-          is written for a coding agent: the workflow, the rules that make a figure
-          trustworthy, and the failure loop. Install the directory as a skill in
-          OpenCode, Claude Code, or anything that reads a <code>SKILL.md</code>.
-        </p>
-        <pre><code>git clone https://github.com/mkucharz/ui-path-recorder \
-  ~/.config/opencode/skills/path-recorder</code></pre>
       </div>
     </div>
   </section>
@@ -246,9 +277,9 @@ open captures/fixture-*/review.html</code></pre>
         <h2>Examples</h2>
         <p class="lede narrow">
           Every recording below was made by this tool from a plan in this
-          repository, against the bundled example app — no account, no network. The
-          review sheet is the run directory's own page: open it and step through
-          the figures as the reviewer would.
+          repository, against the bundled example app — no account, no network. Click
+          a card to watch it in a window you can actually read; the review sheet is
+          the run directory's own page, where a reviewer steps through the figures.
         </p>
         <div class="gallery"><!-- site:gallery --></div>
 
@@ -260,10 +291,15 @@ open captures/fixture-*/review.html</code></pre>
           <a href="https://github.com/mkucharz/ui-path-recorder/blob/main/themes/memory.json">the
           product's own dark theme</a>, and <code>dracula</code> and
           <code>catppuccin-mocha</code> ship beside it. A preset holds literal values,
-          so it renders on a page that defines no CSS of its own. Two of the three
-          document nothing but colour; <code>memory</code> also names the product's
-          radius and font, because it is the product's theme and the panel should
-          look like part of it.
+          so it renders on a page that defines no CSS of its own.
+        </p>
+        <p class="fine">
+          The three panels below are not screenshots. Each one is the recorder's own
+          panel stylesheet with that preset's tokens set — the chrome drawn in this
+          page, at this page's size, so it stays sharp and cannot go stale
+          independently of the chrome it shows. Two of the presets document nothing
+          but colour; <code>memory</code> also names the product's radius and font,
+          because it is the product's theme and the panel should look like part of it.
         </p>
         <div class="themes"><!-- site:themes --></div>
       </div>
@@ -307,11 +343,78 @@ open captures/fixture-*/review.html</code></pre>
     <a href="https://github.com/mkucharz/ui-path-recorder/tree/main/references">docs</a>
   </p>
   <p class="fine">
-    No framework, no analytics, no fonts to download: this page is HTML and one
-    stylesheet, and every figure on it was recorded by the tool it describes — from
-    the plans in the repository, during the deploy that published it.
+    No framework, no analytics, no fonts to download: this page is HTML, one
+    stylesheet, and the few lines of JavaScript that open a recording into a
+    larger window. Every figure on it was recorded by the tool it describes — from
+    the plans in the repository, during the deploy that published it — except the
+    three palettes, which are the recorder's own panel stylesheet drawn in place.
   </p>
 </footer>
+
+<dialog id="player" class="player" aria-labelledby="player-title">
+  <div class="player-bar">
+    <p class="player-title" id="player-title">Recording</p>
+    <form method="dialog"><button class="player-close">Close</button></form>
+  </div>
+  <video data-player controls playsinline preload="none"></video>
+</dialog>
+
+<script>
+// One script, one job: a card's poster opens its recording at window size.
+// The source is set on open and dropped on close, so the five recordings are not
+// fetched by a reader who wanted to read; `showModal()` supplies the focus trap,
+// Esc, the backdrop and the focus restore that a hand-made overlay would not.
+(() => {
+  const player = document.getElementById('player');
+  const video = player?.querySelector('video');
+  if (!video || typeof player.showModal !== 'function') return;
+  const title = player.querySelector('.player-title');
+  let opener = null;
+
+  const play = (link) => {
+    opener = link;
+    title.textContent = link.dataset.label || 'Recording';
+    // The track belongs to the recording, not to the dialog: a card with no
+    // captions after one with them must not inherit the previous cues.
+    const existing = video.querySelector('track');
+    if (link.dataset.captions) {
+      const track = existing ?? document.createElement('track');
+      track.kind = 'captions';
+      track.label = 'Captions';
+      track.srclang = 'en';
+      track.src = link.dataset.captions;
+      if (!existing) video.append(track);
+    } else if (existing) {
+      existing.remove();
+    }
+    video.src = link.dataset.video;
+    player.showModal();
+    video.play().catch(() => {}); // a refused autoplay still leaves the controls
+  };
+
+  document.addEventListener('click', (event) => {
+    const link = event.target.closest('a.expand');
+    if (!link) return;
+    event.preventDefault();
+    play(link);
+  });
+
+  player.addEventListener('click', (event) => {
+    // A click that lands on the dialog itself is a click on the backdrop: the
+    // bar and the video are children, so they cannot match. `<dialog>` closes on
+    // Esc by itself and not on a backdrop click, which is what a reader expects
+    // of a media overlay.
+    if (event.target === player) player.close();
+  });
+
+  player.addEventListener('close', () => {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    opener?.focus();
+  });
+})();
+</script>
 
 </body>
 </html>
