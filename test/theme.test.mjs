@@ -9,6 +9,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright-core';
 
 import {
@@ -19,6 +20,7 @@ import {
   presets,
   resolveTokens,
   tokenDefaultsRule,
+  tokenRule,
   tokenValueProblem,
 } from '../lib/theme.mjs';
 import { checklistCss, checklistOptions } from '../lib/checklist.mjs';
@@ -78,6 +80,36 @@ test('a token value cannot end its own declaration', () => {
   assert.match(tokenValueProblem('   '), /empty/);
   assert.match(tokenValueProblem(7), /string/);
   assert.match(tokenValueProblem(null), /string/);
+});
+
+test('a token value cannot end the style element it is written into', () => {
+  // A card is a whole document built by interpolation, and every other field in it
+  // is escaped. A token value is written into `<style>`, so a `<` there closes the
+  // element and the rest of the palette parses as HTML — with a bypassed CSP, as
+  // live DOM.
+  const markup = '</style><img src=x onerror=alert(1)>';
+  assert.match(tokenValueProblem(markup), /markup/);
+  assert.match(tokenValueProblem('<b>'), /markup/);
+  assert.throws(() => validate({ ...PLAN, video: { tokens: { '--pc-text': markup } } }), /markup/);
+  assert.throws(() => validate({ ...PLAN, video: { theme: 'memory', tokens: { '--pc-accent': '<svg>' } } }), /markup/);
+
+  // Second lock: `tokenRule` escapes what reaches it, because a plan assembled in
+  // code never met the validator.
+  const rule = tokenRule(':root', { '--pc-text': markup });
+  assert.ok(!rule.includes('<'), 'the generated rule must not contain a raw angle bracket');
+  assert.ok(rule.includes('\\3c '), 'a `<` must survive as a CSS escape');
+  const html = cardHtml({ ...PLAN, video: { intro: { title: 'Hello' }, tokens: { '--pc-text': markup } } }, 'intro');
+  assert.ok(!html.includes('<img'), 'no markup from a token value may reach the card');
+  assert.equal((html.match(/<\/style>/g) ?? []).length, 1, 'the card has exactly one style element');
+});
+
+test('the schema and the code agree on the token names', () => {
+  const schema = JSON.parse(readFileSync(new URL('../plans/schema.json', import.meta.url), 'utf8'));
+  const names = schema?.$defs?.video?.properties?.tokens?.propertyNames?.enum;
+  assert.ok(Array.isArray(names), 'plans/schema.json has no token enum');
+  // Both directions: a name the schema allows but the code does not is a plan the
+  // editor accepts and the runner refuses.
+  assert.deepEqual(names, [...PANEL_TOKENS]);
 });
 
 test('the stylesheet paints from tokens, so a theme can reach every colour', () => {

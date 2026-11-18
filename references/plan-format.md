@@ -438,6 +438,10 @@ silently:
 | `--pc-radius` | `14px` | Panel corner radius. A card does not use it. |
 | `--pc-font-family` | system UI stack | Panel and card font. |
 
+A value is a value: `;`, `{`, `}`, `<`, `>` and a newline are refused, because each
+one ends something the plan did not mean to end — a declaration, or the `<style>`
+element a card's palette is written into.
+
 Two rules that follow from the vocabulary being a value rather than a class:
 
 - **A preset is literal.** `themes/memory.json` holds concrete `oklch()` values

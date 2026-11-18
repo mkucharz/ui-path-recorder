@@ -43,11 +43,22 @@ function usage(problem) {
   process.exit(2);
 }
 
+/** `--help` is a request, not a mistake: print and succeed. */
+function help() {
+  process.stdout.write(
+    'usage: node scripts/check-panel-theme.mjs [--app-css PATH]\n\n' +
+      '  (no arguments)   check the shape of every preset in themes/\n' +
+      '  --app-css PATH   also compare each derived value against the product stylesheet\n\n' +
+      'exit: 0 ok · 1 a preset is wrong · 2 cannot proceed\n',
+  );
+  process.exit(0);
+}
+
 let appCss = null;
 for (let i = 2; i < process.argv.length; i += 1) {
   const arg = process.argv[i];
   if (arg === '--app-css') appCss = process.argv[++i];
-  else if (arg === '--help' || arg === '-h') usage('help');
+  else if (arg === '--help' || arg === '-h') help();
   else usage(`unknown argument ${JSON.stringify(arg)}`);
 }
 

@@ -377,6 +377,16 @@ property of the recorder, not of whoever wrote the page being recorded. Asserted
 `test/theme.test.mjs` both ways: a policy that refuses the stylesheet leaves the
 panel transparent, and the bypassed context paints it.
 
+The bypass applies to **every** run, including `--profile <dir>` — the persistent
+profile a human signed into once. So a scripted run against a signed-in app also
+has its page policy relaxed, which is what the tool needs and what the plan never
+says out loud. The scope is one browser context per run, the profile is a
+capture-host file that is never transferred, and the recorded page is a URL the
+person naming it meant to record; but it is not a no-op, and it is the reason a
+token value is refused when it contains `<` (`lib/theme.mjs` → `tokenValueProblem`):
+plan text must not be able to become markup in a context that no longer has a
+policy to stop it.
+
 ## What the runner cannot do
 
 - **Know a selector was right for the screen you meant.** The guards are the only
