@@ -16,7 +16,7 @@ In order of preference:
    Railway card" tells you which screen deserves the figure and what the caption
    claims — but the guard is the card's id, not the word "Deploy". Labels are
    what copy edits and translations change.
-3. **`npx playwright codegen <url>`.** Click through the flow in the recorded
+3. **`npx playwright-core codegen <url>`.** Click through the flow in the recorded
    window; it prints Playwright calls with worked-out selectors. Draft with it,
    then hand-write the plan — codegen gives you selectors, it does not know what
    deserves a figure.

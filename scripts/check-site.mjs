@@ -82,10 +82,20 @@ if (!title || title[1].trim().length < 10) fail('index.html: no usable <title>')
 const h1s = html.match(/<h1[\s>]/gi)?.length ?? 0;
 if (h1s !== 1) fail(`index.html: expected exactly one <h1>, found ${h1s}`);
 
-if (/<script\b/i.test(html)) {
-  // The footer claims this page has no framework and no script. If one is added,
-  // the claim is what is wrong — make that a failing check rather than a lie.
-  fail('index.html: a <script> appeared; the footer and the README claim this page has none');
+// One script, inline, and it exists for one thing: the video dialog a card opens
+// into. The page is otherwise HTML and a stylesheet, and the footer says so — an
+// external script, a second inline one, or a `src=` is a different page and has to
+// come with a new sentence rather than slip in.
+const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
+if (scripts.length > 1) fail(`index.html: expected at most one <script>, found ${scripts.length}`);
+for (const [, scriptAttrs, body] of scripts) {
+  if (/\bsrc\s*=/i.test(scriptAttrs)) fail('index.html: the dialog script must be inline, not a second request');
+  if (/\btype\s*=\s*"(?!text\/javascript)/i.test(scriptAttrs)) fail('index.html: unexpected <script type>');
+  // The job is the dialog, so the proof is in the body: a second script that
+  // happens to leave `showModal()` elsewhere on the page does not qualify.
+  if (!/showModal\(\)/.test(body)) {
+    fail('index.html: a <script> appeared that is not the video dialog; the footer claims a page of HTML, a stylesheet and that one script');
+  }
 }
 
 // Every in-page anchor must land on something. A dead `#how` is a nav that does
@@ -99,7 +109,7 @@ for (const match of html.matchAll(/href="#([^"]+)"/g)) {
  * Template mode: the slots the builder fills
  * ------------------------------------------------------------------ */
 
-const SLOTS = ['hero', 'gallery', 'themes', 'version'];
+const SLOTS = ['styles', 'hero', 'gallery', 'themes', 'version'];
 if (!BUILT) {
   for (const slot of SLOTS) {
     const found = html.split(`<!-- site:${slot} -->`).length - 1;
@@ -189,7 +199,13 @@ if (BUILT) {
   }
 
   for (const block of html.match(/<video\b[^>]*>[\s\S]*?<\/video>/gi) ?? []) {
-    const open = attrs(/^<video\b[^>]*>/i.exec(block)[0]);
+    const tag = /^<video\b[^>]*>/i.exec(block)[0];
+    // The dialog's player is the one video with no source in the document: the
+    // card hands it one on open, so nothing is fetched by a reader who did not
+    // ask. It says so with `data-player`, and it is hidden until then, which is
+    // why the blank-box rule below does not apply to it either.
+    if (/\bdata-player\b/i.test(tag)) continue;
+    const open = attrs(tag);
     // A poster is a URL, so the scan above already proved it is relative and
     // resolves. This asks whether it is there at all.
     if (!open.poster) fail('index.html: a <video> has no poster (a reader who cannot play it, or who asked for reduced motion, sees a blank box)');

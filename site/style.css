@@ -1,28 +1,40 @@
 /*
  * One stylesheet, no framework, no web fonts.
  *
- * The palette is the chrome's own catppuccin-mocha preset (themes/catppuccin-mocha.json):
- * the page is dressed in the thing it documents, which also keeps the colour
- * decisions in a file a reader can diff.
+ * The palette is the Memory product's dark theme, in the token family the
+ * recorder's `themes/memory.json` preset uses for its chrome: ink-navy
+ * elevations, one neutral ink in three mixes, brass as the only saturated
+ * colour. No hex literals live below this block — every colour is one of these
+ * roles, so the whole page moves when a role does.
  */
 :root {
   color-scheme: dark;
 
-  --base: #1e1e2e;
-  --mantle: #181825;
-  --crust: #11111b;
-  --surface0: #313244;
-  --surface1: #45475a;
-  --surface2: #585b70;
-  --overlay0: #6c7086;
-  --overlay1: #7f849c;
-  --overlay2: #9399b2;
-  --subtext0: #a6adc8;
-  --subtext1: #bac2de;
-  --text: #cdd6f4;
-  --mauve: #cba6f7;
-  --lavender: #b4befe;
-  --green: #a6e3a1;
+  /* The Memory product's dark theme — the daisyUI block in
+     apps/web-ui/gateway/webui/css/app.css, the same palette `themes/memory.json`
+     hands the recorder's own chrome. Three elevations, the product's muted scale
+     (80 / 55 / 45 % of one ink), a hairline pair, and brass as the only
+     saturated colour. The recordings keep the recorder's *default* chrome, which
+     is what makes an example read as a figure on a page rather than as part of
+     it. */
+  --bg: oklch(0.175 0.014 274);            /* base-200: the page */
+  --panel: oklch(0.215 0.016 274);         /* base-100: bands, cards, footer */
+  --deep: oklch(0.135 0.012 274);          /* base-300: code, frames, letterbox */
+
+  --ink: oklch(0.93 0.008 265);            /* base-content */
+  --ink-body: color-mix(in oklab, var(--ink) 80%, transparent);
+  --ink-muted: color-mix(in oklab, var(--ink) 55%, transparent);
+  /* The product's scale ends at 45 %, which is 3.9:1 here — under AA for the
+     sizes this tier carries (`.fine`, `.caption`, the eyebrow). 52 % keeps the
+     tier visibly fainter than `--ink-muted` and clears 4.5:1. */
+  --ink-faint: color-mix(in oklab, var(--ink) 52%, transparent);
+
+  --line: color-mix(in oklab, var(--ink) 12%, transparent);
+  --line-strong: color-mix(in oklab, var(--ink) 22%, transparent);
+
+  --accent: oklch(0.74 0.135 78);          /* primary: brass */
+  --accent-hover: oklch(0.82 0.125 78);
+  --on-accent: oklch(0.2 0.04 78);         /* primary-content */
 
   --page: 74rem;
   --gutter: clamp(1.1rem, 4vw, 2.5rem);
@@ -36,7 +48,7 @@
 
 html {
   scroll-padding-top: 2rem;
-  background: var(--base);
+  background: var(--bg);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -45,24 +57,24 @@ html {
 
 body {
   margin: 0;
-  background: var(--base);
-  color: var(--subtext1);
+  background: var(--bg);
+  color: var(--ink-body);
   font: 400 16px/1.62 var(--sans);
   text-rendering: optimizeLegibility;
 }
 
-::selection { background: var(--mauve); color: var(--crust) }
+::selection { background: var(--accent); color: var(--on-accent) }
 
-a { color: var(--mauve); text-decoration-thickness: 1px; text-underline-offset: .18em }
-a:hover { color: var(--lavender) }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: .18em }
+a:hover { color: var(--accent-hover) }
 
-:focus-visible { outline: 2px solid var(--mauve); outline-offset: 2px; border-radius: 3px }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px }
 
 img, video { max-width: 100% }
 
 .skip {
   position: absolute; left: -9999px; top: 0; z-index: 10;
-  padding: .6rem 1rem; background: var(--mauve); color: var(--crust); font-weight: 600;
+  padding: .6rem 1rem; background: var(--accent); color: var(--on-accent); font-weight: 600;
 }
 .skip:focus { left: 1rem; top: 1rem }
 
@@ -74,28 +86,28 @@ img, video { max-width: 100% }
   display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem 1.5rem;
   max-width: var(--page); margin-inline: auto;
   padding: 1.15rem var(--gutter) 1.05rem;
-  border-bottom: 1px solid var(--surface0);
+  border-bottom: 1px solid var(--line);
 }
 
 .brand {
   font: 600 .95rem/1 var(--mono); letter-spacing: -.01em;
-  color: var(--text); text-decoration: none;
+  color: var(--ink); text-decoration: none;
 }
-.brand:hover { color: var(--text) }
+.brand:hover { color: var(--ink) }
 .brand::before {
   content: ""; display: inline-block; width: .58em; height: .58em; margin-right: .55em;
-  border-radius: 2px; background: var(--mauve); vertical-align: baseline;
+  border-radius: 2px; background: var(--accent); vertical-align: baseline;
 }
 
 .top nav { display: flex; gap: 1.1rem; margin-left: auto; font-size: .88rem }
-.top nav a { color: var(--subtext0); text-decoration: none }
-.top nav a:hover { color: var(--text) }
+.top nav a { color: var(--ink-muted); text-decoration: none }
+.top nav a:hover { color: var(--ink) }
 
 .repo {
-  font: .85rem/1 var(--mono); color: var(--subtext0); text-decoration: none;
-  padding-left: 1.1rem; border-left: 1px solid var(--surface0);
+  font: .85rem/1 var(--mono); color: var(--ink-muted); text-decoration: none;
+  padding-left: 1.1rem; border-left: 1px solid var(--line);
 }
-.repo:hover { color: var(--mauve) }
+.repo:hover { color: var(--accent) }
 
 /* ------------------------------------------------------------------ *
  * Blocks
@@ -103,11 +115,11 @@ img, video { max-width: 100% }
 
 section {
   padding-block: clamp(3rem, 6vw, 5.25rem);
-  border-top: 1px solid var(--surface0);
+  border-top: 1px solid var(--line);
 }
 section:first-of-type { border-top: 0 }
 
-.band { background: var(--mantle) }
+.band { background: var(--panel) }
 
 .hero { max-width: var(--page); margin-inline: auto; padding-inline: var(--gutter) }
 .hero h1 { max-width: 26ch }
@@ -128,14 +140,14 @@ section:first-of-type { border-top: 0 }
 .num {
   margin: .55rem 0 0;
   font: .8rem/1 var(--mono); letter-spacing: .06em;
-  color: var(--overlay2);
+  color: var(--ink-faint);
 }
 
 /* ------------------------------------------------------------------ *
  * Type
  * ------------------------------------------------------------------ */
 
-h1, h2, h3 { color: var(--text); letter-spacing: -.015em }
+h1, h2, h3 { color: var(--ink); letter-spacing: -.015em }
 
 h1 {
   margin: .7rem 0 1.1rem;
@@ -164,41 +176,41 @@ p { margin: 0 0 1rem }
 .eyebrow {
   margin: 0;
   font: .72rem/1.4 var(--mono); letter-spacing: .12em; text-transform: uppercase;
-  color: var(--overlay2);
+  color: var(--ink-faint);
 }
 
-.lede { font-size: 1.1rem; color: var(--subtext1) }
-.lede.narrow { max-width: 58ch; color: var(--subtext0) }
+.lede { font-size: 1.1rem; color: var(--ink-body) }
+.lede.narrow { max-width: 58ch; color: var(--ink-muted) }
 
 .fine {
-  font-size: .85rem; line-height: 1.55; color: var(--overlay2);
+  font-size: .85rem; line-height: 1.55; color: var(--ink-faint);
   max-width: var(--prose);
 }
 .fine code { font-size: .92em }
 
-.punch { color: var(--text); font-weight: 500 }
+.punch { color: var(--ink); font-weight: 500 }
 
-b { color: var(--text); font-weight: 600 }
+b { color: var(--ink); font-weight: 600 }
 
 code {
   font: .88em/1.4 var(--mono);
-  background: var(--crust);
-  border: 1px solid var(--surface0);
+  background: var(--deep);
+  border: 1px solid var(--line);
   border-radius: 4px;
   padding: .1em .34em;
-  color: var(--subtext1);
+  color: var(--ink-body);
   white-space: nowrap;
 }
 
 pre {
   margin: 0 0 1.1rem;
   padding: 1rem 1.1rem;
-  background: var(--crust);
-  border: 1px solid var(--surface0);
+  background: var(--deep);
+  border: 1px solid var(--line);
   border-radius: 9px;
   overflow-x: auto;
   font: .82rem/1.6 var(--mono);
-  color: var(--subtext1);
+  color: var(--ink-body);
   tab-size: 2;
 }
 pre code {
@@ -220,23 +232,23 @@ pre code {
   padding: .62rem 1.05rem;
   border-radius: 8px;
   border: 1px solid transparent;
-  background: var(--mauve);
-  color: var(--crust);
+  background: var(--accent);
+  color: var(--on-accent);
   font-weight: 600; font-size: .92rem; text-decoration: none;
 }
-.button:hover { background: var(--lavender); color: var(--crust) }
+.button:hover { background: var(--accent-hover); color: var(--on-accent) }
 .button.ghost {
-  background: transparent; border-color: var(--surface2); color: var(--text);
+  background: transparent; border-color: var(--line-strong); color: var(--ink);
 }
-.button.ghost:hover { border-color: var(--mauve); color: var(--text) }
+.button.ghost:hover { border-color: var(--accent); color: var(--ink) }
 
 .hero-media { margin-top: 0 }
 
 .frame {
-  border: 1px solid var(--surface0);
+  border: 1px solid var(--line);
   border-radius: 10px;
   overflow: hidden;
-  background: var(--crust);
+  background: var(--deep);
 }
 .frame video, .frame img { display: block; width: 100%; height: auto }
 /* Both selectors carry a `.frame`, so the hidden poster outranks the rule above. */
@@ -249,7 +261,7 @@ pre code {
 
 .caption {
   margin: .7rem 0 0;
-  font-size: .82rem; color: var(--overlay2);
+  font-size: .82rem; color: var(--ink-faint);
 }
 .caption b { font-weight: 600 }
 
@@ -267,7 +279,7 @@ pre code {
 .leaks li::before {
   content: ""; position: absolute; left: 0; top: .62em;
   width: .4em; height: .4em; border-radius: 50%;
-  border: 1px solid var(--surface2);
+  border: 1px solid var(--line-strong);
 }
 
 /* ------------------------------------------------------------------ *
@@ -281,19 +293,19 @@ pre code {
   margin: 2rem 0 1.4rem;
   padding: 0;
   list-style: none;
-  background: var(--surface0);
-  border: 1px solid var(--surface0);
+  background: var(--line);
+  border: 1px solid var(--line);
   border-radius: 10px;
   overflow: hidden;
 }
-.flow li { background: var(--base); padding: 1.05rem 1.1rem 1.15rem }
-.band .flow li { background: var(--mantle) }
+.flow li { background: var(--bg); padding: 1.05rem 1.1rem 1.15rem }
+.band .flow li { background: var(--panel) }
 .flow-label {
   margin: 0 0 .55rem;
   font: .74rem/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase;
-  color: var(--mauve);
+  color: var(--accent);
 }
-.flow p:last-child { margin: 0; font-size: .9rem; color: var(--subtext0) }
+.flow p:last-child { margin: 0; font-size: .9rem; color: var(--ink-muted) }
 .flow b { display: block; margin-bottom: .25rem; font-size: .95rem }
 
 @media (max-width: 62rem) {
@@ -309,11 +321,11 @@ pre code {
   grid-template-columns: 12.5rem minmax(0, 1fr);
   gap: .25rem 1.25rem;
   padding: .55rem 0;
-  border-top: 1px solid var(--surface0);
+  border-top: 1px solid var(--line);
 }
-.guards div:last-child { border-bottom: 1px solid var(--surface0) }
-.guards dt { font: .85rem/1.5 var(--mono); color: var(--text) }
-.guards dd { margin: 0; font-size: .9rem; color: var(--subtext0) }
+.guards div:last-child { border-bottom: 1px solid var(--line) }
+.guards dt { font: .85rem/1.5 var(--mono); color: var(--ink) }
+.guards dd { margin: 0; font-size: .9rem; color: var(--ink-muted) }
 
 @media (max-width: 44rem) {
   .guards div { grid-template-columns: minmax(0, 1fr); gap: .1rem }
@@ -339,30 +351,56 @@ pre code {
 
 .card {
   display: flex; flex-direction: column;
-  border: 1px solid var(--surface0);
+  border: 1px solid var(--line);
   border-radius: 10px;
   overflow: hidden;
-  background: var(--mantle);
+  background: var(--panel);
 }
 /* One media box for every card, whatever shape the recording is. The ratio is on
    the replaced element, because a ratio on the wrapper loses to the image's own
-   height; `contain` never crops a frame the plan produced — the extra space is
-   the recording's own background. */
-.card .media { background: var(--crust); border-bottom: 1px solid var(--surface0) }
+   height; `contain` never crops a frame the plan produced, and the space it
+   leaves is this page's darkest elevation, so a letterboxed figure reads as one
+   card of a row rather than as a recording that happened to be a different
+   shape. */
+.card .media { background: var(--deep); border-bottom: 1px solid var(--line); position: relative }
 .card .media img, .card .media video {
   display: block; width: 100%; height: auto;
   aspect-ratio: 16 / 9; object-fit: contain;
+}
+/* The card is a poster and a play button: a 490 px column cannot show a 1920 px
+   screen, so the recording opens in `#player` at the size of the window. The
+   anchor's href is the file itself, so it still leads somewhere without the
+   script. */
+.card .expand { display: block; color: inherit; text-decoration: none }
+.card .media .play { position: absolute; inset: 0; display: grid; place-items: center }
+.card .media .play::before,
+.card .media .play::after { content: ""; grid-area: 1 / 1 }
+.card .media .play::before {
+  width: 3.2rem; height: 3.2rem; border-radius: 50%;
+  background: color-mix(in oklab, var(--bg) 74%, transparent);
+  border: 1px solid var(--line-strong);
+  transition: background .16s ease, border-color .16s ease;
+}
+.card .media .play::after {
+  width: .74rem; height: .88rem; margin-left: .18rem;
+  background: var(--accent);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+.card .expand:hover .play::before,
+.card .expand:focus-visible .play::before {
+  background: color-mix(in oklab, var(--bg) 55%, transparent);
+  border-color: var(--accent);
 }
 /* The body takes what the media leaves, so the links sit on a common baseline
    in every card of a row instead of floating under a short caption. */
 .card .body { display: flex; flex-direction: column; flex: 1; padding: 1rem 1.15rem 1.1rem }
 .card h3 { margin: .1rem 0 .4rem; font-size: 1rem }
-.card p { margin: 0 0 .8rem; font-size: .9rem; color: var(--subtext0) }
+.card p { margin: 0 0 .8rem; font-size: .9rem; color: var(--ink-muted) }
 
 .card-tag {
   margin: 0 0 .45rem;
   font: .72rem/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase;
-  color: var(--overlay2);
+  color: var(--ink-faint);
 }
 .card-links {
   display: flex; flex-wrap: wrap; gap: .45rem 1.1rem;
@@ -372,9 +410,9 @@ pre code {
    and leave the links under the caption instead of on the card's baseline. */
 .card .card-links { margin-top: auto }
 .card .body > :last-child { margin-bottom: 0 }
-.card-links a { color: var(--mauve) }
-.card-links .plan { color: var(--overlay2) }
-.card-links .plan:hover { color: var(--lavender) }
+.card-links a { color: var(--accent) }
+.card-links .plan { color: var(--ink-faint) }
+.card-links .plan:hover { color: var(--accent-hover) }
 
 .themes {
   display: grid;
@@ -383,20 +421,42 @@ pre code {
   margin: 1.6rem 0 .5rem;
 }
 .theme { margin: 0 }
-.theme .frame { margin-bottom: .65rem }
-.theme figcaption { font-size: .85rem; color: var(--subtext0) }
+/* The panel inside is the recorder's own stylesheet (generated into the page at
+   build time). This box is only the frame: the app column the panel is docked
+   beside, drawn in the page's deepest elevation so the panel's edge has
+   something to be an edge against. */
+.theme .palette {
+  display: flex; justify-content: flex-end;
+  min-height: 15rem;
+  margin-bottom: .65rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--deep);
+  overflow: hidden;
+}
+/* `!important` is not needed and not used: these selectors out-specify the panel's
+   own by one class, and this stylesheet is linked after the generated one. */
+.theme .palette .pc-panel {
+  position: static;
+  transform: none;
+  width: 100%;
+  max-height: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.theme figcaption { font-size: .85rem; color: var(--ink-muted) }
 .theme .name {
   display: block;
   font: .8rem/1.5 var(--mono);
-  color: var(--text);
+  color: var(--ink);
   margin-bottom: .1rem;
 }
-.theme .from { display: block; font-size: .78rem; color: var(--overlay2) }
+.theme .from { display: block; font-size: .78rem; color: var(--ink-faint) }
 
 .swatches { display: flex; gap: .3rem; margin: .5rem 0 .35rem; padding: 0; list-style: none }
 .swatches li {
   width: 1.35rem; height: 1.35rem; border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, .14);
+  border: 1px solid var(--line-strong);
 }
 
 /* ------------------------------------------------------------------ *
@@ -406,29 +466,29 @@ pre code {
 table.flags { width: 100%; border-collapse: collapse; margin: .5rem 0 1rem; font-size: .9rem }
 table.flags th {
   text-align: left; font: .72rem/1.4 var(--mono); letter-spacing: .1em;
-  text-transform: uppercase; color: var(--overlay2);
+  text-transform: uppercase; color: var(--ink-faint);
   padding: 0 .7rem .35rem 0;
 }
-table.flags td { padding: .5rem .7rem .5rem 0; border-top: 1px solid var(--surface0); vertical-align: top }
+table.flags td { padding: .5rem .7rem .5rem 0; border-top: 1px solid var(--line); vertical-align: top }
 table.flags td:first-child { width: 13rem; white-space: nowrap }
-table.flags td code { background: none; border: 0; padding: 0; color: var(--text) }
+table.flags td code { background: none; border: 0; padding: 0; color: var(--ink) }
 
 footer {
-  border-top: 1px solid var(--surface0);
-  background: var(--mantle);
+  border-top: 1px solid var(--line);
+  background: var(--panel);
   /* The band runs edge to edge; its text sits in the same page box as the top bar
      and the sections — the centred page column, plus the gutter. */
   padding: 2.2rem calc(max(0px, (100% - var(--page)) / 2) + var(--gutter)) 3.5rem;
 }
 footer > p {
   margin: 0 0 .6rem;
-  font-size: .85rem; color: var(--subtext0);
+  font-size: .85rem; color: var(--ink-muted);
 }
 /* `.fine` caps a paragraph at the prose measure. Inside the footer that used to
    mean a narrower box centred in the page column, so the second line was indented
    under the first; it wraps at the same measure from the same left edge now. */
 footer .fine { max-width: var(--prose) }
-footer .version { font-family: var(--mono); font-size: .92em; color: var(--overlay2) }
+footer .version { font-family: var(--mono); font-size: .92em; color: var(--ink-faint) }
 
 /* ------------------------------------------------------------------ *
  * Narrow
@@ -437,7 +497,7 @@ footer .version { font-family: var(--mono); font-size: .92em; color: var(--overl
 @media (max-width: 55rem) {
   .rail { grid-template-columns: minmax(0, 1fr); gap: .5rem }
   .num { margin: 0 0 .2rem }
-  .top nav { order: 3; width: 100%; margin-left: 0; padding-top: .6rem; border-top: 1px solid var(--surface0) }
+  .top nav { order: 3; width: 100%; margin-left: 0; padding-top: .6rem; border-top: 1px solid var(--line) }
   .repo { margin-left: auto; border-left: 0; padding-left: 0 }
 }
 
@@ -451,6 +511,42 @@ footer .version { font-family: var(--mono); font-size: .92em; color: var(--overl
   table.flags td:first-child { width: auto; white-space: normal }
   table.flags, table.flags tbody, table.flags tr, table.flags td { display: block; width: 100% }
   table.flags thead { display: none }
-  table.flags tr { border-top: 1px solid var(--surface0); padding: .45rem 0 }
+  table.flags tr { border-top: 1px solid var(--line); padding: .45rem 0 }
   table.flags td { border: 0; padding: 0 }
+}
+
+/* ------------------------------------------------------------------ *
+ * The player
+ * ------------------------------------------------------------------ */
+
+/* One <dialog>, reused by every card, sized to the window instead of to the
+   column: the point of opening a recording is to see what the 1920 px frame
+   actually contains. `showModal()` gives the focus trap, the Esc key and the
+   backdrop for free, which is why this is a dialog and not a styled div. */
+.player {
+  width: min(96vw, 84rem); max-width: none;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--ink-body);
+  overflow: hidden;
+}
+.player::backdrop { background: color-mix(in oklab, var(--deep) 84%, transparent) }
+.player-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: .7rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.player-title { margin: 0; font: 600 .92rem/1.3 var(--sans); color: var(--ink) }
+.player-close {
+  font: inherit; font-size: .82rem; padding: .32rem .7rem;
+  border-radius: 6px; cursor: pointer;
+  background: transparent; border: 1px solid var(--line-strong); color: var(--ink-muted);
+}
+.player-close:hover { color: var(--ink); border-color: var(--accent) }
+.player video {
+  display: block; width: 100%; height: auto;
+  max-height: 78vh; object-fit: contain;
+  background: var(--deep);
 }

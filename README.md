@@ -47,13 +47,34 @@ committing one.
 
 ## Install
 
+As an agent skill — the way this is meant to be used, because the part that needs
+judgement (find the flow, decide which moments a reader needs, read the failure,
+publish the figures) is the agent's half:
+
 ```bash
-npm install                    # playwright-core, plus optional sharp
-npx playwright install chromium
-npx playwright install ffmpeg  # only for --video
+npx skills add mkucharz/ui-path-recorder --skill path-recorder -g
+```
+
+Pin a release instead of a branch when the plan matters more than the novelty —
+`…ui-path-recorder@v0.2.0`. The tarball attached to
+[the releases](https://github.com/mkucharz/ui-path-recorder/releases) unpacks to
+`path-recorder/SKILL.md`, for an agent that installs by folder.
+
+The CLI on its own:
+
+```bash
+npm install                         # playwright-core, plus optional sharp
+npx playwright-core install chromium
+npx playwright-core install ffmpeg  # only for --video
 # or point at a browser you already have:
 export CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 ```
+
+`playwright-core`, not `playwright`: this tree depends on the core package, and a
+bare `npx playwright` fetches a *different* Playwright from the registry whose
+browser build need not be the one `package.json` pins — which fails at launch with
+`Executable doesn't exist … chromium-<n>`. The core package's own CLI installs the
+exact revision, so the number always matches.
 
 ## Try it in 30 seconds — no account, no network
 
@@ -520,14 +541,14 @@ the script waits for that file instead of a keypress.
 | `--profile <dir>` | keep the session in a profile on this host (implies a visible window) |
 | `--login` | open that profile for a human, then exit |
 | `--login-done-file <f>` | an agent on another host signals "signed in" with `touch <f>` |
-| `--video` | record the walkthrough to `<out>/video/01-main.webm` **and drive it like a person** (needs `npx playwright install ffmpeg`) |
+| `--video` | record the walkthrough to `<out>/video/01-main.webm` **and drive it like a person** (needs `npx playwright-core install ffmpeg`) |
 | `--no-humanize` | with `--video`, record the raw machine-speed cut instead |
 | `--seed <s>` | seed the humanizer (default `run-<stamp>`, logged as `seed=`) |
 | `--speed <n>` | scale every human delay: 1 natural, 20 a fast test run |
 | `--video-fps <n>` | video frame rate (default 25) |
 | `--video-size <WxH>` | shrink the video canvas (default: the viewport). Must have the viewport's shape and be no larger than it — Playwright never scales a recording up, it pads the canvas with a band, so the run is refused instead. 1080p comes from the plan's viewport (`1920x1080`), not from this flag |
 | `--poster <id>` | figure to show in the player before play (default: the first frame) |
-| `--trace` | write `<out>/trace.zip`; open with `npx playwright show-trace` |
+| `--trace` | write `<out>/trace.zip`; open with `npx playwright-core show-trace` |
 | `--vars-out <f>` | where `setVar` values go (default `<out>/.vars.json`, mode 600) |
 | `--no-trim` | do not crop dead space (needs no `sharp`) |
 | `--channel <name>` | launch a specific channel (`chrome`, `msedge`, `chromium`) |
@@ -552,12 +573,22 @@ screen, which is what a document should size the figure to.
 ## Use it as an agent skill
 
 `SKILL.md` is written for a coding agent: the workflow, the rules that make a
-figure trustworthy, and the failure loop. Install it as a skill in OpenCode,
-Claude Code or anything that reads a `SKILL.md` directory:
+figure trustworthy, and the failure loop. Install it once and ask for the
+figures:
 
 ```bash
-git clone https://github.com/mkucharz/ui-path-recorder ~/.config/opencode/skills/path-recorder
+npx skills add mkucharz/ui-path-recorder --skill path-recorder -g
 ```
+
+No CLI on the box, or an agent that just reads a folder? The skill is one
+directory — clone it where your agent looks:
+
+```bash
+git clone https://github.com/mkucharz/ui-path-recorder ~/.config/opencode/skills/path-recorder  # OpenCode, Codex, Cursor
+git clone https://github.com/mkucharz/ui-path-recorder ~/.claude/skills/path-recorder            # Claude Code
+```
+
+The walkthrough lives at <https://mkucharz.github.io/ui-path-recorder/>.
 
 ## Tests
 
@@ -592,6 +623,9 @@ matching what it reported).
 The site — [mkucharz.github.io/ui-path-recorder](https://mkucharz.github.io/ui-path-recorder/) —
 is `site/` plus `node scripts/build-site.mjs`: the page is a template and its
 examples are recorded from the plans in this repo during the deploy, so nothing
-binary is committed and no figure on it can come from anywhere else.
+binary is committed and no figure on it can come from anywhere else. The one
+exception is the palette strip, which is not a picture at all: it is the
+recorder's own panel stylesheet with each preset's tokens set, generated into the
+page at build time (`lib/checklist.mjs` → `checklistCss`, `checklistPanelHtml`).
 
 MIT.

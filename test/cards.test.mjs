@@ -19,8 +19,8 @@ import {
   cardFitWarning,
   cardHtml,
   cardOptions,
-  escapeHtml,
 } from '../lib/cards.mjs';
+import { escapeHtml } from '../lib/checklist.mjs';
 import { validate } from '../lib/plan.mjs';
 
 const PLAN = {
