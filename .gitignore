@@ -5,6 +5,10 @@ captures/
 # enters git — it is a credential.
 .profile/
 
+# The documentation site as built (recorded examples + rendered page). The page
+# template is `site/`; this is what `npm run site:build` records into it.
+.site/
+
 node_modules/
 *.log
 .DS_Store

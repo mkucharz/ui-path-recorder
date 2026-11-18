@@ -34,6 +34,11 @@ jobs:
       - name: syntax
         run: npm run check
 
+      - name: site template
+        # No browser and no network — the page's slots, anchors, meta tags and
+        # relative links. The built site is checked by the deploy workflow.
+        run: npm run site:check
+
       - name: plans satisfy the contract
         run: |
           node -e '

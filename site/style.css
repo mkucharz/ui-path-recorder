@@ -1,0 +1,431 @@
+/*
+ * One stylesheet, no framework, no web fonts.
+ *
+ * The palette is the chrome's own catppuccin-mocha preset (themes/catppuccin-mocha.json):
+ * the page is dressed in the thing it documents, which also keeps the colour
+ * decisions in a file a reader can diff.
+ */
+:root {
+  color-scheme: dark;
+
+  --base: #1e1e2e;
+  --mantle: #181825;
+  --crust: #11111b;
+  --surface0: #313244;
+  --surface1: #45475a;
+  --surface2: #585b70;
+  --overlay0: #6c7086;
+  --overlay1: #7f849c;
+  --overlay2: #9399b2;
+  --subtext0: #a6adc8;
+  --subtext1: #bac2de;
+  --text: #cdd6f4;
+  --mauve: #cba6f7;
+  --lavender: #b4befe;
+  --green: #a6e3a1;
+
+  --page: 74rem;
+  --gutter: clamp(1.1rem, 4vw, 2.5rem);
+  --prose: 70ch;
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box }
+
+html {
+  scroll-padding-top: 2rem;
+  background: var(--base);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth }
+}
+
+body {
+  margin: 0;
+  background: var(--base);
+  color: var(--subtext1);
+  font: 400 16px/1.62 var(--sans);
+  text-rendering: optimizeLegibility;
+}
+
+::selection { background: var(--mauve); color: var(--crust) }
+
+a { color: var(--mauve); text-decoration-thickness: 1px; text-underline-offset: .18em }
+a:hover { color: var(--lavender) }
+
+:focus-visible { outline: 2px solid var(--mauve); outline-offset: 2px; border-radius: 3px }
+
+img, video { max-width: 100% }
+
+.skip {
+  position: absolute; left: -9999px; top: 0; z-index: 10;
+  padding: .6rem 1rem; background: var(--mauve); color: var(--crust); font-weight: 600;
+}
+.skip:focus { left: 1rem; top: 1rem }
+
+/* ------------------------------------------------------------------ *
+ * Top bar
+ * ------------------------------------------------------------------ */
+
+.top {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem 1.5rem;
+  max-width: var(--page); margin-inline: auto;
+  padding: 1.15rem var(--gutter) 1.05rem;
+  border-bottom: 1px solid var(--surface0);
+}
+
+.brand {
+  font: 600 .95rem/1 var(--mono); letter-spacing: -.01em;
+  color: var(--text); text-decoration: none;
+}
+.brand:hover { color: var(--text) }
+.brand::before {
+  content: ""; display: inline-block; width: .58em; height: .58em; margin-right: .55em;
+  border-radius: 2px; background: var(--mauve); vertical-align: baseline;
+}
+
+.top nav { display: flex; gap: 1.1rem; margin-left: auto; font-size: .88rem }
+.top nav a { color: var(--subtext0); text-decoration: none }
+.top nav a:hover { color: var(--text) }
+
+.repo {
+  font: .85rem/1 var(--mono); color: var(--subtext0); text-decoration: none;
+  padding-left: 1.1rem; border-left: 1px solid var(--surface0);
+}
+.repo:hover { color: var(--mauve) }
+
+/* ------------------------------------------------------------------ *
+ * Blocks
+ * ------------------------------------------------------------------ */
+
+section {
+  padding-block: clamp(3rem, 6vw, 5.25rem);
+  border-top: 1px solid var(--surface0);
+}
+section:first-of-type { border-top: 0 }
+
+.band { background: var(--mantle) }
+
+.hero { max-width: var(--page); margin-inline: auto; padding-inline: var(--gutter) }
+.hero h1 { max-width: 26ch }
+.hero .lede,
+.hero .install,
+.hero .cta { max-width: 62ch }
+
+.rail {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: .35rem 1.5rem;
+  max-width: var(--page); margin-inline: auto; padding-inline: var(--gutter);
+}
+.rail > div { min-width: 0 }
+.rail p, .rail ul, .rail ol, .rail dl, .rail table { max-width: var(--prose) }
+.rail .gallery, .rail .themes, .rail .flow { max-width: none }
+
+.num {
+  margin: .55rem 0 0;
+  font: .8rem/1 var(--mono); letter-spacing: .06em;
+  color: var(--overlay2);
+}
+
+/* ------------------------------------------------------------------ *
+ * Type
+ * ------------------------------------------------------------------ */
+
+h1, h2, h3 { color: var(--text); letter-spacing: -.015em }
+
+h1 {
+  margin: .7rem 0 1.1rem;
+  font-size: clamp(2rem, 4.6vw, 3.35rem);
+  font-weight: 650;
+  line-height: 1.06;
+  letter-spacing: -.028em;
+}
+
+h2 {
+  margin: 0 0 .75rem;
+  font-size: clamp(1.55rem, 2.8vw, 2.05rem);
+  font-weight: 620;
+  line-height: 1.15;
+}
+
+h3 {
+  margin: 2.6rem 0 .6rem;
+  font-size: 1.08rem;
+  font-weight: 600;
+  letter-spacing: -.005em;
+}
+
+p { margin: 0 0 1rem }
+
+.eyebrow {
+  margin: 0;
+  font: .72rem/1.4 var(--mono); letter-spacing: .12em; text-transform: uppercase;
+  color: var(--overlay2);
+}
+
+.lede { font-size: 1.1rem; color: var(--subtext1) }
+.lede.narrow { max-width: 58ch; color: var(--subtext0) }
+
+.fine {
+  font-size: .85rem; line-height: 1.55; color: var(--overlay2);
+  max-width: var(--prose);
+}
+.fine code { font-size: .92em }
+
+.punch { color: var(--text); font-weight: 500 }
+
+b { color: var(--text); font-weight: 600 }
+
+code {
+  font: .88em/1.4 var(--mono);
+  background: var(--crust);
+  border: 1px solid var(--surface0);
+  border-radius: 4px;
+  padding: .1em .34em;
+  color: var(--subtext1);
+  white-space: nowrap;
+}
+
+pre {
+  margin: 0 0 1.1rem;
+  padding: 1rem 1.1rem;
+  background: var(--crust);
+  border: 1px solid var(--surface0);
+  border-radius: 9px;
+  overflow-x: auto;
+  font: .82rem/1.6 var(--mono);
+  color: var(--subtext1);
+  tab-size: 2;
+}
+pre code {
+  background: none; border: 0; padding: 0; font: inherit;
+  color: inherit; white-space: pre;
+}
+
+/* ------------------------------------------------------------------ *
+ * Hero
+ * ------------------------------------------------------------------ */
+
+.install { margin: 1.6rem 0 1.4rem }
+.install pre { max-width: 34rem; margin-bottom: .6rem }
+
+.cta { display: flex; flex-wrap: wrap; gap: .7rem; margin: 0 0 2.5rem }
+
+.button {
+  display: inline-block;
+  padding: .62rem 1.05rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: var(--mauve);
+  color: var(--crust);
+  font-weight: 600; font-size: .92rem; text-decoration: none;
+}
+.button:hover { background: var(--lavender); color: var(--crust) }
+.button.ghost {
+  background: transparent; border-color: var(--surface2); color: var(--text);
+}
+.button.ghost:hover { border-color: var(--mauve); color: var(--text) }
+
+.hero-media { margin-top: 0 }
+
+.frame {
+  border: 1px solid var(--surface0);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--crust);
+}
+.frame video, .frame img { display: block; width: 100%; height: auto }
+/* Both selectors carry a `.frame`, so the hidden poster outranks the rule above. */
+.frame .hero-poster { display: none }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-media video { display: none }
+  .frame .hero-poster { display: block }
+}
+
+.caption {
+  margin: .7rem 0 0;
+  font-size: .82rem; color: var(--overlay2);
+}
+.caption b { font-weight: 600 }
+
+/* ------------------------------------------------------------------ *
+ * Why it exists
+ * ------------------------------------------------------------------ */
+
+.leaks { margin: 0 0 1.4rem; padding: 0; list-style: none }
+.leaks li {
+  position: relative;
+  margin: 0 0 .75rem;
+  padding-left: 1.15rem;
+  font-size: .95rem;
+}
+.leaks li::before {
+  content: ""; position: absolute; left: 0; top: .62em;
+  width: .4em; height: .4em; border-radius: 50%;
+  border: 1px solid var(--surface2);
+}
+
+/* ------------------------------------------------------------------ *
+ * How it works
+ * ------------------------------------------------------------------ */
+
+.flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 2rem 0 1.4rem;
+  padding: 0;
+  list-style: none;
+  background: var(--surface0);
+  border: 1px solid var(--surface0);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.flow li { background: var(--base); padding: 1.05rem 1.1rem 1.15rem }
+.band .flow li { background: var(--mantle) }
+.flow-label {
+  margin: 0 0 .55rem;
+  font: .74rem/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--mauve);
+}
+.flow p:last-child { margin: 0; font-size: .9rem; color: var(--subtext0) }
+.flow b { display: block; margin-bottom: .25rem; font-size: .95rem }
+
+@media (max-width: 62rem) {
+  .flow { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+}
+@media (max-width: 34rem) {
+  .flow { grid-template-columns: minmax(0, 1fr) }
+}
+
+.guards { margin: .75rem 0 1.2rem }
+.guards div {
+  display: grid;
+  grid-template-columns: 12.5rem minmax(0, 1fr);
+  gap: .25rem 1.25rem;
+  padding: .55rem 0;
+  border-top: 1px solid var(--surface0);
+}
+.guards div:last-child { border-bottom: 1px solid var(--surface0) }
+.guards dt { font: .85rem/1.5 var(--mono); color: var(--text) }
+.guards dd { margin: 0; font-size: .9rem; color: var(--subtext0) }
+
+@media (max-width: 44rem) {
+  .guards div { grid-template-columns: minmax(0, 1fr); gap: .1rem }
+}
+
+/* ------------------------------------------------------------------ *
+ * Examples
+ * ------------------------------------------------------------------ */
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+  gap: 1.5rem;
+  margin: 2rem 0 .5rem;
+  align-items: start;
+}
+
+.card {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--surface0);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--mantle);
+}
+.card .media { background: var(--crust); border-bottom: 1px solid var(--surface0) }
+.card .media img, .card .media video { display: block; width: 100%; height: auto }
+.card .body { padding: 1rem 1.15rem 1.1rem }
+.card h3 { margin: .1rem 0 .4rem; font-size: 1rem }
+.card p { margin: 0 0 .8rem; font-size: .9rem; color: var(--subtext0) }
+
+.card-tag {
+  margin: 0 0 .45rem;
+  font: .72rem/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--overlay2);
+}
+.card-links {
+  display: flex; flex-wrap: wrap; gap: .45rem 1.1rem;
+  margin-top: auto; font-size: .85rem;
+}
+.card-links a { color: var(--mauve) }
+.card-links .plan { color: var(--overlay2) }
+.card-links .plan:hover { color: var(--lavender) }
+
+.themes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: 1.25rem;
+  margin: 1.6rem 0 .5rem;
+}
+.theme { margin: 0 }
+.theme .frame { margin-bottom: .65rem }
+.theme figcaption { font-size: .85rem; color: var(--subtext0) }
+.theme .name {
+  display: block;
+  font: .8rem/1.5 var(--mono);
+  color: var(--text);
+  margin-bottom: .1rem;
+}
+.theme .from { display: block; font-size: .78rem; color: var(--overlay2) }
+
+.swatches { display: flex; gap: .3rem; margin: .5rem 0 .35rem; padding: 0; list-style: none }
+.swatches li {
+  width: 1.35rem; height: 1.35rem; border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, .14);
+}
+
+/* ------------------------------------------------------------------ *
+ * Tables and footer
+ * ------------------------------------------------------------------ */
+
+table.flags { width: 100%; border-collapse: collapse; margin: .5rem 0 1rem; font-size: .9rem }
+table.flags th {
+  text-align: left; font: .72rem/1.4 var(--mono); letter-spacing: .1em;
+  text-transform: uppercase; color: var(--overlay2);
+  padding: 0 .7rem .35rem 0;
+}
+table.flags td { padding: .5rem .7rem .5rem 0; border-top: 1px solid var(--surface0); vertical-align: top }
+table.flags td:first-child { width: 13rem; white-space: nowrap }
+table.flags td code { background: none; border: 0; padding: 0; color: var(--text) }
+
+footer {
+  border-top: 1px solid var(--surface0);
+  padding: 2.2rem 0 3.5rem;
+  background: var(--mantle);
+}
+footer > p {
+  max-width: var(--page); margin: 0 auto .6rem; padding-inline: var(--gutter);
+  font-size: .85rem; color: var(--subtext0);
+}
+footer .version { font-family: var(--mono); font-size: .92em; color: var(--overlay2) }
+
+/* ------------------------------------------------------------------ *
+ * Narrow
+ * ------------------------------------------------------------------ */
+
+@media (max-width: 55rem) {
+  .rail { grid-template-columns: minmax(0, 1fr); gap: .5rem }
+  .num { margin: 0 0 .2rem }
+  .top nav { order: 3; width: 100%; margin-left: 0; padding-top: .6rem; border-top: 1px solid var(--surface0) }
+  .repo { margin-left: auto; border-left: 0; padding-left: 0 }
+}
+
+@media (max-width: 34rem) {
+  body { font-size: 15.5px }
+  h1 br { display: none }
+  /* A clone URL and a JSON line are both longer than a phone is wide. Wrapping
+     beats a horizontal scrollbar on text a reader is likely to copy. */
+  pre { white-space: pre-wrap; overflow-wrap: anywhere }
+  pre code { white-space: inherit }
+  table.flags td:first-child { width: auto; white-space: normal }
+  table.flags, table.flags tbody, table.flags tr, table.flags td { display: block; width: 100% }
+  table.flags thead { display: none }
+  table.flags tr { border-top: 1px solid var(--surface0); padding: .45rem 0 }
+  table.flags td { border: 0; padding: 0 }
+}

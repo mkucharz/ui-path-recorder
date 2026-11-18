@@ -1,0 +1,91 @@
+name: site
+
+# The documentation site at https://mkucharz.github.io/ui-path-recorder/.
+#
+# The examples are *recorded during this build*, from the plans in `plans/examples`
+# against the bundled example app: nothing binary is committed, and the site
+# cannot show a figure no plan produces. The cost is that a recording which
+# refuses fails the deploy — see `scripts/build-site.mjs`.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'scripts/**'
+      - 'lib/**'
+      - 'plans/**'
+      - 'examples/**'
+      - 'themes/**'
+      - 'package*.json'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one mid-flight: a cancelled Pages
+# deployment can leave the environment pointing at a half-published artefact.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: build and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: install
+        run: npm ci
+
+      - name: site template
+        run: npm run site:check
+
+      - name: install a browser matching playwright-core
+        # Same shape as ci.yml: the revision is read from the installed package
+        # rather than pinned twice. ffmpeg is what `--video` needs, and the
+        # gallery records three videos.
+        run: npx --yes "playwright@$(node -p "require('playwright-core/package.json').version")" install --with-deps chromium ffmpeg
+
+      - name: record the examples and render the page
+        run: npm run site:build
+
+      - name: the built site resolves
+        run: npm run site:verify
+
+      - name: keep the run directories on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-failures
+          path: |
+            .site/.work/**/failures/
+            .site/.work/**/review.html
+          # `.site` is a hidden directory, and upload-artifact skips hidden paths
+          # by default — which would make this step upload nothing at all, on the
+          # one run that needs it.
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

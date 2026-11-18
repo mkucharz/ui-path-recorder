@@ -589,4 +589,9 @@ matching what it reported).
 - [`references/gotchas.md`](references/gotchas.md) — the incidents behind the
   guards, and what still needs a human
 
+The site — [mkucharz.github.io/ui-path-recorder](https://mkucharz.github.io/ui-path-recorder/) —
+is `site/` plus `node scripts/build-site.mjs`: the page is a template and its
+examples are recorded from the plans in this repo during the deploy, so nothing
+binary is committed and no figure on it can come from anywhere else.
+
 MIT.
