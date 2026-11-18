@@ -124,8 +124,12 @@ section:first-of-type { border-top: 0 }
 .hero { max-width: var(--page); margin-inline: auto; padding-inline: var(--gutter) }
 .hero h1 { max-width: 26ch }
 .hero .lede,
-.hero .install,
 .hero .cta { max-width: 62ch }
+/* The install row is a command and its button side by side, so it is not held to
+   the prose measure: at 62ch the button would take the last of the line's width
+   and wrap `-g` onto a second one. It hugs its content (`fit-content`), so this
+   is a ceiling, not a width. */
+.hero .install { max-width: 44rem }
 
 .rail {
   display: grid;
@@ -238,15 +242,13 @@ pre code .j-p { color: var(--ink-faint) }
 .install { margin: 1.6rem 0 1.4rem }
 .install .snippet { margin-bottom: .6rem }
 
-/* A command with a copy button. The button goes directly under the block, right-
-   aligned to its edge, rather than in its corner: an install line is exactly as
-   wide as its block, so anything sharing the row would push the command into a
-   horizontal scroll — and the command is the one thing on the page a reader is
-   meant to copy. The button starts hidden (`hidden` in the markup) and the page's
-   one script reveals it, so a reader without JavaScript gets the command and no
-   dead control. */
-.snippet { width: fit-content; max-width: 100%; margin: 0 0 1.1rem }
-.snippet pre { margin: 0 0 .5rem }
+/* A command and its copy button, as one control: the button sits at the block's
+   right edge and takes the block's height (`align-items: stretch`), so the pair
+   reads as an input with its action rather than as a command with a footnote. The
+   button starts hidden (`hidden` in the markup) and the page's one script reveals
+   it, so a reader without JavaScript gets the command and no dead control. */
+.snippet { display: flex; align-items: stretch; gap: .4rem; width: fit-content; max-width: 100%; margin: 0 0 1.1rem }
+.snippet pre { flex: 1 1 auto; min-width: 0; margin: 0 }
 
 /* The command sits within a few pixels of its block's width, so the difference
    between "fits" and "hides its last argument behind a scrollbar" is a font
@@ -255,14 +257,17 @@ pre code .j-p { color: var(--ink-faint) }
    URL break instead of overflow. At today's metrics this changes nothing. */
 .snippet pre code { white-space: pre-wrap; overflow-wrap: anywhere }
 
+/* A fixed width, so the label's "Copied" cannot reflow the row and re-wrap the
+   command it just copied — the button is a control, not a box that grows. */
 .copy {
-  display: block;
-  width: fit-content;
-  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.8rem;
   font: 500 .74rem/1 var(--sans);
-  padding: .45rem .75rem;
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: 9px;
   background: var(--panel);
   color: var(--ink-body);
   cursor: pointer;
