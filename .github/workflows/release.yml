@@ -55,6 +55,13 @@ jobs:
 
       - run: npm ci
 
+      - name: install a browser matching playwright-core
+        # `npm test` drives the bundled fixture app in a real browser, so the
+        # release would fail at the checks without this — and it reads the
+        # revision from the installed package rather than pinning it twice, the
+        # same shape `ci.yml` and `pages.yml` use.
+        run: npx --yes "playwright@$(node -p "require('playwright-core/package.json').version")" install --with-deps chromium ffmpeg
+
       - name: checks
         run: |
           set -euo pipefail
