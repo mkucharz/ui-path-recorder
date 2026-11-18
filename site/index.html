@@ -45,7 +45,10 @@
       your documentation stop depending on who held the screenshot tool.
     </p>
     <div class="install">
-      <pre><code>npx skills add mkucharz/ui-path-recorder --skill path-recorder -g</code></pre>
+      <div class="snippet">
+        <pre><code>npx skills add mkucharz/ui-path-recorder --skill path-recorder -g</code></pre>
+        <button class="copy" type="button" data-copy hidden>Copy</button>
+      </div>
       <p class="fine">
         The skill is the way in: install it once, then ask your agent for the
         figures. The recorder itself runs on Node 20+, and <code>ffmpeg</code> is
@@ -236,14 +239,20 @@ open captures/fixture-*/review.html</code></pre>
           worth trusting. You ask for documentation figures; the agent writes the
           plan.
         </p>
-        <pre><code>npx skills add mkucharz/ui-path-recorder --skill path-recorder -g</code></pre>
+        <div class="snippet">
+          <pre><code>npx skills add mkucharz/ui-path-recorder --skill path-recorder -g</code></pre>
+          <button class="copy" type="button" data-copy hidden>Copy</button>
+        </div>
         <p class="fine">
           <a href="https://github.com/vercel-labs/skills"><code>skills</code></a> is
           the agent-skills CLI: it installs into whichever of OpenCode, Claude Code,
           Codex, Cursor and the rest it finds, and records what it installed in
           <code>skills-lock.json</code>. Pin a release rather than a branch:
         </p>
-        <pre><code>npx skills add mkucharz/ui-path-recorder@v0.2.0 --skill path-recorder -g</code></pre>
+        <div class="snippet">
+          <pre><code>npx skills add mkucharz/ui-path-recorder@v0.2.0 --skill path-recorder -g</code></pre>
+          <button class="copy" type="button" data-copy hidden>Copy</button>
+        </div>
         <p class="fine">
           No CLI, or an agent that just reads a folder? The skill is one directory —
           clone it into the skills folder your agent watches, or unpack the release
@@ -345,8 +354,8 @@ git clone https://github.com/mkucharz/ui-path-recorder \
   </p>
   <p class="fine">
     No framework, no analytics, no fonts to download: this page is HTML, one
-    stylesheet, and the few lines of JavaScript that open a recording into a
-    larger window. Every figure on it was recorded by the tool it describes — from
+    stylesheet, and the few lines of JavaScript that copy a command and open a
+    recording into a larger window. Every figure on it was recorded by the tool it describes — from
     the plans in the repository, during the deploy that published it — except the
     three palettes, which are the recorder's own panel stylesheet drawn in place.
   </p>
@@ -361,11 +370,61 @@ git clone https://github.com/mkucharz/ui-path-recorder \
 </dialog>
 
 <script>
-// One script, one job: a card's poster opens its recording at window size.
-// The source is set on open and dropped on close, so the five recordings are not
-// fetched by a reader who wanted to read; `showModal()` supplies the focus trap,
-// Esc, the backdrop and the focus restore that a hand-made overlay would not.
+// One script, two jobs: copy a command, and open a card's recording at window
+// size. Both are progressive — without this file the page is text, the commands
+// are selectable, and the copy buttons are not rendered at all (`hidden` in the
+// markup), because a button that does nothing is worse than no button.
 (() => {
+  /* ------------------------------------------------------------------ *
+   * Copy a command
+   * ------------------------------------------------------------------ */
+
+  // The label is the feedback: the button keeps focus after a click, so a
+  // screen reader announces the change, and the reset is the only timer here.
+  const resets = new WeakMap();
+  const flash = (button, label) => {
+    button.textContent = label;
+    clearTimeout(resets.get(button));
+    resets.set(button, setTimeout(() => { button.textContent = 'Copy'; }, 2200));
+  };
+
+  for (const button of document.querySelectorAll('button[data-copy]')) {
+    const code = button.closest('.snippet')?.querySelector('code');
+    if (!code) continue;
+    button.hidden = false;
+    button.addEventListener('click', async () => {
+      const text = code.textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        flash(button, 'Copied');
+      } catch {
+        // No clipboard API (an insecure context, or a refused permission): select
+        // the command and try the old synchronous path, so the reader is one
+        // keystroke away rather than told nothing happened.
+        const range = document.createRange();
+        range.selectNodeContents(code);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        const legacy = (() => {
+          try {
+            return document.execCommand('copy');
+          } catch {
+            return false;
+          }
+        })();
+        flash(button, legacy ? 'Copied' : 'Select, copy');
+      }
+    });
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The player
+   * ------------------------------------------------------------------ */
+
+  // The source is set on open and dropped on close, so the five recordings are not
+  // fetched by a reader who wanted to read; `showModal()` supplies the focus trap,
+  // Esc, the backdrop and the focus restore that a hand-made overlay would not.
   const player = document.getElementById('player');
   const video = player?.querySelector('video');
   if (!video || typeof player.showModal !== 'function') return;

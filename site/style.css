@@ -236,7 +236,36 @@ pre code .j-p { color: var(--ink-faint) }
  * ------------------------------------------------------------------ */
 
 .install { margin: 1.6rem 0 1.4rem }
-.install pre { max-width: 34rem; margin-bottom: .6rem }
+/* 35rem, not 34: the command is 547px with its padding and borders, so a 34rem
+   block hid its last few characters behind a horizontal scroll. */
+.install pre { max-width: 35rem }
+.install .snippet { margin-bottom: .6rem }
+
+/* A command with a copy button. The button goes directly under the block, right-
+   aligned to its edge, rather than in its corner: an install line is exactly as
+   wide as its block, so anything sharing the row would push the command into a
+   horizontal scroll — and the command is the one thing on the page a reader is
+   meant to copy. The button starts hidden (`hidden` in the markup) and the page's
+   one script reveals it, so a reader without JavaScript gets the command and no
+   dead control. */
+.snippet { width: fit-content; max-width: 100%; margin: 0 0 1.1rem }
+.snippet pre { margin: 0 0 .5rem }
+
+.copy {
+  display: block;
+  width: fit-content;
+  margin-left: auto;
+  font: 500 .74rem/1 var(--sans);
+  padding: .45rem .75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink-body);
+  cursor: pointer;
+}
+.copy:hover { border-color: var(--accent); color: var(--ink) }
+.copy:active { background: var(--deep) }
+.copy[hidden] { display: none }
 
 .cta { display: flex; flex-wrap: wrap; gap: .7rem; margin: 0 0 2.5rem }
 

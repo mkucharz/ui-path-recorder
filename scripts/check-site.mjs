@@ -96,19 +96,22 @@ if (!title || title[1].trim().length < 10) fail('index.html: no usable <title>')
 const h1s = html.match(/<h1[\s>]/gi)?.length ?? 0;
 if (h1s !== 1) fail(`index.html: expected exactly one <h1>, found ${h1s}`);
 
-// One script, inline, and it exists for one thing: the video dialog a card opens
-// into. The page is otherwise HTML and a stylesheet, and the footer says so — an
-// external script, a second inline one, or a `src=` is a different page and has to
-// come with a new sentence rather than slip in.
+// One script, inline, and it does two small things: copy a command, and open a
+// card's recording in a dialog. The page is otherwise HTML and a stylesheet, and
+// the footer says so — an external script, a second inline one, or a `src=` is a
+// different page and has to come with a new sentence rather than slip in.
 const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
 if (scripts.length > 1) fail(`index.html: expected at most one <script>, found ${scripts.length}`);
 for (const [, scriptAttrs, body] of scripts) {
   if (/\bsrc\s*=/i.test(scriptAttrs)) fail('index.html: the dialog script must be inline, not a second request');
   if (/\btype\s*=\s*"(?!text\/javascript)/i.test(scriptAttrs)) fail('index.html: unexpected <script type>');
-  // The job is the dialog, so the proof is in the body: a second script that
-  // happens to leave `showModal()` elsewhere on the page does not qualify.
+  // Both jobs are proved in the body, so a script that replaces this one and
+  // leaves `showModal(` somewhere on the page does not qualify.
   if (!/showModal\(\)/.test(body)) {
     fail('index.html: a <script> appeared that is not the video dialog; the footer claims a page of HTML, a stylesheet and that one script');
+  }
+  if (!/navigator\.clipboard/.test(body)) {
+    fail('index.html: the one script must also copy a command, or the copy buttons are dead');
   }
 }
 
@@ -153,6 +156,21 @@ if (!BUILT) {
     } catch (error) {
       fail(`index.html: the plan block is not valid JSON (${error.message})`);
     }
+  }
+  // A copy button is revealed by the script and labelled by it, so it must ship
+  // hidden — a reader without JavaScript would otherwise be offered a button that
+  // does nothing — and it needs the code it copies beside it in a `.snippet`.
+  const snippets = html.split('<div class="snippet">').slice(1);
+  for (const chunk of snippets) {
+    const body = chunk.slice(0, chunk.indexOf('</div>'));
+    if (!/<pre><code>/.test(body)) fail('index.html: a .snippet holds no <pre><code> to copy');
+    if (!/<button[^>]*\bdata-copy\b[^>]*\bhidden\b/.test(body)) {
+      fail('index.html: a .snippet holds no hidden copy button');
+    }
+  }
+  const copyButtons = (html.match(/<button[^>]*\bdata-copy\b/g) ?? []).length;
+  if (copyButtons !== snippets.length) {
+    fail(`index.html: ${copyButtons} copy button(s) for ${snippets.length} command block(s)`);
   }
 } else {
   for (const slot of SLOTS) {
