@@ -99,10 +99,13 @@ test('the card is the recording speaking, not the app', () => {
   const dark = cardHtml(PLAN, 'intro');
   const light = cardHtml({ ...PLAN, colorScheme: 'light' }, 'intro');
   // The theme follows the plan rather than the page the video goes on to show:
-  // a light card in front of a dark app is a decision, not an accident.
-  assert.match(dark, /background: #0a0e14/);
+  // a light card in front of a dark app is a decision, not an accident. The
+  // scheme declares the palette on `:root` and the document paints the tokens, so
+  // a plan's `theme`/`tokens` can replace the scheme without a second stylesheet.
+  assert.match(dark, /:root \{[^}]*--pc-surface:#0a0e14/);
+  assert.match(dark, /background: var\(--pc-surface,#0a0e14\)/);
   assert.match(dark, /color-scheme: dark/);
-  assert.match(light, /background: #ffffff/);
+  assert.match(light, /:root \{[^}]*--pc-surface:#ffffff/);
   assert.match(light, /color-scheme: light/);
   // No URL, no breadcrumb, no app chrome: a viewer must not think the recording
   // started inside a browser they can see.

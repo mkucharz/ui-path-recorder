@@ -1,0 +1,22 @@
+{
+  "description": "The Memory web UI's dark theme: ink-navy surfaces, brass primary (the butler's tray), mint accent. Renders the chrome in the product's own palette on any page, including one that never loaded the product's stylesheet.",
+  "source": "emergent.memory apps/web-ui/gateway/webui/css/app.css — the daisyUI dark theme block (@plugin \"daisyui/theme\")",
+  "tokens": {
+    "--pc-surface": "oklch(0.215 0.016 274 / .9)",
+    "--pc-surface-strong": "oklch(0.175 0.014 274)",
+    "--pc-border": "color-mix(in oklab, oklch(0.93 0.008 265) 12%, transparent)",
+    "--pc-border-soft": "color-mix(in oklab, oklch(0.93 0.008 265) 9%, transparent)",
+    "--pc-shadow": "oklch(0 0 0 / .5)",
+    "--pc-shadow-soft": "oklch(0 0 0 / .35)",
+    "--pc-text": "oklch(0.93 0.008 265)",
+    "--pc-text-body": "color-mix(in oklab, oklch(0.93 0.008 265) 80%, transparent)",
+    "--pc-muted": "color-mix(in oklab, oklch(0.93 0.008 265) 55%, transparent)",
+    "--pc-muted-soft": "color-mix(in oklab, oklch(0.93 0.008 265) 45%, transparent)",
+    "--pc-done": "color-mix(in oklab, oklch(0.93 0.008 265) 50%, transparent)",
+    "--pc-mark": "oklch(0.2 0.04 78)",
+    "--pc-accent": "oklch(0.74 0.135 78)",
+    "--pc-ring": "color-mix(in oklab, oklch(0.93 0.008 265) 30%, transparent)",
+    "--pc-radius": "0.5rem",
+    "--pc-font-family": "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+  }
+}

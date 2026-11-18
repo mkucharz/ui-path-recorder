@@ -173,14 +173,19 @@ test('the panel floats over the page unless the plan docks it', () => {
 test('the two layouts are two different panels, not one recoloured', () => {
   const css = checklistCss();
   // The overlay is translucent and blurs what is under it, which is the whole
-  // reason it may sit on top of a control: you can still see the control.
-  assert.match(css, /#__path_checklist\{[^}]*background:rgba\(/);
+  // reason it may sit on top of a control: you can still see the control. The
+  // translucency is a token default now, so the panel rule paints the token and
+  // the literal lives in exactly one place — a theme that sets `--pc-surface`
+  // must not also have to win an argument with a hard-coded colour.
+  assert.match(css, /#__path_checklist\{[^}]*background:var\(--pc-surface,/);
+  assert.match(css, /#__path_checklist\{[^}]*--pc-surface:rgba\(/);
   assert.match(css, /#__path_checklist\{[^}]*backdrop-filter:blur\(/);
   // The docked panel is opaque and full height: it is the second column of the
   // page, so there is nothing of the app behind it to blur.
   assert.match(css, /#__path_checklist\.pc-dock\{[^}]*top:0;bottom:0/);
   assert.match(css, /#__path_checklist\.pc-dock\{[^}]*backdrop-filter:none/);
-  assert.match(css, /#__path_checklist\.pc-dock\{[^}]*background:#0d121b/);
+  assert.match(css, /#__path_checklist\.pc-dock\{[^}]*background:var\(--pc-surface-strong,/);
+  assert.match(css, /#__path_checklist\{[^}]*--pc-surface-strong:#0d121b/);
   // And the page reserves that column on the root, on the side the panel is on.
   assert.match(css, /html\[data-pc-dock="right"\]\{margin-right:var\(--pc-dock/);
   assert.match(css, /html\[data-pc-dock="left"\]\{margin-left:var\(--pc-dock/);

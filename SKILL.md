@@ -148,6 +148,17 @@ checklist the panel ticks (`0 / N` in, `N / N` out) and take the theme from
 `references/plan-format.md` → `video.intro`, and
 `plans/examples/signin-walkthrough.plan.json` for the whole package in one plan.
 
+Both the panel and the cards take a **palette**: `"theme": "memory"` names a preset
+shipped in `themes/` (the Memory web UI's dark colours), and `"tokens"` overrides
+any of the sixteen `--pc-*` properties it sets. Tokens are CSS custom properties
+rather than utility classes because the chrome is drawn over an app whose
+stylesheet this repo does not own — a class only exists on a page that happens to
+define it, a value always does. A token may read the app's own palette
+(`{ "--pc-accent": "var(--color-primary)" }`) when recording a themed app, while a
+preset holds literal values so it renders on a page with no CSS of its own. A plan
+that names neither draws exactly the chrome it always drew. See
+`references/plan-format.md` → `video.theme`.
+
 ### 4. Read the evidence, not the error
 
 A first run over an unseen page is wrong about a selector. When it fails, the
@@ -251,15 +262,18 @@ More of these, with the incident behind each: [`references/gotchas.md`](referenc
 ```
 plans/<name>.plan.json      the committed path
 plans/schema.json           machine-readable plan contract
+themes/<name>.json          a chrome palette a plan names with video.theme
 examples/signin/            a demo app the example plans run against
 captures/<run>/             figures + review.html + .shots.json + .vars.json
                             (+ .timeline.json and video/ when recorded)
 scripts/path-shots.mjs      the runner
+scripts/check-panel-theme.mjs  presets: shape, and drift against a product's app.css
 lib/human.mjs               how a recorded run is driven: pointer, travel, typing
 lib/recorder.mjs            how a recording is made: frames, resampling, ffmpeg
 lib/captions.mjs            a step's subtitle → the pill in the picture and its .vtt
 lib/checklist.mjs           the rows a recording ticks: derived from steps, drawn by human.mjs
 lib/cards.mjs               the intro and end cards: a whole screen of HTML, checklist included
+lib/theme.mjs               the chrome palette: the --pc-* vocabulary, defaults, presets
 lib/timeline.mjs            where each step started/ended, and the video chapters
 lib/ingest.mjs              figures → WebP + manifest
 ```

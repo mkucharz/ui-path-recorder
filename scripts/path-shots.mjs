@@ -349,6 +349,13 @@ const contextOpts = {
   viewport,
   deviceScaleFactor: scale,
   colorScheme: plan?.colorScheme ?? 'dark',
+  // The chrome — panel, caption, pointer — is drawn by injected CSS and DOM, and
+  // a page with a strict `style-src` refuses both without a word: the panel simply
+  // arrives unstyled. The recording keeps going, so the failure lands in the
+  // finished video rather than in the run. Bypassing the policy is what makes the
+  // chrome a property of the recorder instead of a property of whoever wrote the
+  // page being recorded.
+  bypassCSP: true,
   // A video of an app whose every transition is switched off reads as a series
   // of stills. Figures are unaffected — a shot disables animations itself.
   reducedMotion: plan?.reducedMotion ?? (video ? 'no-preference' : 'reduce'),
