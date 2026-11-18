@@ -26,8 +26,8 @@
   <a class="brand" href="./">ui-path-recorder</a>
   <nav aria-label="Sections">
     <a href="#how">How it works</a>
-    <a href="#examples">Examples</a>
     <a href="#use">Use it</a>
+    <a href="#examples">Examples</a>
   </nav>
   <a class="repo" href="https://github.com/mkucharz/ui-path-recorder">GitHub&nbsp;↗</a>
 </header>
@@ -156,40 +156,9 @@ npx playwright install chromium</code></pre>
     </div>
   </section>
 
-  <section id="examples">
-    <div class="rail">
-      <p class="num">03</p>
-      <div>
-        <h2>Examples</h2>
-        <p class="lede narrow">
-          Every recording below was made by this tool from a plan in this
-          repository, against the bundled example app — no account, no network. The
-          review sheet is the run directory's own page: open it and step through
-          the figures as the reviewer would.
-        </p>
-        <div class="gallery"><!-- site:gallery --></div>
-
-        <h3 id="themes">The same sidebar, three palettes</h3>
-        <p>
-          One plan, three themes. The chrome's colours are tokens, so a plan names a
-          palette instead of a stylesheet:
-          <code>"video": { "theme": "memory" }</code> is
-          <a href="https://github.com/mkucharz/ui-path-recorder/blob/main/themes/memory.json">the
-          product's own dark theme</a>, and <code>dracula</code> and
-          <code>catppuccin-mocha</code> ship beside it. A preset holds literal values,
-          so it renders on a page that defines no CSS of its own. Two of the three
-          document nothing but colour; <code>memory</code> also names the product's
-          radius and font, because it is the product's theme and the panel should
-          look like part of it.
-        </p>
-        <div class="themes"><!-- site:themes --></div>
-      </div>
-    </div>
-  </section>
-
   <section id="use">
     <div class="rail">
-      <p class="num">04</p>
+      <p class="num">03</p>
       <div>
         <h2>Use it</h2>
 
@@ -266,6 +235,37 @@ open captures/fixture-*/review.html</code></pre>
         </p>
         <pre><code>git clone https://github.com/mkucharz/ui-path-recorder \
   ~/.config/opencode/skills/path-recorder</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <section id="examples">
+    <div class="rail">
+      <p class="num">04</p>
+      <div>
+        <h2>Examples</h2>
+        <p class="lede narrow">
+          Every recording below was made by this tool from a plan in this
+          repository, against the bundled example app — no account, no network. The
+          review sheet is the run directory's own page: open it and step through
+          the figures as the reviewer would.
+        </p>
+        <div class="gallery"><!-- site:gallery --></div>
+
+        <h3 id="themes">The same sidebar, three palettes</h3>
+        <p>
+          One plan, three themes. The chrome's colours are tokens, so a plan names a
+          palette instead of a stylesheet:
+          <code>"video": { "theme": "memory" }</code> is
+          <a href="https://github.com/mkucharz/ui-path-recorder/blob/main/themes/memory.json">the
+          product's own dark theme</a>, and <code>dracula</code> and
+          <code>catppuccin-mocha</code> ship beside it. A preset holds literal values,
+          so it renders on a page that defines no CSS of its own. Two of the three
+          document nothing but colour; <code>memory</code> also names the product's
+          radius and font, because it is the product's theme and the panel should
+          look like part of it.
+        </p>
+        <div class="themes"><!-- site:themes --></div>
       </div>
     </div>
   </section>

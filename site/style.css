@@ -328,7 +328,13 @@ pre code {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
   gap: 1.5rem;
   margin: 2rem 0 .5rem;
-  align-items: start;
+}
+
+/* Where the gallery is more than one column it is one sheet of equal boxes: the
+   rows share a height, so the captions do not leave the grid ragged. One column
+   keeps each card at its content height, which is what a phone wants. */
+@media (min-width: 55rem) {
+  .gallery { grid-auto-rows: 1fr }
 }
 
 .card {
@@ -338,9 +344,18 @@ pre code {
   overflow: hidden;
   background: var(--mantle);
 }
+/* One media box for every card, whatever shape the recording is. The ratio is on
+   the replaced element, because a ratio on the wrapper loses to the image's own
+   height; `contain` never crops a frame the plan produced — the extra space is
+   the recording's own background. */
 .card .media { background: var(--crust); border-bottom: 1px solid var(--surface0) }
-.card .media img, .card .media video { display: block; width: 100%; height: auto }
-.card .body { padding: 1rem 1.15rem 1.1rem }
+.card .media img, .card .media video {
+  display: block; width: 100%; height: auto;
+  aspect-ratio: 16 / 9; object-fit: contain;
+}
+/* The body takes what the media leaves, so the links sit on a common baseline
+   in every card of a row instead of floating under a short caption. */
+.card .body { display: flex; flex-direction: column; flex: 1; padding: 1rem 1.15rem 1.1rem }
 .card h3 { margin: .1rem 0 .4rem; font-size: 1rem }
 .card p { margin: 0 0 .8rem; font-size: .9rem; color: var(--subtext0) }
 
@@ -351,8 +366,12 @@ pre code {
 }
 .card-links {
   display: flex; flex-wrap: wrap; gap: .45rem 1.1rem;
-  margin-top: auto; font-size: .85rem;
+  font-size: .85rem;
 }
+/* Scoped past `.card p`, whose shorthand margin would beat a bare `.card-links`
+   and leave the links under the caption instead of on the card's baseline. */
+.card .card-links { margin-top: auto }
+.card .body > :last-child { margin-bottom: 0 }
 .card-links a { color: var(--mauve) }
 .card-links .plan { color: var(--overlay2) }
 .card-links .plan:hover { color: var(--lavender) }
@@ -396,13 +415,19 @@ table.flags td code { background: none; border: 0; padding: 0; color: var(--text
 
 footer {
   border-top: 1px solid var(--surface0);
-  padding: 2.2rem 0 3.5rem;
   background: var(--mantle);
+  /* The band runs edge to edge; its text sits in the same page box as the top bar
+     and the sections — the centred page column, plus the gutter. */
+  padding: 2.2rem calc(max(0px, (100% - var(--page)) / 2) + var(--gutter)) 3.5rem;
 }
 footer > p {
-  max-width: var(--page); margin: 0 auto .6rem; padding-inline: var(--gutter);
+  margin: 0 0 .6rem;
   font-size: .85rem; color: var(--subtext0);
 }
+/* `.fine` caps a paragraph at the prose measure. Inside the footer that used to
+   mean a narrower box centred in the page column, so the second line was indented
+   under the first; it wraps at the same measure from the same left edge now. */
+footer .fine { max-width: var(--prose) }
 footer .version { font-family: var(--mono); font-size: .92em; color: var(--overlay2) }
 
 /* ------------------------------------------------------------------ *
