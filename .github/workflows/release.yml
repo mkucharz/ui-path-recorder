@@ -1,0 +1,91 @@
+name: release
+
+# A tag is the skill's version.
+#
+# `npx skills add mkucharz/ui-path-recorder` already works against `main` — the CLI
+# discovers a `SKILL.md` at a repository's root — but "works against main" is not a
+# version: an agent that ran today and again next month may have run two different
+# skills. A tag pins it (`…@v0.2.0`), which is what `skills-lock.json` records.
+#
+# So this workflow turns a tag into a release that carries the skill as one
+# tarball: SKILL.md, the CLI, the library, the example app and the reference —
+# everything `SKILL.md` points at, and nothing that only builds the site. It also
+# re-runs the checks, because a release is the one place a broken `main` would
+# become permanent.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'An existing tag to (re)publish'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: the tag is the version
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          if [ "v$version" != "${{ inputs.tag || github.ref_name }}" ]; then
+            echo "::error::tag ${{ inputs.tag || github.ref_name }} does not match package.json v$version"
+            exit 1
+          fi
+
+      - run: npm ci
+
+      - name: checks
+        run: |
+          set -euo pipefail
+          npm run check
+          npm test
+          npm run theme:check
+
+      - name: package the skill
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          # `path-recorder/` rather than `ui-path-recorder/`: the directory name is
+          # the skill's name, and unpacking into an agent's skills folder has to
+          # leave `path-recorder/SKILL.md` behind.
+          rm -rf path-recorder dist
+          mkdir -p path-recorder/plans dist
+          cp SKILL.md LICENSE path-recorder/
+          cp -r scripts lib examples themes references path-recorder/
+          cp plans/schema.json path-recorder/plans/
+          tar -czf "dist/path-recorder-skill-v$version.tar.gz" path-recorder
+          (cd dist && sha256sum "path-recorder-skill-v$version.tar.gz" > "path-recorder-skill-v$version.tar.gz.sha256")
+          tar -tzf "dist/path-recorder-skill-v$version.tar.gz" | sed -n '1,12p'
+          du -sh dist/*
+
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          gh release create "v$version" dist/* \
+            --title "v$version" \
+            --notes "**The skill, pinned.** \`npx skills add mkucharz/ui-path-recorder@v$version --skill path-recorder -g\` installs this tag; the tarball below unpacks to \`path-recorder/SKILL.md\` for any agent that installs by folder." \
+            --generate-notes
