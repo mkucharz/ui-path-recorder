@@ -108,9 +108,10 @@ img, video { max-width: 100% }
    one mark of width instead of a word. The block padding is the click target (a
    bare 16px glyph is under the 24px minimum) and the matching negative margin
    keeps that padding out of the layout, so the icon sits in the row the bar
-   already had instead of growing the header. */
+   already had instead of growing the header. `align-self` is what puts the mark
+   on the nav text's centre: the bar aligns its items on the baseline. */
 .repo {
-  display: inline-flex; align-items: center; align-self: center;
+  display: inline-flex; align-self: center;
   padding: .3rem 0 .3rem 1.1rem; margin-block: -.3rem;
   border-left: 1px solid var(--line);
   color: var(--ink-muted); text-decoration: none;
