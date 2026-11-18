@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ui-path-recorder — reproducible documentation figures from a committed plan</title>
+<meta name="description" content="Record a path through a live UI once, then re-run it whenever the docs go stale: reproducible, reviewable figures and a walkthrough video from a committed Playwright plan.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#1e1e2e">
+<meta property="og:type" content="website">
+<meta property="og:title" content="ui-path-recorder">
+<meta property="og:description" content="A path through a live UI, recorded once and re-run whenever the docs go stale.">
+<meta property="og:url" content="https://mkucharz.github.io/ui-path-recorder/">
+<meta property="og:image" content="https://mkucharz.github.io/ui-path-recorder/assets/og.png">
+<meta property="og:image:width" content="1920">
+<meta property="og:image:height" content="1080">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23cba6f7'/%3E%3Cpath d='M9 16.5 13.5 21 23 11' fill='none' stroke='%231e1e2e' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <a class="brand" href="./">ui-path-recorder</a>
+  <nav aria-label="Sections">
+    <a href="#how">How it works</a>
+    <a href="#examples">Examples</a>
+    <a href="#use">Use it</a>
+  </nav>
+  <a class="repo" href="https://github.com/mkucharz/ui-path-recorder">GitHub&nbsp;↗</a>
+</header>
+
+<main id="main">
+
+  <section class="hero">
+    <p class="eyebrow">Playwright · one committed plan · figures a reviewer can trust</p>
+    <h1>Record a path through a live UI once.<br>
+      Re-run it when the docs go stale.</h1>
+    <p class="lede">
+      A walkthrough is one path through an application: open this, type that, click
+      here, take a picture where a reader needs to see. This keeps that path as a
+      committed JSON plan and executes it in a pinned browser — so the figures in
+      your documentation stop depending on who held the screenshot tool.
+    </p>
+    <div class="install">
+      <pre><code>git clone https://github.com/mkucharz/ui-path-recorder
+cd ui-path-recorder &amp;&amp; npm install
+npx playwright install chromium</code></pre>
+      <p class="fine">Node 20+. <code>ffmpeg</code> is only needed for <code>--video</code>.</p>
+    </div>
+    <p class="cta">
+      <a class="button" href="#use">Try it in 30 seconds</a>
+      <a class="button ghost" href="#examples">See what it records</a>
+    </p>
+    <div class="hero-media"><!-- site:hero --></div>
+  </section>
+
+  <section id="problem" class="band">
+    <div class="rail">
+      <p class="num">01</p>
+      <div>
+        <h2>Why this exists</h2>
+        <p>
+          Every hand-taken documentation screenshot eventually goes wrong in the
+          same few ways, and all of them are invisible until a reader notices:
+        </p>
+        <ul class="leaks">
+          <li><b>The operator's language leaks in.</b> An app with no stored
+            preference resolves its UI language from <code>Accept-Language</code>.
+            One real page shipped Polish screenshots on an English tutorial.</li>
+          <li><b>The operator's theme leaks in.</b> An app that applies a stored
+            theme after first paint gives a shot taken a fraction too early the
+            wrong one.</li>
+          <li><b>The operator's extensions leak in.</b> A password manager's
+            autofill menu, injected into the page's DOM, lands <em>inside</em> the
+            picture.</li>
+          <li><b>The operator's account leaks in.</b> Their email, their avatar,
+            their organisation.</li>
+          <li><b>Nobody knows how the picture was taken</b> — so "just re-shoot
+            it" means clicking through the flow again from memory, and the prose
+            drifts away from what the UI now does.</li>
+        </ul>
+        <p class="punch">
+          A plan fixes the first four by construction. Committing it is the answer
+          to the fifth.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="rail">
+      <p class="num">02</p>
+      <div>
+        <h2>How it works</h2>
+        <p class="lede narrow">
+          Four steps, one artefact each — and the artefact is the only thing the
+          next step reads.
+        </p>
+
+        <ol class="flow">
+          <li>
+            <p class="flow-label">plan.json</p>
+            <p><b>Commit the path, not the pictures.</b> A plan names the URL, the
+              locale, the theme, the device pixel ratio, every step, and the points
+              where a figure is due. <code>expect</code> states what must be on the
+              screen.</p>
+          </li>
+          <li>
+            <p class="flow-label">path-shots</p>
+            <p><b>Run it in a pinned browser.</b> The runner refuses to write a
+              figure when the screen does not prove it is the right one, and records
+              the run at human pace when a video is asked for.</p>
+          </li>
+          <li>
+            <p class="flow-label">review.html</p>
+            <p><b>Review before publishing.</b> Each figure at its real pixels, the
+              size the app drew on screen, the text the plan asserted — and a
+              slideshow that walks the figures in run order.</p>
+          </li>
+          <li>
+            <p class="flow-label">figures/</p>
+            <p><b>Publish the same run.</b> Figures ingest to WebP with the pixel
+              bounds a document should size them to; the video ships with chapters,
+              and the captions were already in the plan.</p>
+          </li>
+        </ol>
+
+        <h3>The guards</h3>
+        <p>
+          Each of these is a failed run, not a wrong picture. A figure is written
+          only for a screen the plan can prove:
+        </p>
+        <dl class="guards">
+          <div><dt><code>expect</code> per figure</dt><dd>the screen lost an element
+            id the path depends on, or the words the document claims</dd></div>
+          <div><dt>language</dt><dd>the page resolved another locale
+            (<code>lang="pl"</code> under an <code>en-US</code> plan)</dd></div>
+          <div><dt>theme</dt><dd>the page painted light under a dark plan — the
+            theme had not settled</dd></div>
+          <div><dt><code>waitHidden</code></dt><dd>a control the server rendered
+            visible and the script later hides</dd></div>
+          <div><dt>clip validation</dt><dd>the subject selector matched nothing</dd></div>
+          <div><dt>plan validation</dt><dd>a mistyped step key or a duplicate figure
+            id, refused before a browser opens</dd></div>
+        </dl>
+        <p class="fine">
+          On failure the run leaves <code>failures/&lt;stamp&gt;--&lt;step&gt;.txt</code>
+          ending with <code>on screen:</code> — every button and input on the page,
+          so the plan is fixed from evidence instead of someone's description of it.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="examples">
+    <div class="rail">
+      <p class="num">03</p>
+      <div>
+        <h2>Examples</h2>
+        <p class="lede narrow">
+          Every recording below was made by this tool from a plan in this
+          repository, against the bundled example app — no account, no network. The
+          review sheet is the run directory's own page: open it and step through
+          the figures as the reviewer would.
+        </p>
+        <div class="gallery"><!-- site:gallery --></div>
+
+        <h3 id="themes">The same sidebar, three palettes</h3>
+        <p>
+          One plan, three themes. The chrome's colours are tokens, so a plan names a
+          palette instead of a stylesheet: <code>"theme": "memory"</code> is
+          <a href="https://github.com/mkucharz/ui-path-recorder/blob/main/themes/memory.json">the
+          product's own dark theme</a>, and <code>dracula</code> and
+          <code>catppuccin-mocha</code> ship beside it. None of them invents a
+          radius or a font — a palette documents colours, so the chrome keeps its
+          own geometry.
+        </p>
+        <div class="themes"><!-- site:themes --></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="use">
+    <div class="rail">
+      <p class="num">04</p>
+      <div>
+        <h2>Use it</h2>
+
+        <h3>Thirty seconds, no account</h3>
+        <p>
+          The repo ships a fixture app that is hostile in the three ways real apps
+          are: a cookie banner, a control painted before its script hides it, and a
+          second screen that replaces the first without changing the URL.
+        </p>
+        <pre><code>node test/serve.mjs --port 8099 &amp;
+
+FIXTURE_URL=http://127.0.0.1:8099 FIXTURE_PASSWORD=correct-horse \
+  node scripts/path-shots.mjs test/plans/fixture.plan.json --review
+
+open captures/fixture-*/review.html</code></pre>
+        <p class="fine">
+          Those two variables belong to the <em>fixture plan</em>, not to the tool:
+          the plan declares <code>"baseUrl": "${FIXTURE_URL}"</code> and
+          <code>"password": {"env": "FIXTURE_PASSWORD"}</code>, so the run follows
+          whatever port the server bound and no credential sits in the plan.
+        </p>
+
+        <h3>A plan</h3>
+        <pre><code>{
+  "tutorial": "signin",
+  "baseUrl": "${INSTANCE_URL}",
+  "locale": "en-US",
+  "viewport": { "width": 1600, "height": 900 },
+  "colorScheme": "dark",
+  "vars": { "email": { "literal": "admin@example.com" } },
+  "steps": [
+    { "name": "open", "goto": "/login" },
+    { "name": "dismiss the cookie banner", "clickIfPresent": { "selector": "#cookie-deny" } },
+    { "name": "sign-in card", "expect": { "selector": ["#email", "#password"] },
+      "shot": { "id": "01-signin", "clip": "main.card" } },
+    { "fill": { "selector": "#email", "value": "${email}" } },
+    { "type": { "selector": "#password", "value": "${password}" } },
+    { "click": "#submit" },
+    { "waitFor": { "selector": "#dashboard" } },
+    { "expect": { "selector": ["#dashboard"] }, "shot": { "id": "02-app" } }
+  ]
+}</code></pre>
+        <p class="fine">
+          Full reference:
+          <a href="https://github.com/mkucharz/ui-path-recorder/blob/main/references/plan-format.md">plan-format.md</a>
+          · machine-readable:
+          <a href="https://github.com/mkucharz/ui-path-recorder/blob/main/plans/schema.json">schema.json</a>
+          · the example plans this page's figures come from:
+          <a href="https://github.com/mkucharz/ui-path-recorder/tree/main/plans/examples">plans/examples</a>.
+        </p>
+
+        <h3>The flags that matter</h3>
+        <table class="flags">
+          <thead><tr><th>Flag</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><code>--review</code></td><td>write <code>review.html</code> into the run directory</td></tr>
+            <tr><td><code>--video</code></td><td>record the walkthrough and drive it like a person (needs <code>ffmpeg</code>)</td></tr>
+            <tr><td><code>--out &lt;dir&gt;</code></td><td>the run directory (default <code>captures/&lt;tutorial&gt;-&lt;timestamp&gt;</code>)</td></tr>
+            <tr><td><code>--only &lt;id&gt;</code></td><td>replay up to that figure and stop</td></tr>
+            <tr><td><code>--profile &lt;dir&gt;</code></td><td>keep a signed-in session on this host, for flows behind a login</td></tr>
+            <tr><td><code>--speed &lt;n&gt;</code></td><td>scale every human delay: 1 natural, 20 a fast test run</td></tr>
+          </tbody>
+        </table>
+
+        <h3>As an agent skill</h3>
+        <p>
+          <a href="https://github.com/mkucharz/ui-path-recorder/blob/main/SKILL.md">SKILL.md</a>
+          is written for a coding agent: the workflow, the rules that make a figure
+          trustworthy, and the failure loop. Install the directory as a skill in
+          OpenCode, Claude Code, or anything that reads a <code>SKILL.md</code>.
+        </p>
+        <pre><code>git clone https://github.com/mkucharz/ui-path-recorder \
+  ~/.config/opencode/skills/path-recorder</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <section id="writes">
+    <div class="rail">
+      <p class="num">05</p>
+      <div>
+        <h2>What a run writes</h2>
+        <pre><code>captures/signin-2026-01-01T10-00-00/
+  review.html          ← open this: every figure, its size, the text it asserted,
+                          and a slideshow that walks them in the run's order
+  01-signin.png        ← the figure, at the capture ratio
+  02-app.png
+  .shots.json          ← capture ratio per figure (real px → CSS px)
+  .timeline.json       ← where each step started and ended, and the video chapters
+  failures/            ← only on failure: the page, its DOM, and its controls
+  trace.zip, video/    ← only with --trace / --video</code></pre>
+        <p>
+          A run directory is reviewable before it touches a document. That is the
+          point of the default: nothing overwrites a published figure until a human
+          has looked at <code>review.html</code>.
+        </p>
+        <p class="fine">
+          Captures are run output, not source — keep them out of the repository and
+          out of the review, or the diff becomes a folder of PNGs nobody reads.
+        </p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>
+    <b>ui-path-recorder</b> <span class="version"><!-- site:version --></span> ·
+    <a href="https://github.com/mkucharz/ui-path-recorder">source</a> ·
+    <a href="https://github.com/mkucharz/ui-path-recorder/blob/main/LICENSE">MIT</a> ·
+    <a href="https://github.com/mkucharz/ui-path-recorder/tree/main/references">docs</a>
+  </p>
+  <p class="fine">
+    No framework, no analytics, no fonts to download: this page is HTML and one
+    stylesheet, and every figure on it was recorded by the tool it describes — from
+    the plans in the repository, during the deploy that published it.
+  </p>
+</footer>
+
+</body>
+</html>

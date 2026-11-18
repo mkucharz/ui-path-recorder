@@ -1,0 +1,219 @@
+#!/usr/bin/env node
+/**
+ * Check the site: the template before a build, the built output after one.
+ *
+ * Two failures this exists to catch, both of which look fine locally and break
+ * on Pages:
+ *
+ * 1. **A root-absolute URL.** A project site is served from
+ *    `/<repo>/`, so `src="/assets/x.png"` asks for an org-level path that is not
+ *    there. The page is full of correct links on the machine that built it and
+ *    broken on the machine that reads it.
+ * 2. **A reference to something no build produced.** The gallery is filled from
+ *    recorded runs, so a renamed figure or a run that wrote fewer shots turns into
+ *    a 404 that only a reader sees.
+ *
+ * It is a scanner, not a parser: the input is one template this repo owns, and a
+ * dependency for that would be more code than the thing it checks. Anything it
+ * cannot understand it reports rather than guesses about.
+ *
+ * Usage:
+ *   node scripts/check-site.mjs                  # the template in site/
+ *   node scripts/check-site.mjs --built .site    # the pages a build produced
+ *
+ * Exit: 0 ok · 1 the site is wrong · 2 cannot proceed (no input to read).
+ */
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import path from 'node:path';
+
+const HERE = path.resolve(import.meta.dirname, '..');
+const ARGS = process.argv.slice(2);
+const builtAt = ARGS.indexOf('--built');
+const BUILT = builtAt !== -1 ? ARGS[builtAt + 1] : null;
+
+if (ARGS.includes('--help') || ARGS.includes('-h')) {
+  process.stdout.write(
+    'usage: node scripts/check-site.mjs [--built DIR]\n\n' +
+      '  (no arguments)   check the template in site/\n' +
+      '  --built DIR      check a built site: every local reference resolves\n\n' +
+      'exit: 0 ok · 1 the site is wrong · 2 cannot proceed\n',
+  );
+  process.exit(0);
+}
+if (ARGS.length && BUILT === undefined) {
+  process.stderr.write(`check-site: unknown or incomplete argument ${JSON.stringify(ARGS.join(' '))}\n`);
+  process.exit(2);
+}
+
+const root = BUILT ? path.resolve(HERE, BUILT) : path.join(HERE, 'site');
+const indexPath = path.join(root, 'index.html');
+const mode = BUILT ? 'built' : 'template';
+
+let html;
+try {
+  html = readFileSync(indexPath, 'utf8');
+} catch (error) {
+  process.stderr.write(`check-site: cannot read ${indexPath}: ${error.message}\n`);
+  process.exit(2);
+}
+
+const failures = [];
+const fail = (message) => failures.push(message);
+
+const attrs = (tag) => {
+  const found = {};
+  for (const match of tag.matchAll(/([a-zA-Z][\w-]*)="([^"]*)"/g)) found[match[1].toLowerCase()] = match[2];
+  return found;
+};
+
+/** The content of `<meta property="NAME" content="…">`, or null. */
+const metaContent = (name) => new RegExp(`<meta property="${name}" content="([^"]*)"`, 'i').exec(html)?.[1] ?? null;
+
+/* ------------------------------------------------------------------ *
+ * Both modes: the document itself
+ * ------------------------------------------------------------------ */
+
+if (!/<html lang="[a-z-]+"/i.test(html)) fail('index.html: <html> needs a lang');
+if (!/<meta name="viewport" content="[^"]*width=device-width/i.test(html)) fail('index.html: no responsive viewport meta');
+if (!/<meta name="description" content="[^"]{20,}"/i.test(html)) fail('index.html: no meta description');
+const title = /<title>([^<]*)<\/title>/i.exec(html);
+if (!title || title[1].trim().length < 10) fail('index.html: no usable <title>');
+
+const h1s = html.match(/<h1[\s>]/gi)?.length ?? 0;
+if (h1s !== 1) fail(`index.html: expected exactly one <h1>, found ${h1s}`);
+
+if (/<script\b/i.test(html)) {
+  // The footer claims this page has no framework and no script. If one is added,
+  // the claim is what is wrong — make that a failing check rather than a lie.
+  fail('index.html: a <script> appeared; the footer and the README claim this page has none');
+}
+
+// Every in-page anchor must land on something. A dead `#how` is a nav that does
+// nothing, which is worse than no nav.
+const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
+for (const match of html.matchAll(/href="#([^"]+)"/g)) {
+  if (!ids.has(match[1])) fail(`index.html: href="#${match[1]}" names no id`);
+}
+
+/* ------------------------------------------------------------------ *
+ * Template mode: the slots the builder fills
+ * ------------------------------------------------------------------ */
+
+const SLOTS = ['hero', 'gallery', 'themes', 'version'];
+if (!BUILT) {
+  for (const slot of SLOTS) {
+    const found = html.split(`<!-- site:${slot} -->`).length - 1;
+    if (found !== 1) fail(`index.html: <!-- site:${slot} --> must appear exactly once (found ${found})`);
+  }
+  if (!existsSync(path.join(root, 'style.css'))) fail('site/style.css is missing');
+  if (!/\bhref="style\.css"/.test(html)) fail('index.html: does not reference style.css');
+} else {
+  for (const slot of SLOTS) {
+    if (html.includes(`<!-- site:${slot} -->`)) fail(`index.html: <!-- site:${slot} --> was not filled by the build`);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Both modes: no root-absolute URL, and every local reference resolves
+ * ------------------------------------------------------------------ */
+
+const VIRTUAL = /^(https?:|mailto:|data:|tel:|javascript:|#)/i;
+const localPath = (raw) => {
+  const clean = raw.split('#')[0].split('?')[0];
+  if (!clean || clean === './') return null;
+  return path.resolve(root, clean);
+};
+
+let checked = 0;
+for (const match of html.matchAll(/(href|src)="([^"]+)"/g)) {
+  const [, attribute, value] = match;
+  if (VIRTUAL.test(value)) {
+    // `//host/x` is protocol-relative: not ours, and not how a project site links.
+    if (value.startsWith('//')) fail(`index.html: ${attribute}="${value}" is protocol-relative; use an absolute https URL`);
+    continue;
+  }
+  if (value.startsWith('/')) {
+    fail(`index.html: ${attribute}="${value}" is root-absolute — Pages serves this repo from a sub-path, so it would 404`);
+    continue;
+  }
+  const resolved = localPath(value);
+  if (!resolved) continue;
+  if (!existsSync(resolved)) {
+    fail(`index.html: ${attribute}="${value}" names nothing at ${path.relative(HERE, resolved)}`);
+    continue;
+  }
+  checked += 1;
+}
+
+// The social card is an absolute URL on purpose (crawlers do not resolve
+// relative ones), so it is checked through the path it maps to instead.
+const og = /<meta property="og:image" content="([^"]+)"/i.exec(html);
+if (!og) {
+  fail('index.html: no og:image');
+} else {
+  const file = og[1].replace(/^https:\/\/mkucharz\.github\.io\/ui-path-recorder\//, '');
+  if (!file.startsWith('assets/')) {
+    fail(`index.html: og:image is not under assets/ (${og[1]})`);
+  } else if (BUILT && !existsSync(path.resolve(root, file))) {
+    fail(`index.html: og:image "${file}" does not exist`);
+  } else if (BUILT) {
+    // The declared size is what a crawler lays the card out with, and it is a
+    // claim about a file this build recorded: a plan whose viewport changed would
+    // break it silently, and the card would be cropped on every share.
+    const declaredWidth = metaContent('og:image:width');
+    const declaredHeight = metaContent('og:image:height');
+    const png = readFileSync(path.resolve(root, file));
+    const actual = { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
+    if (!declaredWidth || !declaredHeight) fail('index.html: og:image has no declared og:image:width/height');
+    else if (Number(declaredWidth) !== actual.width || Number(declaredHeight) !== actual.height) {
+      fail(`index.html: og:image is ${actual.width}×${actual.height} but declared ${declaredWidth}×${declaredHeight}`);
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Built mode: the media contract
+ * ------------------------------------------------------------------ */
+
+if (BUILT) {
+  for (const tag of html.match(/<img\b[^>]*>/gi) ?? []) {
+    const a = attrs(tag);
+    if (!a.alt || !a.alt.trim()) fail(`index.html: <img src="${a.src ?? '?'}"> has no alt`);
+    if (!a.width || !a.height) fail(`index.html: <img src="${a.src ?? '?'}"> has no width/height (it would shift the page)`);
+    if (a.src && !/^(https?:|data:|\/)/.test(a.src) && !existsSync(path.resolve(root, a.src))) {
+      fail(`index.html: <img src="${a.src}"> does not exist`);
+    }
+  }
+
+  for (const block of html.match(/<video\b[^>]*>[\s\S]*?<\/video>/gi) ?? []) {
+    const open = attrs(/^<video\b[^>]*>/i.exec(block)[0]);
+    if (!open.poster) fail('index.html: a <video> has no poster (a reader who cannot play it, or who asked for reduced motion, sees a blank box)');
+    else if (!/^(https?:|\/)/.test(open.poster) && !existsSync(path.resolve(root, open.poster))) {
+      fail(`index.html: <video poster="${open.poster}"> does not exist`);
+    }
+    if (!/<source\b[^>]*src="/i.test(block)) fail('index.html: a <video> has no <source>');
+  }
+
+  // A run directory can hold `.vars.json` (values scraped off the page). The
+  // builder copies an allowlist, and this is the check that the allowlist held.
+  const walk = (dir) =>
+    readdirSync(dir).flatMap((name) => {
+      const full = path.join(dir, name);
+      return statSync(full).isDirectory() ? walk(full) : [full];
+    });
+  for (const file of walk(root)) {
+    if (path.basename(file) === '.vars.json') {
+      fail(`${path.relative(HERE, file)}: a scraped-variable file reached the site`);
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+
+process.stdout.write(`check-site: ${mode} ${path.relative(HERE, root)} — `);
+if (failures.length) {
+  process.stdout.write(`${failures.length} problem(s)\n\n`);
+  for (const failure of failures) process.stderr.write(` - ${failure}\n`);
+  process.exit(1);
+}
+process.stdout.write(`ok (${checked} local reference(s) resolve)\n`);
