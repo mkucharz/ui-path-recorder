@@ -101,6 +101,16 @@ test('a token value cannot end the style element it is written into', () => {
   const html = cardHtml({ ...PLAN, video: { intro: { title: 'Hello' }, tokens: { '--pc-text': markup } } }, 'intro');
   assert.ok(!html.includes('<img'), 'no markup from a token value may reach the card');
   assert.equal((html.match(/<\/style>/g) ?? []).length, 1, 'the card has exactly one style element');
+
+  // The scheme map is the other route into the same `<style>`: `checklist.accent`
+  // lands there rather than in the plan's token map, and `ACCENT_PATTERN` is the
+  // only thing stopping a hostile one — which a plan assembled in code never met.
+  const accentCard = cardHtml(
+    { ...PLAN, video: { intro: { title: 'Hello' }, checklist: { accent: markup } } },
+    'intro',
+  );
+  assert.ok(!accentCard.includes('<img'), 'no markup from the accent may reach the card');
+  assert.equal((accentCard.match(/<\/style>/g) ?? []).length, 1, 'the card has exactly one style element');
 });
 
 test('the schema and the code agree on the token names', () => {
