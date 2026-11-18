@@ -1,0 +1,20 @@
+{
+  "description": "Dracula: the night palette's ink-violet background, its purple as the accent, and its comment lavender for secondary text. The subtitle is content rather than a code comment, so the Comment colour is lifted toward the Foreground for the two dimmer text levels — the raw #6272a4 sits at 3:1 on this background, which is how a comment reads but not how a caption should. Geometry and font are Dracula's host's, not Dracula's, so they are left alone and keep the chrome's own.",
+  "source": "https://spec.draculatheme.com/ — §1.2 Color Palette: Background #282A36, Foreground #F8F8F2, Selection #44475A, Comment #6272A4, Purple #BD93F9, ANSI Black #21222C",
+  "tokens": {
+    "--pc-surface": "rgba(40,42,54,.9)",
+    "--pc-surface-strong": "#21222c",
+    "--pc-border": "#44475a",
+    "--pc-border-soft": "color-mix(in oklab, #44475a 65%, transparent)",
+    "--pc-shadow": "rgba(0,0,0,.55)",
+    "--pc-shadow-soft": "rgba(0,0,0,.45)",
+    "--pc-text": "#f8f8f2",
+    "--pc-text-body": "color-mix(in oklab, #f8f8f2 88%, transparent)",
+    "--pc-muted": "color-mix(in oklab, #6272a4 45%, #f8f8f2)",
+    "--pc-muted-soft": "color-mix(in oklab, #6272a4 75%, #f8f8f2)",
+    "--pc-done": "color-mix(in oklab, #f8f8f2 45%, transparent)",
+    "--pc-mark": "#282a36",
+    "--pc-accent": "#bd93f9",
+    "--pc-ring": "color-mix(in oklab, #f8f8f2 28%, transparent)"
+  }
+}

@@ -348,7 +348,7 @@ that records.
 | `intro` | — | The title card the video opens on. `{ title, subtitle?, bullets? }`. |
 | `outro` | — | The end card the video closes on. Same shape. |
 | `cardMs` | `2200` | How long each card is held, divided by `humanize.speed` like every other delay. |
-| `theme` | — | Name of a preset in `themes/` (`memory`), applied to the panel and the cards. |
+| `theme` | — | Name of a preset in `themes/` (`memory`, `dracula`, `catppuccin-mocha`), applied to the panel and the cards. |
 | `tokens` | — | Chrome palette overrides by CSS custom property, on top of `theme`. |
 
 ### `video.checklist`
@@ -412,7 +412,9 @@ directly, and an explicit token wins over the preset it came with.
 
 | | |
 |---|---|
-| `"theme": "memory"` | The Memory web UI's dark palette — ink-navy surfaces, brass ticks. Literal values, so it renders on a page that defines no CSS of its own. |
+| `"theme": "memory"` | The Memory web UI's dark palette — ink-navy surfaces, brass ticks, and the product's own radius and font. Literal values, so it renders on a page that defines no CSS of its own. |
+| `"theme": "dracula"` | Dracula — the night palette's ink-violet surfaces, its purple for a ticked circle, its comment lavender for secondary text. |
+| `"theme": "catppuccin-mocha"` | Catppuccin, mocha flavour — base and mantle surfaces, mauve ticks, and the palette's own text → subtext → overlay ramp for the three levels of secondary text. One of four flavours; only the dark ones suit a panel that is dark by design, so `latte` is not offered. |
 | `"tokens": { "--pc-accent": "#f5a97f" }` | One value replaced. |
 | `"tokens": { "--pc-accent": "var(--color-primary)" }` | Adopt the app's own palette. This only resolves on a page that defines `--color-primary`; where it does not, the chrome falls back to the token's default (the tick stays blue) instead of painting nothing. |
 
@@ -449,6 +451,15 @@ Two rules that follow from the vocabulary being a value rather than a class:
   product's palette on a page that never loaded the product's stylesheet. A
   `var(--color-*)` in a preset would resolve on the product's pages and turn into
   nothing everywhere else, so the preset test refuses one.
+- **A preset carries what its source documents.** A third-party palette gives
+  colours and nothing else, so `themes/dracula.json` and
+  `themes/catppuccin-mocha.json` set the fourteen colour tokens and leave
+  `--pc-radius` and `--pc-font-family` alone: the chrome keeps its own geometry
+  rather than inventing one the theme never specified. Where a palette's own
+  secondary colour is a *comment* — Dracula's `#6272a4` sits at 3:1 on its own
+  background — the preset lifts it toward the foreground for the two dimmer text
+  levels, because the panel's subtitle is content, not a code comment. Each
+  file's `source` names the upstream page the values came from.
 - **`tokens` may be inherited.** That is the other half: recording the Memory app
   itself, `"tokens": { "--pc-accent": "var(--color-primary)" }` keeps the chrome
   in step with the app's theme without duplicating sixteen values, and if the app

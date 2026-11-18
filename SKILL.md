@@ -150,7 +150,11 @@ checklist the panel ticks (`0 / N` in, `N / N` out) and take the theme from
 
 Both the panel and the cards take a **palette**: `"theme": "memory"` names a preset
 shipped in `themes/` (the Memory web UI's dark colours), and `"tokens"` overrides
-any of the sixteen `--pc-*` properties it sets. Tokens are CSS custom properties
+any of the sixteen `--pc-*` properties it sets. Two more presets ship alongside
+it — `"dracula"` and `"catppuccin-mocha"` (Catppuccin's mocha flavour; the light
+`latte` is deliberately not offered, because the panel is dark by design) — and
+each carries only what its upstream palette documents: colours, not a radius or a
+font. Tokens are CSS custom properties
 rather than utility classes because the chrome is drawn over an app whose
 stylesheet this repo does not own — a class only exists on a page that happens to
 define it, a value always does. A token may read the app's own palette
