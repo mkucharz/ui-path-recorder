@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ui-path-recorder — reproducible documentation figures from a committed plan</title>
-<meta name="description" content="Record a path through a live UI once, then re-run it whenever the docs go stale: reproducible, reviewable figures and a walkthrough video from a committed Playwright plan.">
+<meta name="description" content="Record a path through a live UI once, then re-run it whenever the docs go stale: reproducible, reviewable figures, a walkthrough video, and spoken narration from a committed Playwright plan.">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0e1017">
 <meta property="og:type" content="website">
@@ -27,6 +27,7 @@
   <nav aria-label="Sections">
     <a href="#how">How it works</a>
     <a href="#use">Use it</a>
+    <a href="#voice">Voice</a>
     <a href="#examples">Examples</a>
   </nav>
   <a class="repo" href="https://github.com/mkucharz/ui-path-recorder" aria-label="Source on GitHub">
@@ -252,7 +253,7 @@ open captures/fixture-*/review.html</code></pre>
           <code>skills-lock.json</code>. Pin a release rather than a branch:
         </p>
         <div class="snippet">
-          <pre><code>npx skills add mkucharz/ui-path-recorder@v0.3.0 --skill path-recorder -g</code></pre>
+          <pre><code>npx skills add mkucharz/ui-path-recorder@v0.5.0 --skill path-recorder -g</code></pre>
           <button class="copy" type="button" data-copy hidden>Copy</button>
         </div>
         <p class="fine">
@@ -272,7 +273,8 @@ git clone https://github.com/mkucharz/ui-path-recorder \
             <tr><td><code>--review</code></td><td>write <code>review.html</code> into the run directory</td></tr>
             <tr><td><code>--video</code></td><td>record the walkthrough and drive it like a person (needs <code>ffmpeg</code>)</td></tr>
             <tr><td><code>--narration</code></td><td>speak every step, muxed in (needs a system <code>ffmpeg</code> with libopus)</td></tr>
-            <tr><td><code>--narration-engine</code></td><td><code>say</code> (macOS, the default) or <code>elevenlabs</code> (needs <code>ELEVENLABS_API_KEY</code>)</td></tr>
+            <tr><td><code>--narration-engine</code></td><td><code>say</code> (macOS, the default) or <code>elevenlabs</code> (needs <code>ELEVENLABS_API_KEY</code>, or a gitignored <code>.env</code>)</td></tr>
+            <tr><td><code>--voice</code>, <code>--narration-model</code></td><td>pin who reads it, so a re-record sounds like the last one — see <a href="#voice">Voice</a></td></tr>
             <tr><td><code>--out &lt;dir&gt;</code></td><td>the run directory (default <code>captures/&lt;tutorial&gt;-&lt;timestamp&gt;</code>)</td></tr>
             <tr><td><code>--only &lt;id&gt;</code></td><td>replay up to that figure and stop</td></tr>
             <tr><td><code>--profile &lt;dir&gt;</code></td><td>keep a signed-in session on this host, for flows behind a login</td></tr>
@@ -284,9 +286,138 @@ git clone https://github.com/mkucharz/ui-path-recorder \
     </div>
   </section>
 
-  <section id="examples">
+  <section id="voice">
     <div class="rail">
       <p class="num">04</p>
+      <div>
+        <h2>It can speak</h2>
+        <p class="lede narrow">
+          A walkthrough watched on a phone, in a taxi, on a train: the screen
+          explains the steps, and nothing says why. <code>--narration</code> speaks
+          each step and muxes the voice into the recording.
+        </p>
+
+        <pre><code>{
+  "video": { "narration": { "engine": "elevenlabs", "fit": "line" } },
+  "steps": [
+    { "caption": "Sign in.",
+      "say": "Sign in with the account you already use — this walkthrough installs into your own workspace.",
+      "goto": "/signin" }
+  ]
+}</code></pre>
+
+        <p>
+          <code>video.narration</code> is the plan asking for narration, and its
+          presence is enough. <code>say</code> defaults to <code>caption</code>, so a
+          plan that writes neither speaks its own subtitles and the pill, the
+          <code>.vtt</code> and the voice cannot disagree. <code>--no-narration</code>
+          records a silent copy without editing the plan, and its <code>.vtt</code>
+          falls back to the captions rather than transcribing a voice nobody hears.
+        </p>
+
+        <h3>A caption read aloud is not a sentence</h3>
+        <p>
+          That default is convenient, not free. <code>"Choose Sign in."</code> is a
+          good pill and an abrupt thing to hear, and six of them in a row sound like a
+          form reading itself out. Write the line you would say while pointing at the
+          same screen — the verb the viewer is doing, something they already know
+          (“the account you already use”), and what happens next (“… and you're in”).
+          The run names the two shapes worth a second look, and speaks what it was
+          given:
+        </p>
+        <pre><code>warning: step #4 (fill the password) is spoken as "Then the password."
+         — a label, not a sentence
+warning: step #5 (sign in) is written as an instruction to a control:
+         "Choose Sign in."</code></pre>
+
+        <h3>The picture waits for the sentence</h3>
+        <p>
+          A spoken line runs two to five seconds and a step is often shorter, so
+          narration is a <em>two-pass</em> run: every line is synthesized before the
+          browser opens, and the step that starts a cue waits
+          <code>max(hold, line + tailMs)</code> so the next screen never arrives
+          mid-sentence. Only the step that <em>starts</em> a cue waits — consecutive
+          steps sharing a line are one cue, spoken once.
+        </p>
+        <p>
+          That <code>max</code> is also what keeps a good plan sounding slow. A
+          <code>hold</code> is written for a silent recording; once the line explains
+          the change, the same second of stillness is dead air on top of a sentence
+          that already made the point. <code>"fit": "line"</code> hands the step's
+          length to its own copy, and the walkthrough is as long as it has something to
+          say — on the sign-in example that is <b>70% speech instead of 55%</b>, 4.8
+          seconds of padding gone.
+        </p>
+
+        <h3>Two engines, one pipeline</h3>
+        <p>
+          The default is macOS <code>say</code>, because it is part of the operating
+          system: no install, no key, no network. <code>--narration-engine
+          elevenlabs</code> speaks each line over HTTPS instead, which is what a Linux
+          host or CI uses, and what gives you a choice of voice on a Mac too. Only the
+          synthesis differs — pacing, the <code>.vtt</code>, the cache and the mux are
+          shared, so a line is timed the same way whichever engine said it.
+        </p>
+        <p>
+          ElevenLabs needs <code>ELEVENLABS_API_KEY</code>, from the environment or
+          from a gitignored <code>.env</code> beside the plan (copy
+          <code>.env.example</code>). The file is the safer of the two: a key exported
+          in a shell is a key in a shell history, and a key set in a CI log is a key in
+          a CI log. A name is resolved against the voices the key can see, which needs
+          the <code>voices_read</code> permission; an <em>id</em> is used as given, so
+          a key scoped to text-to-speech alone works.
+        </p>
+
+        <p>
+          Lines are read as one telling rather than six recordings: each request
+          carries the sentence before and after it, which is what keeps the cadence and
+          the emphasis moving across step boundaries instead of every line starting
+          cold on a full stop. The delivery is the plan's, spelled out in full:
+        </p>
+        <table class="flags">
+          <thead><tr><th scope="col">Key</th><th scope="col">What it changes</th></tr></thead>
+          <tbody>
+            <tr><td><code>stability</code></td><td>how firmly one reading is held. High is flat and consistent; low carries emphasis but drifts between takes. The first knob to try — <code>0.35</code>–<code>0.45</code> is where a walkthrough starts to sound told</td></tr>
+            <tr><td><code>style</code></td><td>how much the model exaggerates; a little goes a long way here</td></tr>
+            <tr><td><code>similarityBoost</code></td><td>how closely the output hugs the reference voice</td></tr>
+            <tr><td><code>speakerBoost</code></td><td>the service's presence pass</td></tr>
+            <tr><td><code>model</code></td><td><code>eleven_multilingual_v2</code> carries the cadence across steps; <code>eleven_v3</code> and <code>eleven_v4</code> reject the neighbours and read every line alone, so the run says so and drops them</td></tr>
+          </tbody>
+        </table>
+        <p class="fine">
+          The delivery keys are inert for <code>say</code>, and a plan that sets them
+          without <code>"engine": "elevenlabs"</code> is warned about instead of
+          silently doing nothing. Editing a line re-speaks it and its two neighbours and
+          nothing else: the delivery and the surrounding sentences are part of the cache
+          key, because the same words at another stability are another reading.
+        </p>
+
+        <h3>Choose the voice by ear</h3>
+        <p>
+          A voice, a copy register and a stability are judgements of sound, and prose
+          cannot make them. <code>scripts/voice-audition.mjs</code> speaks the same six
+          steps eight ways — four registers of the copy, two models, two stabilities,
+          two voices — and writes one page with a player per variant and the finished
+          recording beside them:
+        </p>
+        <div class="snippet">
+          <pre><code>node scripts/voice-audition.mjs --out captures/audition</code></pre>
+          <button class="copy" type="button" data-copy hidden>Copy</button>
+        </div>
+        <p class="fine">
+          This page does not play a narrated recording, and that is deliberate: a
+          narration needs an API key and a system <code>ffmpeg</code> with libopus, so
+          it is not something the gallery can build from this repository alone. The
+          audition renders the variants locally in one command, from the key in your
+          <code>.env</code>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="examples">
+    <div class="rail">
+      <p class="num">05</p>
       <div>
         <h2>Examples</h2>
         <p class="lede narrow">
@@ -322,7 +453,7 @@ git clone https://github.com/mkucharz/ui-path-recorder \
 
   <section id="writes">
     <div class="rail">
-      <p class="num">05</p>
+      <p class="num">06</p>
       <div>
         <h2>What a run writes</h2>
         <pre><code>captures/signin-2026-01-01T10-00-00/
@@ -333,7 +464,9 @@ git clone https://github.com/mkucharz/ui-path-recorder \
   .shots.json          ← capture ratio per figure (real px → CSS px)
   .timeline.json       ← where each step started and ended, and the video chapters
   failures/            ← only on failure: the page, its DOM, and its controls
-  trace.zip, video/    ← only with --trace / --video</code></pre>
+  trace.zip, video/    ← only with --trace / --video
+  video/01-main.webm   ← the recording; the voice is muxed into this file
+  video/01-main.vtt    ← subtitles: the speech when narrated, else the captions</code></pre>
         <p>
           A run directory is reviewable before it touches a document. That is the
           point of the default: nothing overwrites a published figure until a human

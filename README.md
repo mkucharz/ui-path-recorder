@@ -56,7 +56,7 @@ npx skills add mkucharz/ui-path-recorder --skill path-recorder -g
 ```
 
 Pin a release instead of a branch when the plan matters more than the novelty —
-`…ui-path-recorder@v0.2.0`. The tarball attached to
+`…ui-path-recorder@v0.5.0`. The tarball attached to
 [the releases](https://github.com/mkucharz/ui-path-recorder/releases) unpacks to
 `path-recorder/SKILL.md`, for an agent that installs by folder.
 
@@ -316,7 +316,9 @@ by the step's own clock:
   later. The review sheet's player carries it as a captions track — off by
   default, because the recording already draws its subtitles in and a default
   track would paint a second one over the same corner. Switching it on is how you
-  check the file's timing against what is on screen.
+  check the file's timing against what is on screen. A narrated run transcribes
+  the `say` here instead (see [Spoken narration](#spoken-narration)): a track that
+  disagrees with the voice is unusable with the sound off.
 
 A step with no caption clears the last one, so a subtitle never outlives the
 screen it described; consecutive steps sharing a caption are one cue, so it does
@@ -363,6 +365,19 @@ glance — and then the `.vtt` transcribes the **speech**, because a captions tr
 that says something other than the voice is a track nobody can use with the sound
 off. The pill keeps the short `caption`.
 
+**A caption read aloud is not a sentence.** The default makes the split optional,
+not free: `"Choose Sign in."` is a good pill and an abrupt thing to hear, and six
+of them in a row sound like a form reading itself out. The line to write is the
+one you would say while pointing at the same screen — the verb the viewer is
+doing, something they already know ("the account you already use"), and what
+happens next ("… and you're in"). The run names the two shapes worth a second
+look and still speaks what it was given:
+
+```
+  warning: step #4 (fill the password) is spoken as "Then the password." — a label, not a sentence. A line this short is read before the eye finds the change it describes
+  warning: step #5 (sign in) is written as an instruction to a control: "Choose Sign in.". That reads as a caption; spoken, it lands better with the reason or the result attached ("… and you're in")
+```
+
 **The picture waits for the sentence.** A spoken line runs two to five seconds
 and a step is often shorter, so narration is a *two-pass* run: every line is
 synthesized before the browser opens, and each step's beat becomes
@@ -371,12 +386,28 @@ not already spent, and `tailMs` (400 ms) is the silence after it so the next
 screen never arrives on the last word:
 
 ```
-  narration: 6 lines, voice Ava @ 180 wpm, 400ms tail
+  narration: 6 lines, voice Ava @ 180 wpm, 400ms tail, fit hold
     spoke   1/6  2.2s  "Open the sign-in page for your workspace."
     spoke   2/6  2.8s  "Sign in with the address and password you already use."
   captions: video/01-main.vtt (6 cues)
   narration: video/01-main.webm (13.4s of track)
 ```
+
+That `max` is the one thing that keeps a good plan sounding slow. A `hold` is
+written for a silent recording — it is how long a viewer needs to read a change —
+and once the line explains the change the same 1.6 s is dead air on top of a
+sentence that already made the point. `"fit": "line"` hands the step's length to
+its own copy, so a narrated step lasts exactly its line plus the tail and the
+walkthrough is as long as it has something to say:
+
+```json
+"video": { "narration": { "engine": "elevenlabs", "fit": "line" } }
+```
+
+`fit` is `hold` by default, because a plan that has been tuned to a silent
+recording should not change length when narration is switched on; set `line` in a
+plan written to be narrated, and keep `hold` where a step's stillness is doing
+work of its own.
 
 Two warnings cover the plan shapes that still drift, and both name the step:
 
@@ -393,7 +424,9 @@ opens a second tab with its own `.vtt`, so a line repeated there is a new cue an
 waits for its own audio. Lines are cached by content (`sha256` of the engine,
 model, voice, rate and text, in `~/.cache/ui-path-recorder/narration`, or
 `UI_PATH_RECORDER_CACHE_DIR`), so re-recording after editing one caption re-speaks
-one line — and the same words in two engines are two entries, not one.
+one line — and the same words in two engines are two entries, not one. For
+ElevenLabs the delivery and the surrounding sentences are in that hash too, so
+editing a line re-speaks it and its two neighbours and nothing else.
 
 **Two engines, one pipeline.** The default is macOS `say`, because it is part of
 the OS: no install, no key, no network. `--narration-engine elevenlabs` speaks
@@ -402,20 +435,72 @@ gives you a choice of voice on a Mac too. Only the synthesis differs — pacing,
 the `.vtt`, the cache and the mux are shared, so a line is timed the same way
 whichever engine said it.
 
-ElevenLabs needs `ELEVENLABS_API_KEY` in the environment (never in the plan) and
-takes `--narration-model` (default `eleven_multilingual_v2`) and a voice that is
-a name or an id. A name is resolved against the voices the key can see, which
+ElevenLabs needs `ELEVENLABS_API_KEY` — from the environment, or from a
+gitignored `.env` in the directory the run starts in (copied from
+`.env.example`). The file is the safer of the two: a key exported in a shell is a
+key in a shell history, and an environment variable in a CI log is a key in a CI
+log. Nothing here prints the value, and `.gitignore` keeps the file out of git.
+It takes `--narration-model` (default `eleven_multilingual_v2`) and a voice that
+is a name or an id. A name is resolved against the voices the key can see, which
 needs the `voices_read` permission; an id is used as given, so a key scoped to
 text-to-speech alone works. `ELEVENLABS_VOICE_ID` sets the default voice, and a
 premade one is used when neither is given. `--rate` becomes the API's
 `voice_settings.speed` (`180` → `1.0`) and is clamped to the `0.7`–`1.2` it
-accepts, with a warning when that happens. Each line is requested as raw 48 kHz
-PCM, so nothing has to decode it, and cached by voice, model and wording like a
-`say` line.
+accepts, with a warning when that happens.
+
+**Lines are read as one telling, not six recordings.** Each request carries the
+sentence before and after it as `previous_text` / `next_text`, which is what keeps
+the cadence and the emphasis moving across the step boundaries instead of every
+line starting cold on a full stop; `apply_text_normalization` is `on`, so "7
+days" is spoken as words. The dialogue models (`eleven_v3`, `eleven_v4`) reject
+both, so stitching is per model and the run says so when it has to fall back. The
+delivery is the plan's, spelled out in full rather than left to the account's
+defaults:
+
+```json
+"video": {
+  "narration": {
+    "engine": "elevenlabs",
+    "stability": 0.35,
+    "style": 0.1,
+    "similarityBoost": 0.75,
+    "speakerBoost": true
+  }
+}
+```
+
+`stability` is the knob worth reaching for first. High values hold one flat
+reading; lower values let the sentence carry emphasis, which is most of the
+difference between a walkthrough that sounds told and one that sounds recited.
+Below about 0.3 the reading starts to drift between takes, so the useful range is
+narrow. They are ignored by `say`, and a plan that sets them without
+`"engine": "elevenlabs"` is warned about rather than silently doing nothing.
+
+Each line is requested as raw 48 kHz PCM, so nothing has to decode it, and cached
+like a `say` line — by engine, model, voice, rate, wording, *delivery* and
+neighbours, because a different stability or a different sentence before it is a
+different reading, and a cache hit on the old one would hand back audio the plan
+no longer describes.
 
 A free workspace cannot use **library** voices through the API — it answers
 `402 paid_plan_required`. The default is deliberately a premade voice, and the
 error names it, so the fix is one flag rather than an upgrade.
+
+**Choosing a voice is done by ear.** `scripts/voice-audition.mjs` speaks the six
+sign-in steps several ways — four registers of the same copy, two models, two
+stabilities, two voices — and writes one page with a player per variant, so a
+plan's voice, copy and delivery are chosen by listening instead of by reading a
+description of them. Audio only, because that is what is being chosen; the winner
+is recorded once, afterwards:
+
+```bash
+node scripts/voice-audition.mjs --out captures/audition
+```
+
+It is an ElevenLabs tool, and needs the key like the engine does — `say` has one
+voice per host, which is the opposite of an audition. The variants are a table at
+the top of the script: change the copy, the voice id or the stability and run it
+again.
 
 **What it needs, and what it refuses.** The mux is a **second ffmpeg pass** that
 copies the video stream and adds Opus — which must be a *system* ffmpeg, because
@@ -453,7 +538,9 @@ narration produces the file it always did.
 
 `--narration-engine <say|elevenlabs>`, `--narration-model <id>`, `--voice <name>`
 and `--rate <wpm>` override the block, and `--narration-tail <ms>` overrides the
-tail. Any captioned plan narrates as it stands:
+tail. `fit` and the four delivery keys have **no flags**: they are plan settings,
+because a one-off override of the thing that decides how a voice sounds is a run
+you cannot reproduce. Any captioned plan narrates as it stands:
 `plans/examples/signin-captions.plan.json` is the one to try.
 
 ### The checklist ticks itself off beside the video

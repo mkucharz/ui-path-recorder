@@ -333,21 +333,41 @@ Rules worth knowing:
   because each tab is its own recording and its own `.vtt`: a `clickNewPage` step
   that repeats the previous line opens a cue that has to wait for its own audio.
   A line that still overruns its cue is reported after the run rather than cut
-  silently.
+  silently. `"fit": "line"` in `video.narration` replaces that `max` with the
+  line itself, for a plan whose `hold`s were only ever standing in for speech.
+- **Write what you would say, not what the pill shows.** The default (`say`
+  falling back to `caption`) is convenient, not free: a caption is a label read
+  at a glance, and read aloud six times in a row it sounds like a form narrating
+  itself. A label, or a bare instruction to a control, is warned about — the line
+  is still spoken as written.
 
 ### `video.narration` — speak the walkthrough
 
 ```json
-"video": { "narration": { "engine": "elevenlabs", "voice": "pNInz6obpgDQGcFmaJgB", "rate": 180, "tailMs": 400 } }
+"video": { "narration": { "engine": "elevenlabs", "voice": "pNInz6obpgDQGcFmaJgB", "rate": 180, "tailMs": 400, "fit": "line", "stability": 0.35 } }
 ```
 
 | Key | Default | Meaning |
 |---|---|---|
-| `engine` | `say` | `say` (macOS's own voice: no install, no key, no network) or `elevenlabs` (HTTPS, needs `ELEVENLABS_API_KEY` in the environment — **never in the plan**). |
-| `model` | the engine's own | The `elevenlabs` model id, e.g. `eleven_multilingual_v2` (the default) or `eleven_turbo_v2_5`. Ignored by `say`. |
+| `engine` | `say` | `say` (macOS's own voice: no install, no key, no network) or `elevenlabs` (HTTPS, needs `ELEVENLABS_API_KEY` in the environment or in a gitignored `.env` — **never in the plan**). |
+| `model` | the engine's own | The `elevenlabs` model id, e.g. `eleven_multilingual_v2` (the default) or `eleven_turbo_v2_5`. Ignored by `say`. `eleven_v3`/`eleven_v4` are accepted but read every line alone: they reject the neighbours that carry the cadence across steps. |
 | `voice` | the engine default | A `say -v` name (`Ava`, `Daniel`, …) for `say`; an ElevenLabs voice name or 20-character id for `elevenlabs`. Pinning it is what makes a re-record sound like the last one. A name is resolved against the voices the key can see, which needs the `voices_read` permission — an id is used as given, so a key scoped to text-to-speech alone works. |
 | `rate` | `180` | Words per minute (`say -r`). 180 is conversational; slower reads as instruction. ElevenLabs maps it to `voice_settings.speed` (`180` → `1.0`) and clamps to the `0.7`–`1.2` the API accepts, warning when that happens. |
 | `tailMs` | `400` | Silence after a line before the next step may start. |
+| `fit` | `hold` | How a narrated step's length is decided. `hold`: `max(hold, line + tailMs)`, so the plan's beats survive. `line`: exactly `line + tailMs`, so the copy paces the video and no step carries silence the voice was never going to fill. |
+| `stability` | `0.5` | `elevenlabs` only, `0`–`1`. How firmly the model holds one reading: high is flat and consistent, low carries more emphasis but drifts between takes. The first knob to try, around `0.35`–`0.45` for a spoken walkthrough. |
+| `style` | `0` | `elevenlabs` only, `0`–`1`. How much the model exaggerates; a little goes a long way in a UI walkthrough. |
+| `similarityBoost` | `0.75` | `elevenlabs` only, `0`–`1`. How closely the output hugs the reference voice. |
+| `speakerBoost` | `true` | `elevenlabs` only. The service's presence/compression pass. |
+
+The delivery keys are inert for `say`, and a plan that sets them while speaking
+with `say` is warned about. Several lines are requested with the sentence before
+and after them attached, so consecutive steps read as one telling; the same words
+at a different stability, or after a different sentence, are a different cache
+entry. `fit` and the delivery keys are **plan-only** — `--narration-engine`,
+`--narration-model`, `--voice`, `--rate` and `--narration-tail` have flags, and
+these do not, because how a voice sounds is part of the committed path rather than
+something a shell argument changes for one run.
 
 Its **presence is the plan asking for narration** — an empty object means "the
 defaults". `--no-narration` records a silent copy without editing the plan (its
@@ -365,18 +385,22 @@ macOS `say` on PATH (the default), or `ELEVENLABS_API_KEY` for `elevenlabs`. The
 mux copies the video stream rather than re-encoding it, so a failure leaves the
 recording silent but intact.
 
-The caption section's example narrates as it stands — the engine falls back to each
-`caption`:
+The shipped example, `plans/examples/signin-captions.plan.json`, writes a `say`
+for every step and sets `"fit": "line"`: its captions are the pills and its `say`s
+are the telling, which is the split this section describes in use.
 
 ```bash
 SIGNIN_URL=http://127.0.0.1:8100 \
   node scripts/path-shots.mjs plans/examples/signin-captions.plan.json --video --narration
 
-# the same run with the other engine
-ELEVENLABS_API_KEY=... \
-  node scripts/path-shots.mjs plans/examples/signin-captions.plan.json --video --narration \
-    --narration-engine elevenlabs --voice pNInz6obpgDQGcFmaJgB
+# the same run with the other engine, the key coming from a gitignored .env
+node scripts/path-shots.mjs plans/examples/signin-captions.plan.json --video --narration \
+  --narration-engine elevenlabs --voice pNInz6obpgDQGcFmaJgB
 ```
+
+Copy `.env.example` to `.env` for the key rather than exporting it, and
+`node scripts/voice-audition.mjs --out captures/audition` to choose a voice, a
+copy register and a stability by ear before writing any of it into a plan.
 
 ### `check` — the checklist row this step ticks
 
