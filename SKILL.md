@@ -150,7 +150,10 @@ the app and changes nothing about the page. `"layout": "dock"` reserves a column
 of its own and lays the page out beside it, so nothing is covered and a 1920×1080
 frame is a real 16:9 composition — that is the one to use when the recording is
 going to a video player. `side` is `right` or `left` in either layout, and a dock
-takes that edge from the page. `video.checklist` sets its heading, the short
+takes that edge from the page. `"containFixed": true` on a dock makes the page
+column the containing block for fixed descendants of `body` (dialogs, sheets,
+portals), so a centred overlay follows the app column instead of the whole frame;
+it is opt-in because the body transform changes fixed-position behaviour. `video.checklist` sets its heading, the short
 second line under it (`subtitle`), side, width, layout and tick colour; a viewport
 under 1280 px warns about the share the panel takes, and a dock that leaves the
 app under 1280 px warns again. See `references/plan-format.md` → `check`, and

@@ -360,6 +360,7 @@ that records.
 | `side` | `"right"` | `left` or `right`. Pick the side the app leaves empty; a panel over a sidebar is a panel over evidence. In `dock` it is also the edge the page gives up. |
 | `width` | `300` | 220–380 CSS pixels. In `overlay` it is capped at 30% of the viewport; in `dock` it keeps its width, because the page gives up exactly that column. |
 | `layout` | `"overlay"` | `overlay` floats a translucent card over the app; `dock` reserves a column of its own and lays the page out beside it. |
+| `containFixed` | `false` | Dock only. Makes the page column the containing block for fixed descendants of `body`, so a centred dialog or sheet follows the app column instead of centring on the whole recording frame. Opt-in because the body transform changes fixed-position behaviour. |
 | `accent` | `"#7c9cf5"` | Colour of a completed tick, `#rgb` or `#rrggbb`. Shorthand for `--pc-accent` in `video.tokens`; setting both is refused. |
 
 The heading and its second line are one block above the rows: the uppercase
@@ -394,6 +395,7 @@ draws exactly this panel.
 "video": { "checklist": { "title": "Sign-in check", "subtitle": "Four steps, one workspace", "width": 320 } }
 "video": { "checklist": { "title": "Sign-in checklist", "layout": "dock", "width": 360 } }
 "video": { "checklist": { "title": "Sign-in checklist", "layout": "dock", "side": "left", "width": 360 } }
+"video": { "checklist": { "title": "Sign-in checklist", "layout": "dock", "width": 360, "containFixed": true } }
 ```
 Each line is the whole block for one recording: overlay, docked on the right (the
 default), docked on the left.

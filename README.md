@@ -377,6 +377,9 @@ It comes in **two layouts**, and the difference is what happens to the page:
   out beside the panel, so no control is ever hidden and the whole frame is one
   composition — app on one side, list on the other. That is what a 1920×1080
   recording needs to be a real 16:9 frame rather than an app with a card on top.
+  `"containFixed": true` makes the page column the containing block for fixed
+  descendants of `body`, so a centred dialog follows the app column; it is
+  opt-in because the transform changes fixed-position behaviour.
 
 ```json
 "video": { "checklist": { "title": "Sign-in checklist", "layout": "dock", "width": 360 } }
