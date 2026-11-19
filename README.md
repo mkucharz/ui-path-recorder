@@ -337,8 +337,8 @@ out from the recording:
 ### Spoken narration
 
 A walkthrough a person watches on a phone, in a taxi, on a train: the screen
-explains the *steps*, and nothing says why. `--narration` speaks each step with
-macOS `say` and muxes the voice into the recording.
+explains the *steps*, and nothing says why. `--narration` speaks each step and
+muxes the voice into the recording.
 
 ```json
 {
@@ -390,12 +390,34 @@ from — so consecutive steps sharing a caption are spoken once, at their first
 frame, and the later steps do not wait a second time for a sentence that has
 already been said. That is per **recording**, not per plan: a `clickNewPage` step
 opens a second tab with its own `.vtt`, so a line repeated there is a new cue and
-waits for its own audio. Lines are cached by content (`sha256` of voice, rate and
-text, in `~/.cache/ui-path-recorder/narration`, or `UI_PATH_RECORDER_CACHE_DIR`),
-so re-recording after editing one caption re-speaks one line.
+waits for its own audio. Lines are cached by content (`sha256` of the engine,
+model, voice, rate and text, in `~/.cache/ui-path-recorder/narration`, or
+`UI_PATH_RECORDER_CACHE_DIR`), so re-recording after editing one caption re-speaks
+one line — and the same words in two engines are two entries, not one.
 
-**What it needs, and what it refuses.** `say` is the engine because it is part of
-macOS: no install, no key, no network. The mux is a **second ffmpeg pass** that
+**Two engines, one pipeline.** The default is macOS `say`, because it is part of
+the OS: no install, no key, no network. `--narration-engine elevenlabs` speaks
+each line over HTTPS instead, which is what a Linux host or CI uses, and what
+gives you a choice of voice on a Mac too. Only the synthesis differs — pacing,
+the `.vtt`, the cache and the mux are shared, so a line is timed the same way
+whichever engine said it.
+
+ElevenLabs needs `ELEVENLABS_API_KEY` in the environment (never in the plan) and
+takes `--narration-model` (default `eleven_multilingual_v2`) and a voice that is
+a name or an id. A name is resolved against the voices the key can see, which
+needs the `voices_read` permission; an id is used as given, so a key scoped to
+text-to-speech alone works. `ELEVENLABS_VOICE_ID` sets the default voice, and a
+premade one is used when neither is given. `--rate` becomes the API's
+`voice_settings.speed` (`180` → `1.0`) and is clamped to the `0.7`–`1.2` it
+accepts, with a warning when that happens. Each line is requested as raw 48 kHz
+PCM, so nothing has to decode it, and cached by voice, model and wording like a
+`say` line.
+
+A free workspace cannot use **library** voices through the API — it answers
+`402 paid_plan_required`. The default is deliberately a premade voice, and the
+error names it, so the fix is one flag rather than an upgrade.
+
+**What it needs, and what it refuses.** The mux is a **second ffmpeg pass** that
 copies the video stream and adds Opus — which must be a *system* ffmpeg, because
 the build Playwright downloads is video-only (`ffmpeg-1011`/`ffmpeg-1013` expose
 `png`, `libvpx` and `libvpx-vp9` and no audio codec at all). A run that asks for
@@ -429,8 +451,9 @@ expect the cache to return the same audio rather than to promise a fresh line
 would match it. The video-only path is untouched by any of this — a run without
 narration produces the file it always did.
 
-`--voice <name>` and `--rate <wpm>` override the block, `--narration-tail <ms>`
-overrides the tail. Any captioned plan narrates as it stands:
+`--narration-engine <say|elevenlabs>`, `--narration-model <id>`, `--voice <name>`
+and `--rate <wpm>` override the block, and `--narration-tail <ms>` overrides the
+tail. Any captioned plan narrates as it stands:
 `plans/examples/signin-captions.plan.json` is the one to try.
 
 ### The checklist ticks itself off beside the video

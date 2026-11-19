@@ -9,6 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { createServer } from 'node:http';
 import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
@@ -825,6 +826,115 @@ test('a line repeated on a second tab is paced again, not treated as already spo
   const timeline = JSON.parse(await readFile(path.join(out, '.timeline.json'), 'utf8'));
   assert.equal(timeline.videos.length, 2, 'the new tab is a second recording');
   assert.ok(timeline.videos.every((video) => video.narrated === true), 'both files carry the voice');
+});
+
+/**
+ * A stand-in for the ElevenLabs API, for the end-to-end test.
+ *
+ * Answers every synthesis with raw PCM (`output_format=pcm_48000`) of a length
+ * the test knows, and keeps the requests so the flag can be followed from the
+ * command line to the body that was sent.
+ */
+async function stubElevenLabs({ ms = 1_500 } = {}) {
+  const requests = [];
+  const server = createServer((request, response) => {
+    let body = '';
+    request.on('data', (chunk) => {
+      body += chunk;
+    });
+    request.on('end', () => {
+      requests.push({ url: request.url, headers: request.headers, body });
+      response.writeHead(200, { 'content-type': 'audio/pcm' });
+      response.end(Buffer.alloc(Math.round((ms / 1_000) * 48_000) * 2));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  return { url: `http://127.0.0.1:${port}`, requests, close: () => new Promise((resolve) => server.close(resolve)) };
+}
+
+/**
+ * The same pipeline with the other engine.
+ *
+ * The engine is a choice, not an environment sniff: this plan carries no
+ * `video.narration.engine`, so `--narration-engine elevenlabs` is what makes the
+ * run speak through the API — and `--narration-model` has to reach the body, not
+ * just the log line. No `say` is involved at any point, which is the property a
+ * Linux host and CI depend on.
+ */
+test('--narration-engine elevenlabs speaks, paces and muxes through the API', async (t) => {
+  const ffmpeg = await findMuxFfmpeg();
+  if (!ffmpeg) return t.skip('narration needs a system ffmpeg with libopus');
+  if (!(await probeOpus({ ffmpeg }))) return t.skip('the system ffmpeg has no libopus encoder');
+
+  const api = await stubElevenLabs({ ms: 1_500 });
+  t.after(() => api.close());
+
+  const out = path.join(tmp, 'narrated-elevenlabs');
+  const res = await run(
+    [
+      PLAN('fixture-narration.plan.json'),
+      '--out', out,
+      '--video',
+      '--narration',
+      '--narration-engine', 'elevenlabs',
+      '--narration-model', 'eleven_turbo_v2_5',
+      '--voice', 'pNInz6obpgDQGcFmaJgB',
+    ],
+    {
+      ELEVENLABS_API_KEY: 'test-key',
+      ELEVENLABS_API_URL: api.url,
+      UI_PATH_RECORDER_CACHE_DIR: path.join(tmp, 'narration-cache-elevenlabs'),
+    },
+  );
+  assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
+  assert.match(
+    res.stdout,
+    /narration: 5 lines, engine elevenlabs \(eleven_turbo_v2_5\), voice pNInz6obpgDQGcFmaJgB @ 180 wpm \(speed 1\)/,
+  );
+  for (const stream of [res.stdout, res.stderr]) {
+    assert.doesNotMatch(stream, /past its step/, 'a step must still wait for its line');
+  }
+
+  // Five distinct lines, one request each, all at the format the reader expects
+  // and with the model the flag named.
+  assert.equal(api.requests.length, 5);
+  for (const request of api.requests) {
+    assert.match(request.url, /^\/v1\/text-to-speech\/pNInz6obpgDQGcFmaJgB\?output_format=pcm_48000$/);
+    assert.equal(request.headers['xi-api-key'], 'test-key');
+    assert.equal(JSON.parse(request.body).model_id, 'eleven_turbo_v2_5');
+    assert.equal(JSON.parse(request.body).voice_settings.speed, 1);
+  }
+
+  // The same artefacts as a `say` run: the voice is a track in the file, the
+  // picture is copied, and the subtitles transcribe the speech.
+  const probe = JSON.parse(
+    (
+      await runCommand(ffmpeg.replace(/ffmpeg$/, 'ffprobe'), [
+        '-v', 'error',
+        '-show_entries', 'stream=codec_type,codec_name',
+        '-of', 'json',
+        path.join(out, 'video', '01-main.webm'),
+      ])
+    ).stdout,
+  );
+  const kinds = probe.streams.map((stream) => `${stream.codec_type}:${stream.codec_name}`);
+  assert.ok(kinds.includes('audio:opus'), `the recording carries the voice (${kinds.join(', ')})`);
+  assert.ok(kinds.includes('video:vp9'), `the picture was copied (${kinds.join(', ')})`);
+
+  const vtt = await readFile(path.join(out, 'video', '01-main.vtt'), 'utf8');
+  assert.match(vtt, /fixture-narration · 5 cue\(s\)/);
+  assert.match(vtt, /Type the operator's email address, then continue\./);
+
+  const timeline = JSON.parse(await readFile(path.join(out, '.timeline.json'), 'utf8'));
+  assert.equal(timeline.videos[0].narrated, true);
+});
+
+test('--narration-engine refuses a name that is not an engine, before anything runs', async () => {
+  const bad = await run([PLAN('fixture-narration.plan.json'), '--out', path.join(tmp, 'bad-engine'), '--video', '--narration', '--narration-engine', 'gpt-voice']);
+  assert.equal(bad.code, 2);
+  assert.match(bad.stderr, /--narration-engine must be one of say, elevenlabs/);
+  assert.equal(existsSync(path.join(tmp, 'bad-engine')), false);
 });
 
 test('humanizing changes the pacing, not the picture — and replays the same path', async (t) => {

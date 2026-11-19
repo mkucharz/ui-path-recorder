@@ -71,10 +71,16 @@ import { NARROW_VIEWPORT, checklistOptions, checklistReserve } from '../lib/chec
 import { createRecorder } from '../lib/recorder.mjs';
 import { actionOf, createTimeline } from '../lib/timeline.mjs';
 import {
+  ELEVENLABS_API_URL,
+  ELEVENLABS_DEFAULT_MODEL,
+  ELEVENLABS_KEY_HINT,
+  ELEVENLABS_SPEED_RANGE,
+  ENGINES,
   NarrationError,
   NARRATION_FFMPEG_HINT,
   SAY_HINT,
   defaultCacheDir,
+  elevenLabsSpeed,
   findMuxFfmpeg,
   findSay,
   muxNarration,
@@ -83,7 +89,9 @@ import {
   pcmMs,
   placeCues,
   probeOpus,
+  resolveElevenLabsVoice,
   resolveNarration,
+  synthesizeElevenLabs,
   synthesizeSay,
   writeWav,
 } from '../lib/narration.mjs';
@@ -93,7 +101,8 @@ const USAGE = `usage:
                                         [--profile <dir>] [--video] [--trace]
                                         [--humanize] [--no-humanize] [--seed <s>] [--speed <n>]
                                         [--video-fps <n>] [--video-size <WxH>] [--poster <shot-id>]
-                                        [--narration] [--no-narration] [--voice <name>] [--rate <wpm>]
+                                        [--narration] [--no-narration] [--narration-engine <say|elevenlabs>]
+                                        [--narration-model <id>] [--voice <name>] [--rate <wpm>]
                                         [--narration-tail <ms>]
                                         [--vars-out <file>] [--no-trim] [--headed] [--channel <name>]
   node scripts/path-shots.mjs --login --login-url <url> [--profile <dir>] [--login-done-file <path>]
@@ -116,12 +125,16 @@ const USAGE = `usage:
                     viewport's shape and be no larger than it: Playwright never
                     scales a recording up, it pads the canvas with a band
   --poster <id>     figure to show in the player before play (default: the first frame)
-  --narration       speak each step with macOS say and mux the audio into the recording
-                    (implies the humanizer, needs --video and --speed 1; a plan turns it
-                    on by carrying "video.narration")
+  --narration       speak each step and mux the audio into the recording (implies the
+                    humanizer, needs --video and --speed 1; a plan turns it on by
+                    carrying "video.narration")
   --no-narration    record silently even when the plan carries "video.narration"
-  --voice <name>    say -v voice, e.g. "Ava" (default: the system voice)
-  --rate <wpm>      words per minute for say -r (default: 180)
+  --narration-engine <say|elevenlabs>  who speaks the lines (default: say, macOS, no key;
+                    elevenlabs needs ELEVENLABS_API_KEY)
+  --narration-model <id>  ElevenLabs model (default: eleven_multilingual_v2)
+  --voice <name>    say -v voice, or an ElevenLabs voice name or id (default: the
+                    system voice, or a premade ElevenLabs voice)
+  --rate <wpm>      speaking rate (default: 180); ElevenLabs maps it to its 0.7–1.2 speed
   --narration-tail <ms>  silence after each line before the next step (default: 400)
   --trace           write <out>/trace.zip (open it with: npx playwright-core show-trace)
   --vars-out <file> keep values read by setVar (default: <out>/.vars.json, mode 600)
@@ -145,6 +158,8 @@ const VALUE_FLAGS = new Set([
   '--video-fps',
   '--video-size',
   '--poster',
+  '--narration-engine',
+  '--narration-model',
   '--voice',
   '--rate',
   '--narration-tail',
@@ -180,6 +195,8 @@ const posterFlag = flag('--poster');
 // null means "the plan decides": `--narration` turns it on, `--no-narration`
 // turns it off, and a plan carrying `video.narration` turns it on by itself.
 const narrationFlag = has('--no-narration') ? false : has('--narration') ? true : null;
+const narrationEngineFlag = flag('--narration-engine');
+const narrationModelFlag = flag('--narration-model');
 const voiceFlag = flag('--voice');
 const rateFlag = flag('--rate');
 const narrationTailFlag = flag('--narration-tail');
@@ -210,6 +227,14 @@ if (rateFlag !== null && (!Number.isFinite(Number(rateFlag)) || Number(rateFlag)
 }
 if (narrationTailFlag !== null && (!Number.isFinite(Number(narrationTailFlag)) || Number(narrationTailFlag) < 0)) {
   console.error(`--narration-tail must be a number of milliseconds >= 0 (got ${JSON.stringify(narrationTailFlag)})`);
+  process.exit(2);
+}
+// Checked here rather than after the plan is read: an unknown engine is a typo in
+// the invocation, and it should not wait for a file to be opened to be refused.
+if (narrationEngineFlag !== null && !ENGINES.includes(narrationEngineFlag)) {
+  console.error(
+    `--narration-engine must be one of ${ENGINES.join(', ')} (got ${JSON.stringify(narrationEngineFlag)})`,
+  );
   process.exit(2);
 }
 
@@ -266,6 +291,8 @@ const humanSeed = seedFlag ?? plan?.humanize?.seed ?? `run-${stamp}`;
  */
 const narrationSettings = resolveNarration({
   enabled: narrationFlag,
+  engine: narrationEngineFlag,
+  model: narrationModelFlag,
   voice: voiceFlag,
   rate: rateFlag === null ? null : Number(rateFlag),
   tailMs: narrationTailFlag === null ? null : Number(narrationTailFlag),
@@ -308,11 +335,9 @@ if (narrationSettings.enabled && !plan?.video?.narration) {
 let narrationAudio = null;
 let narrationFfmpeg = null;
 if (narrationSettings.enabled) {
-  const sayPath = await findSay();
-  if (!sayPath) {
-    console.error(`\n  ${SAY_HINT}\n`);
-    process.exit(2);
-  }
+  // The mux is engine-independent, so it is checked once and first: a recording
+  // with no way to add its track should stop before a key is read or a line is
+  // spoken, not after.
   narrationFfmpeg = await findMuxFfmpeg();
   if (!narrationFfmpeg) {
     console.error(`\n  ${NARRATION_FFMPEG_HINT}\n`);
@@ -323,27 +348,68 @@ if (narrationSettings.enabled) {
     process.exit(2);
   }
 
+  // Who speaks. The engine is chosen, never sniffed: `say` needs a binary and
+  // ElevenLabs needs a key, and either gap is named here — before any line is
+  // spoken, rather than on the fifth with a half-filled cache.
+  const cacheDir = defaultCacheDir();
+  let speakLine;
+  let voiceLine;
+  if (narrationSettings.engine === 'elevenlabs') {
+    const key = (process.env.ELEVENLABS_API_KEY ?? '').trim();
+    if (!key) {
+      console.error(`\n  ${ELEVENLABS_KEY_HINT}\n`);
+      process.exit(2);
+    }
+    const apiUrl = (process.env.ELEVENLABS_API_URL ?? '').trim() || ELEVENLABS_API_URL;
+    const model = narrationSettings.model || ELEVENLABS_DEFAULT_MODEL;
+    const voice = await resolveElevenLabsVoice({
+      voice: narrationSettings.voice,
+      env: { ...process.env, ELEVENLABS_API_KEY: key },
+      apiUrl,
+    }).catch((error) => {
+      console.error(`\n  cannot choose the ElevenLabs voice: ${error.message}\n`);
+      process.exit(2);
+    });
+    if (voice.source === 'default') {
+      console.warn(
+        `  warning: no ElevenLabs voice named and ELEVENLABS_VOICE_ID is unset — using the premade voice ` +
+          `${voice.name} (${voice.id})`,
+      );
+    }
+    const { speed, wanted, clamped } = elevenLabsSpeed(narrationSettings.rate);
+    if (clamped) {
+      console.warn(
+        `  warning: ${narrationSettings.rate} wpm is outside ElevenLabs' ` +
+          `${ELEVENLABS_SPEED_RANGE.min}–${ELEVENLABS_SPEED_RANGE.max} speed range — using ${speed} (${wanted}×)`,
+      );
+    }
+    voiceLine = `engine elevenlabs (${model}), voice ${voice.name ?? voice.id} @ ${narrationSettings.rate} wpm (speed ${speed})`;
+    speakLine = (text) =>
+      synthesizeElevenLabs({ apiUrl, key, voiceId: voice.id, model, speed, text, dir: cacheDir });
+  } else {
+    const sayPath = await findSay();
+    if (!sayPath) {
+      console.error(`\n  ${SAY_HINT}\n`);
+      process.exit(2);
+    }
+    voiceLine = `voice ${narrationSettings.voice ?? 'system default'} @ ${narrationSettings.rate} wpm`;
+    speakLine = (text) =>
+      synthesizeSay({ say: sayPath, text, voice: narrationSettings.voice, rate: narrationSettings.rate, dir: cacheDir });
+  }
+
   // One line per distinct text: two steps that say the same thing are one cue,
   // and speaking it twice would be a stutter the pacing cannot undo.
   const lines = [...new Set((plan?.steps ?? []).map(narrationText).filter(Boolean))];
   if (!lines.length) {
     console.warn('  warning: narration is on but no step carries a "caption" or "say" — the recording stays silent');
   } else {
-    const cacheDir = defaultCacheDir();
     console.log(
       `  narration: ${lines.length} line${lines.length === 1 ? '' : 's'}` +
-        `, voice ${narrationSettings.voice ?? 'system default'} @ ${narrationSettings.rate} wpm,` +
-        ` ${narrationSettings.tailMs}ms tail`,
+        `, ${voiceLine}, ${narrationSettings.tailMs}ms tail`,
     );
     narrationAudio = new Map();
     for (const [n, text] of lines.entries()) {
-      const line = await synthesizeSay({
-        say: sayPath,
-        text,
-        voice: narrationSettings.voice,
-        rate: narrationSettings.rate,
-        dir: cacheDir,
-      }).catch((error) => {
+      const line = await speakLine(text).catch((error) => {
         console.error(`\n  cannot speak line ${n + 1} of ${lines.length}: ${error.message}\n  ${JSON.stringify(text)}\n`);
         process.exit(2);
       });

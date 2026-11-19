@@ -313,18 +313,28 @@
         "narration": {
           "type": "object",
           "additionalProperties": false,
-          "description": "Speak each step with macOS `say` and mux the audio into the recording. Its presence turns narration on for the plan; `--no-narration` overrides it without editing the file. Needs `--video`, `--speed 1`, the humanizer, a `say` on PATH and a system ffmpeg with libopus.",
+          "description": "Speak each step and mux the audio into the recording. Its presence turns narration on for the plan; `--no-narration` overrides it without editing the file. Needs `--video`, `--speed 1`, the humanizer and a system ffmpeg with libopus, plus the chosen engine: macOS `say` on PATH by default, or `ELEVENLABS_API_KEY` for `elevenlabs`.",
           "properties": {
+            "engine": {
+              "enum": ["say", "elevenlabs"],
+              "default": "say",
+              "description": "Who speaks. `say` is macOS's own voice: no install, no key, no network. `elevenlabs` reads each line over HTTPS, needs `ELEVENLABS_API_KEY` in the environment (never in the plan) and caches the audio by voice, model and wording like `say` does."
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The `elevenlabs` model id, e.g. `eleven_multilingual_v2` (the default) or `eleven_turbo_v2_5`. Ignored by `say`, which has no models."
+            },
             "voice": {
               "type": "string",
               "minLength": 1,
-              "description": "A `say -v` voice name, e.g. `Ava` or `Daniel`. Omit it for the system default. Pinning it is what makes a re-record sound like the last one."
+              "description": "A `say -v` voice name, e.g. `Ava` or `Daniel` — or an ElevenLabs voice name or 20-character id. Omit it for the engine default (the system voice, or the premade ElevenLabs voice). Pinning it is what makes a re-record sound like the last one."
             },
             "rate": {
               "type": "number",
               "exclusiveMinimum": 0,
               "default": 180,
-              "description": "Speaking rate in words per minute (`say -r`). 180 is conversational; slower reads as instruction, faster as an advert."
+              "description": "Speaking rate in words per minute (`say -r`). 180 is conversational; slower reads as instruction, faster as an advert. ElevenLabs maps it to its own `voice_settings.speed`, clamped to the 0.7–1.2 the API accepts."
             },
             "tailMs": {
               "type": "number",
