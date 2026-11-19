@@ -5,7 +5,7 @@ name: release
 # `npx skills add mkucharz/ui-path-recorder` already works against `main` — the CLI
 # discovers a `SKILL.md` at a repository's root — but "works against main" is not a
 # version: an agent that ran today and again next month may have run two different
-# skills. A tag pins it (`…@v0.2.0`), which is what `skills-lock.json` records.
+# skills. A tag pins it (`…@v0.5.0`), which is what `skills-lock.json` records.
 #
 # So this workflow turns a tag into a release that carries the skill as one
 # tarball: SKILL.md, the CLI, the library, the example app and the reference —

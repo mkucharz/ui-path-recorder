@@ -73,6 +73,7 @@ import { actionOf, createTimeline } from '../lib/timeline.mjs';
 import {
   ELEVENLABS_API_URL,
   ELEVENLABS_DEFAULT_MODEL,
+  ELEVENLABS_DEFAULT_VOICE_SETTINGS,
   ELEVENLABS_KEY_HINT,
   ELEVENLABS_SPEED_RANGE,
   ENGINES,
@@ -81,9 +82,12 @@ import {
   SAY_HINT,
   defaultCacheDir,
   elevenLabsSpeed,
+  elevenLabsSupportsStitching,
   findMuxFfmpeg,
   findSay,
+  loadDotEnv,
   muxNarration,
+  narrationCopyWarnings,
   narrationRefusal,
   narrationText,
   pcmMs,
@@ -240,6 +244,23 @@ if (narrationEngineFlag !== null && !ENGINES.includes(narrationEngineFlag)) {
 
 const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 
+/**
+ * A gitignored `.env` in the working directory, for what should not be typed
+ * into a shell: `ELEVENLABS_API_KEY`, and the `SIGNIN_URL`-style values a plan
+ * expands. Variables already in the environment win (that is
+ * `process.loadEnvFile`'s own behaviour, not a rule added here), so a one-off
+ * `SIGNIN_URL=… node …` still overrides the file.
+ */
+const dotenv = await loadDotEnv();
+if (dotenv.loaded) console.log(`  env: loaded ${path.relative(process.cwd(), dotenv.loaded) || '.env'}`);
+// Why the file was *not* read, for the two answers that mean something is wrong:
+// an old Node cannot read one at all, and a malformed file is not loaded — both
+// look exactly like a wrong key from the outside. "There is no `.env` here" and
+// "the key is already exported" are the normal cases and stay quiet.
+else if (dotenv.reason && !['no .env', 'ELEVENLABS_API_KEY is already set'].includes(dotenv.reason)) {
+  console.log(`  env: ${dotenv.reason}`);
+}
+
 // A plan is validated before a browser opens: a mistyped step key is otherwise
 // a step that silently does nothing.
 let plan = null;
@@ -329,6 +350,22 @@ if (narrationProblem) {
 // turned narration on, the same mismatch is still worth saying out loud.
 if (narrationSettings.enabled && !plan?.video?.narration) {
   for (const warning of narrationCaptionWarnings(plan?.steps ?? [])) console.warn(`  warning: ${warning}`);
+  for (const warning of narrationCopyWarnings(plan?.steps ?? [])) console.warn(`  warning: ${warning}`);
+}
+
+/** The delivery settings that differ from the service's defaults, for one line of output. */
+function describeDelivery(settings = {}) {
+  const defaults = ELEVENLABS_DEFAULT_VOICE_SETTINGS;
+  const parts = [];
+  if (settings.stability != null && settings.stability !== defaults.stability) parts.push(`stability ${settings.stability}`);
+  if (settings.style != null && settings.style !== defaults.style) parts.push(`style ${settings.style}`);
+  if (settings.similarityBoost != null && settings.similarityBoost !== defaults.similarity_boost) {
+    parts.push(`similarity ${settings.similarityBoost}`);
+  }
+  if (settings.speakerBoost != null && settings.speakerBoost !== defaults.use_speaker_boost) {
+    parts.push(`speaker boost ${settings.speakerBoost ? 'on' : 'off'}`);
+  }
+  return parts.join(', ');
 }
 
 /** Last thing set up before the browser opens: the spoken lines, keyed by text. */
@@ -383,9 +420,31 @@ if (narrationSettings.enabled) {
           `${ELEVENLABS_SPEED_RANGE.min}–${ELEVENLABS_SPEED_RANGE.max} speed range — using ${speed} (${wanted}×)`,
       );
     }
-    voiceLine = `engine elevenlabs (${model}), voice ${voice.name ?? voice.id} @ ${narrationSettings.rate} wpm (speed ${speed})`;
-    speakLine = (text) =>
-      synthesizeElevenLabs({ apiUrl, key, voiceId: voice.id, model, speed, text, dir: cacheDir });
+    // Where the delivery differs from the API's defaults, say so: it is the part
+    // of a narrated run a listener notices and a plan author has to have set.
+    const delivery = describeDelivery(narrationSettings.voiceSettings);
+    voiceLine =
+      `engine elevenlabs (${model}), voice ${voice.name ?? voice.id} @ ${narrationSettings.rate} wpm (speed ${speed})` +
+      (delivery ? `, ${delivery}` : '');
+    if (!elevenLabsSupportsStitching(model)) {
+      console.warn(
+        `  note: ${model} does not accept previous_text/next_text, so each line is read from its own sentence ` +
+          'alone. eleven_multilingual_v2 is the model that carries the cadence across steps',
+      );
+    }
+    speakLine = ({ text, previous = null, next = null }) =>
+      synthesizeElevenLabs({
+        apiUrl,
+        key,
+        voiceId: voice.id,
+        model,
+        speed,
+        voiceSettings: narrationSettings.voiceSettings,
+        previousText: previous,
+        nextText: next,
+        text,
+        dir: cacheDir,
+      });
   } else {
     const sayPath = await findSay();
     if (!sayPath) {
@@ -393,7 +452,7 @@ if (narrationSettings.enabled) {
       process.exit(2);
     }
     voiceLine = `voice ${narrationSettings.voice ?? 'system default'} @ ${narrationSettings.rate} wpm`;
-    speakLine = (text) =>
+    speakLine = ({ text }) =>
       synthesizeSay({ say: sayPath, text, voice: narrationSettings.voice, rate: narrationSettings.rate, dir: cacheDir });
   }
 
@@ -405,11 +464,23 @@ if (narrationSettings.enabled) {
   } else {
     console.log(
       `  narration: ${lines.length} line${lines.length === 1 ? '' : 's'}` +
-        `, ${voiceLine}, ${narrationSettings.tailMs}ms tail`,
+        `, ${voiceLine}, ${narrationSettings.tailMs}ms tail, fit ${narrationSettings.fit}`,
     );
+    // The narrator's neighbours are the lines around this one in the plan, not
+    // in the deduplicated list: they are what the model is shown to keep the
+    // cadence, and a repeat later in the run should not inherit a different
+    // context than the first time it was spoken.
+    const sequence = (plan?.steps ?? []).map(narrationText);
+    const neighboursOf = (text) => {
+      const at = sequence.indexOf(text);
+      if (at === -1) return { previous: null, next: null };
+      const before = sequence.slice(0, at).filter(Boolean);
+      const after = sequence.slice(at + 1).filter(Boolean);
+      return { previous: before.at(-1) ?? null, next: after[0] ?? null };
+    };
     narrationAudio = new Map();
     for (const [n, text] of lines.entries()) {
-      const line = await speakLine(text).catch((error) => {
+      const line = await speakLine({ text, ...neighboursOf(text) }).catch((error) => {
         console.error(`\n  cannot speak line ${n + 1} of ${lines.length}: ${error.message}\n  ${JSON.stringify(text)}\n`);
         process.exit(2);
       });
@@ -443,18 +514,29 @@ const lastSpokenByPage = new Map();
  * word. Measured on the timeline's clock — the same one a step's `startMs` is on,
  * not `Date.now()`.
  *
- * A line already spoken on this tab owes nothing: consecutive steps that share a
- * caption are one cue (see `lib/captions.mjs`), and their audio was placed at the
- * *first* of them. Without this the second step sits in dead air for a sentence
- * nobody is saying.
+ * A line already spoken on this tab needs no time of its own: consecutive steps
+ * that share a caption are one cue (see `lib/captions.mjs`), and their audio was
+ * placed at the *first* of them. Without this the second step sits in dead air for
+ * a sentence nobody is saying — but it is still a step with **no line of its
+ * own**, so it answers `null` rather than `0`. Returning `0` reads as "the copy
+ * asked for zero milliseconds", and under `fit: "line"` that strips the `hold`
+ * too: a plan would lose its still moment because two steps happened to share a
+ * caption.
+ *
+ * `null` therefore means "this step has no line to fit", which is what lets
+ * `fit: "line"` tell "the copy decides this step's length" apart from "there is no
+ * copy here, fall back to the hold" — whether the copy is absent, already spoken,
+ * or the run is silent.
+ *
+ * @returns {number|null} milliseconds owed, or null when this step has no line
  */
 function narrationBeat(index, record) {
-  if (!narrationAudio) return 0;
+  if (!narrationAudio) return null;
   const spoken = narrationText(plan.steps[index]);
   const audio = narrationAudio.get(spoken);
-  if (!audio) return 0;
+  if (!audio) return null;
   const page = record.page ?? 1;
-  if (lastSpokenByPage.get(page) === spoken) return 0;
+  if (lastSpokenByPage.get(page) === spoken) return null;
   lastSpokenByPage.set(page, spoken);
   const elapsed = Math.max(0, timeline.now() - record.startMs);
   return Math.max(0, audio.ms + narrationSettings.tailMs - elapsed);
@@ -1255,7 +1337,14 @@ try {
     // Narrated, the beat is also what keeps the screen up until the line is
     // spoken: `hold` is the only lever the runner has over "how long this step
     // lasts", and the cue's window is the step.
-    const beatMs = Math.max(step.hold ?? 0, narrationBeat(i, record.record));
+    //
+    // `fit: "hold"` keeps the plan in charge (`max(hold, owed)`); `fit: "line"`
+    // hands the step's length to its sentence, so a walkthrough built from real
+    // spoken lines has no silence the voice was never going to fill.
+    const owed = narrationBeat(i, record.record);
+    const holdMs = step.hold ?? 0;
+    const beatMs =
+      owed === null ? holdMs : narrationSettings.fit === 'line' ? owed : Math.max(holdMs, owed);
     if (beatMs > 0) await human.hold(beatMs);
     // Read a value off the page into a plan variable. An installer that
     // generates a first password and shows it once cannot be driven from an

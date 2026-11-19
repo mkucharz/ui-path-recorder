@@ -143,16 +143,22 @@ with, so it writes the track only and warns; see `references/plan-format.md` →
 And it can **speak**: `--narration` (or `"video.narration"` in the plan) reads
 each step aloud and muxes the voice into the recording. Two engines speak it:
 macOS `say` by default (no install, no key, no network), or ElevenLabs over HTTPS
-with `--narration-engine elevenlabs` and `ELEVENLABS_API_KEY` in the environment —
-never in the plan. A step's `say` defaults to its `caption`, so the pill, the
-`.vtt` and the voice agree; write a `say` when the heard sentence and the read
-line should differ, and the `.vtt` then transcribes the speech while the pill
-keeps the short caption. Narration is a two-pass run — lines are synthesized
-before the browser opens, and the step that starts a cue waits
-`max(hold, line + tailMs)` — which is why `--narration` needs `--video`, the
-humanizer and `--speed 1`. It also needs a system ffmpeg with libopus
-(Playwright's bundled one is video-only), and it refuses to run without one
-before opening a browser.
+with `--narration-engine elevenlabs` and `ELEVENLABS_API_KEY` in the environment or
+a gitignored `.env` — never in the plan. A step's `say` defaults to its `caption`,
+so the pill, the `.vtt` and the voice agree; write a `say` when the heard sentence
+and the read line should differ, and the `.vtt` then transcribes the speech while
+the pill keeps the short caption. Write it as speech: a caption read aloud is a
+label, and the run warns about the shortest ones. Narration is a two-pass run —
+lines are synthesized before the browser opens, and the step that starts a cue
+waits `max(hold, line + tailMs)`, or only the rest of its own sentence with
+`"fit": "line"` — which is why `--narration` needs `--video`, the humanizer and
+`--speed 1`. It also needs a system ffmpeg with libopus (Playwright's bundled one
+is video-only), and it refuses to run without one before opening a browser.
+ElevenLabs lines are requested with their neighbours attached, so consecutive
+steps read as one telling, and the delivery is the plan's
+(`stability`, `style`, `similarityBoost`, `speakerBoost`). To pick a voice instead
+of accepting the default, `node scripts/voice-audition.mjs` renders variants into
+one page meant to be listened to.
 `--no-narration` records a silent copy of a narrated plan (its `.vtt` falls back
 to the captions, since no voice was spoken); `--narration-engine`,
 `--narration-model`, `--voice`, `--rate` and `--narration-tail` override the
@@ -308,7 +314,9 @@ examples/signin/            a demo app the example plans run against
 captures/<run>/             figures + review.html + .shots.json + .vars.json
                             (+ .timeline.json and video/ when recorded)
 scripts/path-shots.mjs      the runner
+scripts/voice-audition.mjs  the same six lines several ways, to pick voice, copy and delivery by ear
 scripts/check-panel-theme.mjs  presets: shape, and drift against a product's app.css
+.env.example                the shape of the gitignored `.env` (the ElevenLabs key lives there)
 lib/human.mjs               how a recorded run is driven: pointer, travel, typing
 lib/recorder.mjs            how a recording is made: frames, resampling, ffmpeg
 lib/captions.mjs            a step's subtitle → the pill in the picture and its .vtt

@@ -708,6 +708,119 @@ test('--narration paces each step to its own line, and muxes it in', async (t) =
 });
 
 /**
+ * `fit: "line"` at the runner, not just in the arithmetic.
+ *
+ * The unit tests can say what a beat *should* be; only a run shows whether the
+ * step actually waited for the hold it was told to drop. The same plan is recorded
+ * twice with every step asking for a 6 s hold: the default `hold` gives each step
+ * `max(6 s, line)`, and `line` gives it only the rest of its own 1.5 s sentence.
+ * The difference is measured on the windows in the `.vtt` the two runs wrote.
+ *
+ * The third step repeats the second one's line on the same tab. That is one cue,
+ * not two — a narrated run transcribes the speech, and consecutive steps saying
+ * the same thing must not blink — so the only place the repeated step's `hold`
+ * can show is the length of the merged cue, which is how this asserts it.
+ */
+test('fit: "line" drops the step hold that fit: "hold" keeps', async (t) => {
+  const ffmpeg = await findMuxFfmpeg();
+  if (!ffmpeg) return t.skip('narration needs a system ffmpeg with libopus');
+  if (!(await probeOpus({ ffmpeg }))) return t.skip('the system ffmpeg has no libopus encoder');
+
+  const bin = await stubSay(tmp, ffmpeg);
+  const HOLD_MS = 6_000;
+
+  const planFor = (fit) => ({
+    tutorial: 'fixture-narration-fit',
+    baseUrl: '${FIXTURE_URL}',
+    locale: 'en-US',
+    viewport: { width: 900, height: 700 },
+    colorScheme: 'dark',
+    // Pinned so the two runs walk the same path: the comparison is between the
+    // plans' `fit`, and nothing else may differ.
+    humanize: { seed: 'fixture-narration-fit-v1', shotHoldMs: 300 },
+    video: { narration: { fit } },
+    vars: { password: { env: 'FIXTURE_PASSWORD' } },
+    steps: [
+      {
+        name: 'open the app',
+        caption: 'Open the app.',
+        say: 'Open the app on its welcome screen.',
+        goto: '/',
+        hold: HOLD_MS,
+      },
+      {
+        name: 'read the title',
+        caption: 'Read the title.',
+        say: 'The welcome screen is already showing.',
+        waitFor: { text: 'Welcome back' },
+        hold: HOLD_MS,
+      },
+      {
+        // The same line again on the same tab — one cue's worth of audio, already
+        // spoken, so this step owes the voice nothing. It still owes *itself* the
+        // hold it asked for, and that is the shape that used to lose it: a `0` beat
+        // is indistinguishable from "the copy asked for no time".
+        name: 'read the title again',
+        caption: 'The same title, still there.',
+        say: 'The welcome screen is already showing.',
+        waitFor: { text: 'Welcome back' },
+        hold: HOLD_MS,
+      },
+    ],
+  });
+
+  const record = async (fit) => {
+    const planPath = path.join(tmp, `narration-fit-${fit}.plan.json`);
+    await writeFile(planPath, JSON.stringify(planFor(fit), null, 2));
+    const out = path.join(tmp, `narration-fit-${fit}`);
+    const res = await run([planPath, '--out', out, '--video', '--narration', '--rate', '200'], {
+      PATH: `${bin}${path.delimiter}${process.env.PATH}`,
+      UI_PATH_RECORDER_CACHE_DIR: path.join(tmp, 'narration-cache-fit'),
+    });
+    assert.equal(res.code, 0, `exit ${res.code} under fit: ${fit}\n${res.stderr}`);
+    const probe = JSON.parse(
+      (
+        await runCommand(ffmpeg.replace(/ffmpeg$/, 'ffprobe'), [
+          '-v', 'error',
+          '-show_entries', 'format=duration',
+          '-of', 'json',
+          path.join(out, 'video', '01-main.webm'),
+        ])
+      ).stdout,
+    );
+    const vtt = await readFile(path.join(out, 'video', '01-main.vtt'), 'utf8');
+    const windows = [...vtt.matchAll(/(\d\d):(\d\d):(\d\d)\.(\d\d\d) --> (\d\d):(\d\d):(\d\d)\.(\d\d\d)/g)].map((match) => {
+      const ms = (h, m, s, f) => Number(h) * 3_600_000 + Number(m) * 60_000 + Number(s) * 1_000 + Number(f);
+      return ms(match[5], match[6], match[7], match[8]) - ms(match[1], match[2], match[3], match[4]);
+    });
+    return { ms: Math.round(Number(probe.format.duration) * 1000), windows };
+  };
+
+  const held = await record('hold');
+  const fitLine = await record('line');
+
+  // Steps 1 and 2 hold 6 s rather than 1.9 s, and step 3 holds in both modes
+  // because it has no line to fit: about 8.2 s less under `line`. The bounds are
+  // wide because a frame of encode rounding is not the claim.
+  const saved = held.ms - fitLine.ms;
+  assert.ok(saved > 6_000, `fit: "line" saved ${saved}ms — the hold was still applied`);
+  assert.ok(saved < 10_000, `fit: "line" saved ${saved}ms — more than the hold it dropped`);
+  // Step 3 repeats step 2's line, so those two steps are one cue.
+  assert.equal(fitLine.windows.length, 2, 'three steps, two distinct lines — two cues');
+
+  // The whole point: `line` paces step 1 by its 1.5 s sentence, so its cue is
+  // short; the merged cue covers step 2 *and* step 3, and step 3 has no line of
+  // its own, so it keeps its 6 s hold — which a `0` beat used to take away. Both
+  // modes keep every hold, which is what `hold` means.
+  assert.ok(fitLine.windows[0] < 3_000, `step 1 kept ${fitLine.windows[0]}ms under fit: "line"`);
+  assert.ok(
+    fitLine.windows[1] > 5_000,
+    `the repeated line's step kept only ${fitLine.windows[1]}ms of its 6 s hold under fit: "line"`,
+  );
+  for (const window of held.windows) assert.ok(window > 5_000, `fit: "hold" kept ${window}ms of the 6 s hold`);
+});
+
+/**
  * A plan that narrates is still a plan you can run for figures.
  *
  * `video.intro`/`video.outro` are ignored without `--video` for the same reason:

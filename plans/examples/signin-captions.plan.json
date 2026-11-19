@@ -1,6 +1,6 @@
 {
   "tutorial": "signin-captions",
-  "description": "The same sign-in card, narrated: every step carries the subtitle a reader sees while the recording plays, and the run writes the same text beside the video as a WebVTT file.",
+  "description": "The same sign-in card, narrated: every step carries the subtitle a reader sees while the recording plays, and the run writes the same text beside the video as a WebVTT file. Each step also writes the line the voice says, which is not the subtitle — a sentence is heard over several seconds, a subtitle is read at a glance.",
   "baseUrl": "${SIGNIN_URL}",
   "locale": "en-US",
   "viewport": { "width": 1600, "height": 900 },
@@ -9,6 +9,9 @@
   "humanize": {
     "seed": "signin-captions-v1",
     "shotHoldMs": 1600
+  },
+  "video": {
+    "narration": { "fit": "line" }
   },
   "vars": {
     "lang": { "literal": "en" },
@@ -19,32 +22,38 @@
     {
       "name": "open the sign-in page",
       "caption": "Open the sign-in page for your workspace.",
+      "say": "First, let's open the sign-in page for your workspace.",
       "goto": "/?lang=${lang}"
     },
     {
       "name": "the form is on screen, still signing in with a password",
       "caption": "Sign in with the address and password you already use.",
+      "say": "You'll use the same email and password as always — nothing new to remember.",
       "expect": { "selector": ["#signin-card", "#email", "#password", "#submit"] },
       "shot": { "id": "01-signin", "clip": "#signin-card", "pad": 48 }
     },
     {
       "name": "fill the email",
       "caption": "Type the email address on your account.",
+      "say": "Start with the email address tied to your account.",
       "fill": { "selector": "#email", "value": "${email}" }
     },
     {
       "name": "fill the password",
       "caption": "Then the password.",
+      "say": "Type the password that goes with that address.",
       "fill": { "selector": "#password", "value": "${password}" }
     },
     {
       "name": "sign in",
       "caption": "Choose Sign in.",
+      "say": "Press Sign in when you're ready.",
       "click": "#submit"
     },
     {
       "name": "the workspace is on screen",
       "caption": "You land in your workspace, signed in.",
+      "say": "And you're in — your workspace opens already signed in.",
       "expect": { "selector": "#dashboard" },
       "shot": { "id": "02-workspace" }
     }

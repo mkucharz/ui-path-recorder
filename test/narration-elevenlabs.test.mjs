@@ -13,7 +13,7 @@
  */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -24,6 +24,9 @@ import {
   SAMPLE_RATE,
   elevenLabsRequest,
   elevenLabsSpeed,
+  elevenLabsSupportsStitching,
+  elevenLabsVoiceSettings,
+  loadDotEnv,
   looksLikeVoiceId,
   narrationKey,
   pcmMs,
@@ -89,7 +92,7 @@ test('a voice id is recognised by its shape, so a scoped key needs no listing', 
   assert.equal(looksLikeVoiceId(null), false);
 });
 
-test('the request carries the text, the model and the speed, and asks for PCM', () => {
+test('the request carries the text, the model, the delivery and the neighbours', () => {
   const { url, init } = elevenLabsRequest({
     apiUrl: 'https://api.example.test/',
     voiceId: 'pNInz6obpgDQGcFmaJgB',
@@ -97,6 +100,9 @@ test('the request carries the text, the model and the speed, and asks for PCM', 
     text: 'Open the sign-in page.',
     model: ELEVENLABS_DEFAULT_MODEL,
     speed: 1.1,
+    voiceSettings: { stability: 0.35 },
+    previousText: 'Press Sign in when you are ready.',
+    nextText: 'Type your email address.',
   });
   assert.equal(url, 'https://api.example.test/v1/text-to-speech/pNInz6obpgDQGcFmaJgB?output_format=pcm_48000');
   assert.equal(init.method, 'POST');
@@ -106,8 +112,71 @@ test('the request carries the text, the model and the speed, and asks for PCM', 
   assert.deepEqual(JSON.parse(init.body), {
     text: 'Open the sign-in page.',
     model_id: ELEVENLABS_DEFAULT_MODEL,
-    voice_settings: { speed: 1.1 },
+    apply_text_normalization: 'on',
+    previous_text: 'Press Sign in when you are ready.',
+    next_text: 'Type your email address.',
+    voice_settings: {
+      stability: 0.35,
+      similarity_boost: 0.75,
+      style: 0,
+      use_speaker_boost: true,
+      speed: 1.1,
+    },
   });
+});
+
+test('a dialogue model is sent no neighbours, because it answers 400 for them', () => {
+  const { init } = elevenLabsRequest({
+    voiceId: 'v'.repeat(20),
+    key: 'k',
+    text: 'Hello.',
+    model: 'eleven_v3',
+    previousText: 'Before.',
+    nextText: 'After.',
+  });
+  const body = JSON.parse(init.body);
+  assert.equal(body.previous_text, undefined, 'eleven_v3 does not take previous_text');
+  assert.equal(body.next_text, undefined, 'eleven_v3 does not take next_text');
+  // Everything else still applies: only the continuity is lost, not the delivery.
+  assert.equal(body.apply_text_normalization, 'on');
+  assert.equal(body.voice_settings.stability, 0.5);
+});
+
+test('stitching is per model: the eleven_v3 family refuses neighbours, eleven_v4 does not', () => {
+  assert.equal(elevenLabsSupportsStitching('eleven_multilingual_v2'), true);
+  assert.equal(elevenLabsSupportsStitching('eleven_turbo_v2_5'), true);
+  // The dialogue models answer 400 with `unsupported_model` — verified against the
+  // live API for all three of these, not inferred from the name.
+  assert.equal(elevenLabsSupportsStitching('eleven_v3'), false);
+  assert.equal(elevenLabsSupportsStitching('eleven_v3_conversational'), false);
+  assert.equal(elevenLabsSupportsStitching('eleven_v3_directorial'), false);
+  // eleven_v4 takes them (200 with both set), so a "v3 or v4" match would drop
+  // continuity the API is happy to use.
+  assert.equal(elevenLabsSupportsStitching('eleven_v4'), true);
+  assert.equal(elevenLabsSupportsStitching(null), true, 'the default model stitches');
+  // A model nobody has shipped yet is assumed to stitch: the fallback is a warning
+  // and a poorer cadence, not a failed run.
+  assert.equal(elevenLabsSupportsStitching('eleven_v3_turbo'), false);
+  assert.equal(elevenLabsSupportsStitching('eleven_v5'), true);
+});
+
+test('the delivery settings default to the service defaults, fully spelled out', () => {
+  assert.deepEqual(elevenLabsVoiceSettings({ speed: 1 }), {
+    stability: 0.5,
+    similarity_boost: 0.75,
+    style: 0,
+    use_speaker_boost: true,
+    speed: 1,
+  });
+  assert.deepEqual(elevenLabsVoiceSettings({ speed: 0.9, stability: 0.3, speakerBoost: false }), {
+    stability: 0.3,
+    similarity_boost: 0.75,
+    style: 0,
+    use_speaker_boost: false,
+    speed: 0.9,
+  });
+  // The plan's spelling is camelCase; the body's is the API's.
+  assert.equal(elevenLabsVoiceSettings({ similarityBoost: 0.4 }).similarity_boost, 0.4);
 });
 
 test('a line is fetched once, stored as a WAV, and served from the cache after', async (t) => {
@@ -155,6 +224,24 @@ test('the same words in two engines are two recordings, not one cache hit', () =
   assert.notEqual(eleven, otherModel);
   // The say key is untouched, so an existing cache survives the upgrade.
   assert.equal(say, narrationKey({ text: 'Hello.', voice: 'Ava', rate: 180, engine: 'say' }));
+});
+
+/**
+ * Delivery and neighbours are part of what comes back, so they are part of the
+ * key. Without this a plan that lowers `stability` replays yesterday's audio and
+ * reports it as a cache hit — a setting that silently does nothing.
+ */
+test('a delivery change or a neighbouring sentence is a different recording', () => {
+  const base = { text: 'Hello.', voice: 'v'.repeat(20), rate: 1, engine: 'elevenlabs', model: 'm1' };
+  const quiet = narrationKey({ ...base, settings: { stability: 0.3 } });
+  const steady = narrationKey({ ...base, settings: { stability: 0.6 } });
+  assert.notEqual(quiet, steady);
+  assert.equal(quiet, narrationKey({ ...base, settings: { stability: 0.3 } }), 'the same settings are the same key');
+
+  const first = narrationKey({ ...base, context: [null, 'Second.'] });
+  const after = narrationKey({ ...base, context: ['Before.', 'Second.'] });
+  assert.notEqual(first, after, 'the sentence before this one changes the reading');
+  assert.notEqual(narrationKey({ ...base, context: ['Before.', null] }), first);
 });
 
 test('a truncated last sample is dropped, not padded into a click', async (t) => {
@@ -321,4 +408,109 @@ test('the voice defaults are the plan, then the environment, then a premade voic
   assert.deepEqual(fallback, { ...ELEVENLABS_DEFAULT_VOICE, source: 'default' });
   // A default that a free workspace cannot use would be a default nobody can try.
   assert.equal(looksLikeVoiceId(fallback.id), true);
+});
+
+/**
+ * The key comes from a file, because the alternative is a key typed into a shell
+ * history, a chat message or a CI log. What is asserted here is only the seam:
+ * the file is read, the environment wins over it, and nothing prints a value.
+ */
+test('a gitignored .env supplies the key, and the environment still wins', async (t) => {
+  const dir = await temp();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await writeFile(path.join(dir, '.env'), 'ELEVENLABS_API_KEY=from-file\nSIGNIN_URL=http://from-file.test\n');
+
+  const before = process.env.ELEVENLABS_API_KEY;
+  delete process.env.ELEVENLABS_API_KEY;
+  t.after(() => {
+    if (before === undefined) delete process.env.ELEVENLABS_API_KEY;
+    else process.env.ELEVENLABS_API_KEY = before;
+  });
+
+  const loaded = await loadDotEnv({ cwd: dir });
+  assert.equal(loaded.loaded, path.join(dir, '.env'));
+  assert.equal(process.env.ELEVENLABS_API_KEY, 'from-file');
+  assert.equal(process.env.SIGNIN_URL, 'http://from-file.test');
+
+  // A variable already set is not replaced: a one-off override stays an override.
+  const again = await loadDotEnv({ cwd: dir });
+  assert.equal(again.loaded, null);
+  assert.match(again.reason, /already set/);
+  assert.equal(process.env.ELEVENLABS_API_KEY, 'from-file');
+});
+
+test('a missing .env is not an error, it is just nothing to load', async (t) => {
+  const dir = await temp();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  // No key in the environment either, or the answer is "already set" — which is a
+  // different (and correct) statement, not the one under test.
+  const before = process.env.ELEVENLABS_API_KEY;
+  delete process.env.ELEVENLABS_API_KEY;
+  t.after(() => {
+    if (before !== undefined) process.env.ELEVENLABS_API_KEY = before;
+  });
+  const result = await loadDotEnv({ cwd: dir });
+  assert.equal(result.loaded, null);
+  assert.equal(result.reason, 'no .env');
+});
+
+test('a Node too old to read a .env says so, rather than reporting no key', async (t) => {
+  const dir = await temp();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await writeFile(path.join(dir, '.env'), 'ELEVENLABS_API_KEY=from-file\n');
+
+  const beforeKey = process.env.ELEVENLABS_API_KEY;
+  delete process.env.ELEVENLABS_API_KEY;
+  // `process.loadEnvFile` arrived in Node 20.12, and `package.json` accepts 20.0 —
+  // on those two releases a `.env` that is sitting right there is invisible, which
+  // from the outside is indistinguishable from a wrong key. The reason is the only
+  // thing that tells them apart, so it names the version requirement.
+  const loadEnvFile = process.loadEnvFile;
+  delete process.loadEnvFile;
+  t.after(() => {
+    process.loadEnvFile = loadEnvFile;
+    if (beforeKey !== undefined) process.env.ELEVENLABS_API_KEY = beforeKey;
+  });
+
+  const result = await loadDotEnv({ cwd: dir });
+  assert.equal(result.loaded, null);
+  assert.match(result.reason, /20\.12/);
+  assert.match(result.reason, /cannot read \.env/);
+});
+
+test('the neighbours reach the body and are part of what is cached', async (t) => {
+  const api = await startApi(({ response }) => {
+    response.writeHead(200, { 'content-type': 'audio/pcm' });
+    response.end(pcm(800));
+  });
+  t.after(() => api.close());
+  const dir = await temp();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+
+  const speak = (previousText) =>
+    synthesizeElevenLabs({
+      apiUrl: api.url,
+      key: 'k',
+      voiceId: 'v'.repeat(20),
+      text: 'And choose Sign in.',
+      previousText,
+      nextText: "That's it — you're in.",
+      voiceSettings: { stability: 0.35 },
+      dir,
+    });
+
+  const first = await speak('Then your password.');
+  assert.equal(first.stitched, true);
+  const body = JSON.parse(api.requests[0].body);
+  assert.equal(body.previous_text, 'Then your password.');
+  assert.equal(body.next_text, "That's it — you're in.");
+  assert.equal(body.voice_settings.stability, 0.35);
+
+  const cached = await speak('Then your password.');
+  assert.equal(cached.cached, true);
+  assert.equal(api.requests.length, 1, 'the same neighbours are the same line');
+
+  const different = await speak('Start with your email address.');
+  assert.equal(different.cached, false, 'a different line before this one is a different reading');
+  assert.equal(api.requests.length, 2);
 });
