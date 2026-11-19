@@ -133,6 +133,9 @@ const VARIANTS = [
 
 const dotenv = await loadDotEnv();
 if (dotenv.loaded) process.stdout.write(`  env: loaded ${path.basename(dotenv.loaded)}\n`);
+// The one reason worth printing: a Node too old to read the file at all would
+// otherwise report "no key" about a `.env` that is sitting right there.
+else if (dotenv.reason?.includes('process.loadEnvFile')) process.stderr.write(`  env: ${dotenv.reason}\n`);
 const key = (process.env.ELEVENLABS_API_KEY ?? '').trim();
 if (!key) {
   console.error('voice-audition needs ELEVENLABS_API_KEY — put it in .env (see .env.example) or export it');
@@ -294,4 +297,6 @@ await writeFile(
   `${JSON.stringify(rendered.map(({ id, model, voice, stability, stitch, ms }) => ({ id, model, voice, stability, stitch, ms })), null, 2)}\n`,
 );
 console.log(`  page: ${path.join(OUT, 'index.html')}`);
-console.log(`  serve it with: node /tmp/opencode/review-server.mjs --port 8142 --root ${OUT}\n`);
+// The page is plain HTML with relative WAV paths, so opening the file works. The
+// server is for a host with no desktop browser to open it with.
+console.log(`  open it directly, or serve the folder: python3 -m http.server 8142 --directory ${OUT}\n`);

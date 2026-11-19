@@ -142,12 +142,22 @@ test('a dialogue model is sent no neighbours, because it answers 400 for them', 
   assert.equal(body.voice_settings.stability, 0.5);
 });
 
-test('stitching is per model, and only the dialogue models refuse it', () => {
+test('stitching is per model: the eleven_v3 family refuses neighbours, eleven_v4 does not', () => {
   assert.equal(elevenLabsSupportsStitching('eleven_multilingual_v2'), true);
   assert.equal(elevenLabsSupportsStitching('eleven_turbo_v2_5'), true);
+  // The dialogue models answer 400 with `unsupported_model` — verified against the
+  // live API for all three of these, not inferred from the name.
   assert.equal(elevenLabsSupportsStitching('eleven_v3'), false);
-  assert.equal(elevenLabsSupportsStitching('eleven_v4'), false);
+  assert.equal(elevenLabsSupportsStitching('eleven_v3_conversational'), false);
+  assert.equal(elevenLabsSupportsStitching('eleven_v3_directorial'), false);
+  // eleven_v4 takes them (200 with both set), so a "v3 or v4" match would drop
+  // continuity the API is happy to use.
+  assert.equal(elevenLabsSupportsStitching('eleven_v4'), true);
   assert.equal(elevenLabsSupportsStitching(null), true, 'the default model stitches');
+  // A model nobody has shipped yet is assumed to stitch: the fallback is a warning
+  // and a poorer cadence, not a failed run.
+  assert.equal(elevenLabsSupportsStitching('eleven_v3_turbo'), false);
+  assert.equal(elevenLabsSupportsStitching('eleven_v5'), true);
 });
 
 test('the delivery settings default to the service defaults, fully spelled out', () => {
@@ -432,9 +442,40 @@ test('a gitignored .env supplies the key, and the environment still wins', async
 test('a missing .env is not an error, it is just nothing to load', async (t) => {
   const dir = await temp();
   t.after(() => rm(dir, { recursive: true, force: true }));
-  const result = await loadDotEnv({ cwd: dir, env: {} });
+  // No key in the environment either, or the answer is "already set" — which is a
+  // different (and correct) statement, not the one under test.
+  const before = process.env.ELEVENLABS_API_KEY;
+  delete process.env.ELEVENLABS_API_KEY;
+  t.after(() => {
+    if (before !== undefined) process.env.ELEVENLABS_API_KEY = before;
+  });
+  const result = await loadDotEnv({ cwd: dir });
   assert.equal(result.loaded, null);
   assert.equal(result.reason, 'no .env');
+});
+
+test('a Node too old to read a .env says so, rather than reporting no key', async (t) => {
+  const dir = await temp();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await writeFile(path.join(dir, '.env'), 'ELEVENLABS_API_KEY=from-file\n');
+
+  const beforeKey = process.env.ELEVENLABS_API_KEY;
+  delete process.env.ELEVENLABS_API_KEY;
+  // `process.loadEnvFile` arrived in Node 20.12, and `package.json` accepts 20.0 —
+  // on those two releases a `.env` that is sitting right there is invisible, which
+  // from the outside is indistinguishable from a wrong key. The reason is the only
+  // thing that tells them apart, so it names the version requirement.
+  const loadEnvFile = process.loadEnvFile;
+  delete process.loadEnvFile;
+  t.after(() => {
+    process.loadEnvFile = loadEnvFile;
+    if (beforeKey !== undefined) process.env.ELEVENLABS_API_KEY = beforeKey;
+  });
+
+  const result = await loadDotEnv({ cwd: dir });
+  assert.equal(result.loaded, null);
+  assert.match(result.reason, /20\.12/);
+  assert.match(result.reason, /cannot read \.env/);
 });
 
 test('the neighbours reach the body and are part of what is cached', async (t) => {

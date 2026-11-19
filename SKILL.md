@@ -150,7 +150,7 @@ and the read line should differ, and the `.vtt` then transcribes the speech whil
 the pill keeps the short caption. Write it as speech: a caption read aloud is a
 label, and the run warns about the shortest ones. Narration is a two-pass run —
 lines are synthesized before the browser opens, and the step that starts a cue
-waits `max(hold, line + tailMs)`, or exactly its line plus tail with
+waits `max(hold, line + tailMs)`, or only the rest of its own sentence with
 `"fit": "line"` — which is why `--narration` needs `--video`, the humanizer and
 `--speed 1`. It also needs a system ffmpeg with libopus (Playwright's bundled one
 is video-only), and it refuses to run without one before opening a browser.

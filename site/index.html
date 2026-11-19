@@ -326,9 +326,9 @@ git clone https://github.com/mkucharz/ui-path-recorder \
           given:
         </p>
         <pre><code>warning: step #4 (fill the password) is spoken as "Then the password."
-         — a label, not a sentence
+         — a label, not a sentence. …
 warning: step #5 (sign in) is written as an instruction to a control:
-         "Choose Sign in."</code></pre>
+         "Click the Sign in button". …</code></pre>
 
         <h3>The picture waits for the sentence</h3>
         <p>
@@ -342,11 +342,29 @@ warning: step #5 (sign in) is written as an instruction to a control:
         <p>
           That <code>max</code> is also what keeps a good plan sounding slow. A
           <code>hold</code> is written for a silent recording; once the line explains
-          the change, the same second of stillness is dead air on top of a sentence
-          that already made the point. <code>"fit": "line"</code> hands the step's
-          length to its own copy, and the walkthrough is as long as it has something to
-          say — on the sign-in example that is <b>70% speech instead of 55%</b>, 4.8
-          seconds of padding gone.
+          the change, the same stillness is dead air on top of a sentence that already
+          made the point. <code>"fit": "line"</code> hands the step's length to its own
+          copy — the step waits only for the rest of its own sentence,
+          <code>max(0, line + tailMs - elapsed)</code>, so an action that already
+          outlasted its line adds nothing at all.
+        </p>
+        <p>
+          Measured on the sign-in example with a 6&nbsp;s <code>hold</code> on every
+          step — the shape a plan tuned to a silent recording has:
+        </p>
+        <table class="flags">
+          <thead><tr><th scope="col"><code>fit</code></th><th scope="col">Recording</th><th scope="col">Speech</th><th scope="col">Padding</th></tr></thead>
+          <tbody>
+            <tr><td><code>hold</code> (default)</td><td>49.8&nbsp;s</td><td>20.1&nbsp;s</td><td>29.7&nbsp;s</td></tr>
+            <tr><td><code>line</code></td><td>28.6&nbsp;s</td><td>20.1&nbsp;s</td><td>8.5&nbsp;s — 21&nbsp;s gone</td></tr>
+          </tbody>
+        </table>
+        <p class="fine">
+          The same plan, the same voice, the same six sentences: only the <code>fit</code>
+          differs, and the speech is identical to the tenth of a second. <code>hold</code>
+          stays the default because a plan tuned to a silent recording must not change
+          length when the voice is switched on; set <code>line</code> in a plan written
+          to be spoken.
         </p>
 
         <h3>Two engines, one pipeline</h3>
@@ -360,8 +378,8 @@ warning: step #5 (sign in) is written as an instruction to a control:
         </p>
         <p>
           ElevenLabs needs <code>ELEVENLABS_API_KEY</code>, from the environment or
-          from a gitignored <code>.env</code> beside the plan (copy
-          <code>.env.example</code>). The file is the safer of the two: a key exported
+          from a gitignored <code>.env</code> in the directory the run starts in
+          (copy <code>.env.example</code>). The file is the safer of the two: a key exported
           in a shell is a key in a shell history, and a key set in a CI log is a key in
           a CI log. A name is resolved against the voices the key can see, which needs
           the <code>voices_read</code> permission; an <em>id</em> is used as given, so
@@ -381,7 +399,7 @@ warning: step #5 (sign in) is written as an instruction to a control:
             <tr><td><code>style</code></td><td>how much the model exaggerates; a little goes a long way here</td></tr>
             <tr><td><code>similarityBoost</code></td><td>how closely the output hugs the reference voice</td></tr>
             <tr><td><code>speakerBoost</code></td><td>the service's presence pass</td></tr>
-            <tr><td><code>model</code></td><td><code>eleven_multilingual_v2</code> carries the cadence across steps; <code>eleven_v3</code> and <code>eleven_v4</code> reject the neighbours and read every line alone, so the run says so and drops them</td></tr>
+            <tr><td><code>model</code></td><td><code>eleven_multilingual_v2</code> carries the cadence across steps. The <code>eleven_v3</code> family (<code>eleven_v3</code>, <code>eleven_v3_conversational</code>, <code>eleven_v3_directorial</code>) rejects the neighbours, so the run says so and drops them for those; <code>eleven_v4</code> keeps them</td></tr>
           </tbody>
         </table>
         <p class="fine">
@@ -396,9 +414,9 @@ warning: step #5 (sign in) is written as an instruction to a control:
         <p>
           A voice, a copy register and a stability are judgements of sound, and prose
           cannot make them. <code>scripts/voice-audition.mjs</code> speaks the same six
-          steps eight ways — four registers of the copy, two models, two stabilities,
-          two voices — and writes one page with a player per variant and the finished
-          recording beside them:
+          steps eight ways — the shipped copy and four rewrites of it, two models, two
+          stabilities, two voices — and writes the WAVs beside one page with a player
+          per variant:
         </p>
         <div class="snippet">
           <pre><code>node scripts/voice-audition.mjs --out captures/audition</code></pre>

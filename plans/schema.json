@@ -345,7 +345,7 @@
             "fit": {
               "enum": ["hold", "line"],
               "default": "hold",
-              "description": "How a narrated step's length is decided. `hold`: `max(hold, line + tailMs)`, so the plan's beats survive. `line`: exactly `line + tailMs`, so the copy paces the video — the setting for a plan written to be spoken, where a `hold` written for a silent recording would only add silence the voice was never going to fill."
+              "description": "How a narrated step's length is decided. `hold`: `max(hold, line + tailMs)`, so the plan's beats survive. `line`: only the rest of the step's own sentence — `max(0, line + tailMs - elapsed)` — so the copy paces the video, which is the setting for a plan written to be spoken, where a `hold` written for a silent recording would only add silence the voice was never going to fill. A step with no line of its own still keeps its `hold`."
             },
             "stability": {
               "type": "number",

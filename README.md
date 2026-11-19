@@ -374,8 +374,8 @@ happens next ("… and you're in"). The run names the two shapes worth a second
 look and still speaks what it was given:
 
 ```
-  warning: step #4 (fill the password) is spoken as "Then the password." — a label, not a sentence. A line this short is read before the eye finds the change it describes
-  warning: step #5 (sign in) is written as an instruction to a control: "Choose Sign in.". That reads as a caption; spoken, it lands better with the reason or the result attached ("… and you're in")
+  warning: step #4 (fill the password) is spoken as "Then the password." — a label, not a sentence. …
+  warning: step #5 (sign in) is written as an instruction to a control: "Click the Sign in button". …
 ```
 
 **The picture waits for the sentence.** A spoken line runs two to five seconds
@@ -397,8 +397,17 @@ That `max` is the one thing that keeps a good plan sounding slow. A `hold` is
 written for a silent recording — it is how long a viewer needs to read a change —
 and once the line explains the change the same 1.6 s is dead air on top of a
 sentence that already made the point. `"fit": "line"` hands the step's length to
-its own copy, so a narrated step lasts exactly its line plus the tail and the
-walkthrough is as long as it has something to say:
+its own copy: the step waits only for the rest of its own sentence
+(`max(0, line + tailMs − elapsed)`), so the walkthrough is as long as it has
+something to say.
+
+Measured on the sign-in example with a 6 s `hold` on every step — the shape a plan
+tuned to a silent recording has — the same plan, voice and six sentences:
+
+| `fit` | recording | speech | padding |
+|---|---|---|---|
+| `hold` (default) | 49.8 s | 20.1 s | 29.7 s |
+| `line` | 28.6 s | 20.1 s | 8.5 s — 21 s gone |
 
 ```json
 "video": { "narration": { "engine": "elevenlabs", "fit": "line" } }
@@ -452,10 +461,11 @@ accepts, with a warning when that happens.
 sentence before and after it as `previous_text` / `next_text`, which is what keeps
 the cadence and the emphasis moving across the step boundaries instead of every
 line starting cold on a full stop; `apply_text_normalization` is `on`, so "7
-days" is spoken as words. The dialogue models (`eleven_v3`, `eleven_v4`) reject
-both, so stitching is per model and the run says so when it has to fall back. The
-delivery is the plan's, spelled out in full rather than left to the account's
-defaults:
+days" is spoken as words. The **`eleven_v3` family** (`eleven_v3`,
+`eleven_v3_conversational`, `eleven_v3_directorial`) rejects both with
+`unsupported_model`, so stitching is per model and the run says so when it has to
+fall back; `eleven_v4` accepts them and keeps the cadence. The delivery is the
+plan's, spelled out in full rather than left to the account's defaults:
 
 ```json
 "video": {
@@ -487,11 +497,11 @@ A free workspace cannot use **library** voices through the API — it answers
 error names it, so the fix is one flag rather than an upgrade.
 
 **Choosing a voice is done by ear.** `scripts/voice-audition.mjs` speaks the six
-sign-in steps several ways — four registers of the same copy, two models, two
-stabilities, two voices — and writes one page with a player per variant, so a
-plan's voice, copy and delivery are chosen by listening instead of by reading a
-description of them. Audio only, because that is what is being chosen; the winner
-is recorded once, afterwards:
+sign-in steps eight ways — the shipped copy and four rewrites of it, two models,
+two stabilities, two voices — and writes the WAVs beside one page with a player
+per variant, so a plan's voice, copy and delivery are chosen by listening instead
+of by reading a description of them. Audio only, because that is what is being
+chosen; the winner is recorded once, afterwards:
 
 ```bash
 node scripts/voice-audition.mjs --out captures/audition

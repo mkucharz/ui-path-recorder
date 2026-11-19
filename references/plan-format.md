@@ -350,11 +350,11 @@ Rules worth knowing:
 | Key | Default | Meaning |
 |---|---|---|
 | `engine` | `say` | `say` (macOS's own voice: no install, no key, no network) or `elevenlabs` (HTTPS, needs `ELEVENLABS_API_KEY` in the environment or in a gitignored `.env` — **never in the plan**). |
-| `model` | the engine's own | The `elevenlabs` model id, e.g. `eleven_multilingual_v2` (the default) or `eleven_turbo_v2_5`. Ignored by `say`. `eleven_v3`/`eleven_v4` are accepted but read every line alone: they reject the neighbours that carry the cadence across steps. |
+| `model` | the engine's own | The `elevenlabs` model id, e.g. `eleven_multilingual_v2` (the default) or `eleven_turbo_v2_5`. Ignored by `say`. The **`eleven_v3` family** — `eleven_v3`, `eleven_v3_conversational`, `eleven_v3_directorial` — rejects the `previous_text` / `next_text` neighbours, so those read every line alone and the run logs the fallback. `eleven_v4` accepts them and keeps the cadence. |
 | `voice` | the engine default | A `say -v` name (`Ava`, `Daniel`, …) for `say`; an ElevenLabs voice name or 20-character id for `elevenlabs`. Pinning it is what makes a re-record sound like the last one. A name is resolved against the voices the key can see, which needs the `voices_read` permission — an id is used as given, so a key scoped to text-to-speech alone works. |
 | `rate` | `180` | Words per minute (`say -r`). 180 is conversational; slower reads as instruction. ElevenLabs maps it to `voice_settings.speed` (`180` → `1.0`) and clamps to the `0.7`–`1.2` the API accepts, warning when that happens. |
 | `tailMs` | `400` | Silence after a line before the next step may start. |
-| `fit` | `hold` | How a narrated step's length is decided. `hold`: `max(hold, line + tailMs)`, so the plan's beats survive. `line`: exactly `line + tailMs`, so the copy paces the video and no step carries silence the voice was never going to fill. |
+| `fit` | `hold` | How a narrated step's length is decided. `hold`: `max(hold, line + tailMs)`, so the plan's beats survive. `line`: only the rest of the step's own sentence — `max(0, line + tailMs − elapsed)` — so the copy paces the video and no step carries silence the voice was never going to fill. A step that has no line of its own (or repeats one already spoken on the tab) still keeps its `hold`. |
 | `stability` | `0.5` | `elevenlabs` only, `0`–`1`. How firmly the model holds one reading: high is flat and consistent, low carries more emphasis but drifts between takes. The first knob to try, around `0.35`–`0.45` for a spoken walkthrough. |
 | `style` | `0` | `elevenlabs` only, `0`–`1`. How much the model exaggerates; a little goes a long way in a UI walkthrough. |
 | `similarityBoost` | `0.75` | `elevenlabs` only, `0`–`1`. How closely the output hugs the reference voice. |
@@ -451,7 +451,7 @@ that records.
 | `cardMs` | `2200` | How long each card is held, divided by `humanize.speed` like every other delay. |
 | `theme` | — | Name of a preset in `themes/` (`memory`, `dracula`, `catppuccin-mocha`), applied to the panel and the cards. |
 | `tokens` | — | Chrome palette overrides by CSS custom property, on top of `theme`. |
-| `narration` | — | `{ engine?, model?, voice?, rate?, tailMs? }` — speak the walkthrough and mux the voice in, with macOS `say` (the default) or `elevenlabs`. See `video.narration` above. |
+| `narration` | — | `{ engine?, model?, voice?, rate?, tailMs?, fit?, stability?, style?, similarityBoost?, speakerBoost? }` — speak the walkthrough and mux the voice in, with macOS `say` (the default) or `elevenlabs`. See `video.narration` above. |
 
 ### `video.checklist`
 

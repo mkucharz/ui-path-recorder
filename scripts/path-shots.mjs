@@ -253,6 +253,13 @@ const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
  */
 const dotenv = await loadDotEnv();
 if (dotenv.loaded) console.log(`  env: loaded ${path.relative(process.cwd(), dotenv.loaded) || '.env'}`);
+// Why the file was *not* read, for the two answers that mean something is wrong:
+// an old Node cannot read one at all, and a malformed file is not loaded — both
+// look exactly like a wrong key from the outside. "There is no `.env` here" and
+// "the key is already exported" are the normal cases and stay quiet.
+else if (dotenv.reason && !['no .env', 'ELEVENLABS_API_KEY is already set'].includes(dotenv.reason)) {
+  console.log(`  env: ${dotenv.reason}`);
+}
 
 // A plan is validated before a browser opens: a mistyped step key is otherwise
 // a step that silently does nothing.
@@ -507,16 +514,21 @@ const lastSpokenByPage = new Map();
  * word. Measured on the timeline's clock — the same one a step's `startMs` is on,
  * not `Date.now()`.
  *
- * A line already spoken on this tab owes nothing: consecutive steps that share a
- * caption are one cue (see `lib/captions.mjs`), and their audio was placed at the
- * *first* of them. Without this the second step sits in dead air for a sentence
- * nobody is saying.
+ * A line already spoken on this tab needs no time of its own: consecutive steps
+ * that share a caption are one cue (see `lib/captions.mjs`), and their audio was
+ * placed at the *first* of them. Without this the second step sits in dead air for
+ * a sentence nobody is saying — but it is still a step with **no line of its
+ * own**, so it answers `null` rather than `0`. Returning `0` reads as "the copy
+ * asked for zero milliseconds", and under `fit: "line"` that strips the `hold`
+ * too: a plan would lose its still moment because two steps happened to share a
+ * caption.
  *
- * `null` means the step has no line of its own, which is what lets `fit: "line"`
- * tell "the copy decides this step's length" apart from "there is no copy here,
- * fall back to the hold".
+ * `null` therefore means "this step has no line to fit", which is what lets
+ * `fit: "line"` tell "the copy decides this step's length" apart from "there is no
+ * copy here, fall back to the hold" — whether the copy is absent, already spoken,
+ * or the run is silent.
  *
- * @returns {number|null} milliseconds owed, or null when this step is silent
+ * @returns {number|null} milliseconds owed, or null when this step has no line
  */
 function narrationBeat(index, record) {
   if (!narrationAudio) return null;
@@ -524,7 +536,7 @@ function narrationBeat(index, record) {
   const audio = narrationAudio.get(spoken);
   if (!audio) return null;
   const page = record.page ?? 1;
-  if (lastSpokenByPage.get(page) === spoken) return 0;
+  if (lastSpokenByPage.get(page) === spoken) return null;
   lastSpokenByPage.set(page, spoken);
   const elapsed = Math.max(0, timeline.now() - record.startMs);
   return Math.max(0, audio.ms + narrationSettings.tailMs - elapsed);

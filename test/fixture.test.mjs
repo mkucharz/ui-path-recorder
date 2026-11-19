@@ -708,6 +708,98 @@ test('--narration paces each step to its own line, and muxes it in', async (t) =
 });
 
 /**
+ * `fit: "line"` at the runner, not just in the arithmetic.
+ *
+ * The unit tests can say what a beat *should* be; only a run shows whether the
+ * step actually waited for the hold it was told to drop. The same plan is recorded
+ * twice with every step asking for a 6 s hold: the default `hold` gives each step
+ * `max(6 s, line)`, and `line` gives it only the rest of its own 1.5 s sentence.
+ * The difference is measured on the files the two runs wrote.
+ *
+ * Asserting the *difference* rather than an absolute length is the point: the
+ * fixture's own action time cancels out, so this fails when a hold leaks into
+ * `line` (or is dropped under `hold`) and not when the humanizer changes a beat.
+ */
+test('fit: "line" drops the step hold that fit: "hold" keeps', async (t) => {
+  const ffmpeg = await findMuxFfmpeg();
+  if (!ffmpeg) return t.skip('narration needs a system ffmpeg with libopus');
+  if (!(await probeOpus({ ffmpeg }))) return t.skip('the system ffmpeg has no libopus encoder');
+
+  const bin = await stubSay(tmp, ffmpeg);
+  const HOLD_MS = 6_000;
+
+  const planFor = (fit) => ({
+    tutorial: 'fixture-narration-fit',
+    baseUrl: '${FIXTURE_URL}',
+    locale: 'en-US',
+    viewport: { width: 900, height: 700 },
+    colorScheme: 'dark',
+    // Pinned so the two runs walk the same path: the comparison is between the
+    // plans' `fit`, and nothing else may differ.
+    humanize: { seed: 'fixture-narration-fit-v1', shotHoldMs: 300 },
+    video: { narration: { fit } },
+    vars: { password: { env: 'FIXTURE_PASSWORD' } },
+    steps: [
+      {
+        name: 'open the app',
+        caption: 'Open the app.',
+        say: 'Open the app on its welcome screen.',
+        goto: '/',
+        hold: HOLD_MS,
+      },
+      {
+        name: 'read the title',
+        caption: 'Read the title.',
+        say: 'The welcome screen is already showing.',
+        waitFor: { text: 'Welcome back' },
+        hold: HOLD_MS,
+      },
+    ],
+  });
+
+  const record = async (fit) => {
+    const planPath = path.join(tmp, `narration-fit-${fit}.plan.json`);
+    await writeFile(planPath, JSON.stringify(planFor(fit), null, 2));
+    const out = path.join(tmp, `narration-fit-${fit}`);
+    const res = await run([planPath, '--out', out, '--video', '--narration', '--rate', '200'], {
+      PATH: `${bin}${path.delimiter}${process.env.PATH}`,
+      UI_PATH_RECORDER_CACHE_DIR: path.join(tmp, 'narration-cache-fit'),
+    });
+    assert.equal(res.code, 0, `exit ${res.code} under fit: ${fit}\n${res.stderr}`);
+    const probe = JSON.parse(
+      (
+        await runCommand(ffmpeg.replace(/ffmpeg$/, 'ffprobe'), [
+          '-v', 'error',
+          '-show_entries', 'format=duration',
+          '-of', 'json',
+          path.join(out, 'video', '01-main.webm'),
+        ])
+      ).stdout,
+    );
+    return Math.round(Number(probe.format.duration) * 1000);
+  };
+
+  const held = await record('hold');
+  const fitLine = await record('line');
+
+  // Two steps, each holding 6 s rather than 1.9 s: about 8.2 s less. The bounds
+  // are wide because a frame of encode rounding is not the claim.
+  const saved = held - fitLine;
+  assert.ok(saved > 6_000, `fit: "line" saved ${saved}ms — the hold was still applied`);
+  assert.ok(saved < 10_000, `fit: "line" saved ${saved}ms — more than the hold it dropped`);
+  // Nothing was lost from the sentences themselves: both recordings carry the
+  // same two lines, in the same order. What changed is how long the step stayed
+  // up after them, which is the whole point.
+  const spoken = {};
+  for (const fit of ['hold', 'line']) {
+    const vtt = await readFile(path.join(tmp, `narration-fit-${fit}`, 'video', '01-main.vtt'), 'utf8');
+    assert.equal(vtt.match(/-->/g).length, 2, `fit: ${fit} wrote two cues`);
+    spoken[fit] = [...vtt.matchAll(/-->\s*[\d:.]+\s*\n(.+)/g)].map((match) => match[1].trim());
+  }
+  assert.deepEqual(spoken.line, spoken.hold, 'the same two sentences were spoken in both modes');
+});
+
+/**
  * A plan that narrates is still a plan you can run for figures.
  *
  * `video.intro`/`video.outro` are ignored without `--video` for the same reason:
