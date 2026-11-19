@@ -388,9 +388,11 @@ Two warnings cover the plan shapes that still drift, and both name the step:
 The audio is placed **by cue, not by step** — the same cues the `.vtt` is built
 from — so consecutive steps sharing a caption are spoken once, at their first
 frame, and the later steps do not wait a second time for a sentence that has
-already been said. Lines are cached by content (`sha256` of voice, rate and text,
-in `~/.cache/ui-path-recorder/narration`, or `UI_PATH_RECORDER_CACHE_DIR`), so
-re-recording after editing one caption re-speaks one line.
+already been said. That is per **recording**, not per plan: a `clickNewPage` step
+opens a second tab with its own `.vtt`, so a line repeated there is a new cue and
+waits for its own audio. Lines are cached by content (`sha256` of voice, rate and
+text, in `~/.cache/ui-path-recorder/narration`, or `UI_PATH_RECORDER_CACHE_DIR`),
+so re-recording after editing one caption re-speaks one line.
 
 **What it needs, and what it refuses.** `say` is the engine because it is part of
 macOS: no install, no key, no network. The mux is a **second ffmpeg pass** that

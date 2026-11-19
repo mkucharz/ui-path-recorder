@@ -363,7 +363,8 @@ if (narrationSettings.enabled) {
  * one `.vtt` per tab), so the memo is per tab too: a `clickNewPage` step whose
  * line repeats the one before it opens a tab with its own track and its own cue,
  * and that cue has to wait for its own audio. Keyed on the line alone, it got no
- * beat at all — a 103 ms cue for a 1.5 s line, with two voices over each other.
+ * beat at all — the cue lasted only as long as the step, one `MIN_CUE_MS` floor
+ * short of the sentence, and the words were cut off.
  */
 const lastSpokenByPage = new Map();
 

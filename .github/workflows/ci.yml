@@ -62,11 +62,16 @@ jobs:
 
       - name: narration has the pieces its tests need
         # The narration tests skip themselves when there is no system ffmpeg with
-        # libopus (the one Playwright downloads is video-only), which would leave
-        # the mux untested on the only machine that runs this suite. ubuntu-latest
-        # ships a full ffmpeg, so this is an assertion rather than an install: if
-        # the image ever loses it, the job fails here instead of quietly skipping.
+        # libopus (the one Playwright downloads is video-only), and a skip is not
+        # a pass on the only machine that runs this suite: the mux, and every
+        # pacing assertion, would go untested forever. ubuntu-latest moved to
+        # 26.04, which ships no ffmpeg at all, so it is installed here — and then
+        # asserted, so an image that loses it fails loudly instead of skipping.
         run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
           node -e '
             const { execFileSync } = require("node:child_process");
             let encoders = "";

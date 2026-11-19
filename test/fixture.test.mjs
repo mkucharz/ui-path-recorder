@@ -648,11 +648,15 @@ test('--narration paces each step to its own line, and muxes it in', async (t) =
   assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
 
   // The run said what it spoke, and did not warn that a line outran its step —
-  // the warning this feature exists to make unnecessary.
+  // the warning this feature exists to make unnecessary. `console.warn` writes
+  // to stderr, so both streams are read: an assertion against the stream the
+  // warning never reaches passes no matter what the run did.
   assert.match(res.stdout, /narration: 5 lines, voice system default @ 200 wpm, 400ms tail/);
   assert.equal(/spoke\s+5\/5/.test(res.stdout), true, 'every line was synthesized before the browser opened');
-  assert.doesNotMatch(res.stdout, /past its step/, 'a step must wait for its own line');
-  assert.doesNotMatch(res.stdout, /talk over each other/, 'two lines must never overlap');
+  for (const stream of [res.stdout, res.stderr]) {
+    assert.doesNotMatch(stream, /past its step/, 'a step must wait for its own line');
+    assert.doesNotMatch(stream, /talk over each other/, 'two lines must never overlap');
+  }
 
   // Both artefacts beside the recording, and the sound really in the file.
   assert.deepEqual((await readdir(path.join(out, 'video'))).sort(), ['01-main.vtt', '01-main.webm']);
@@ -768,10 +772,11 @@ test('--no-narration records a silent copy whose subtitles are the caption', asy
  *
  * Cues merge per *recording* — there is one `.vtt` per tab — so a line repeated
  * on the second tab is a separate cue that has to wait for its own audio. A memo
- * keyed on the line alone ("already spoke this") gives it no beat at all: the
- * second tab's cue held 103 ms for a 1.5 s line and the next line was placed on
- * top of it, two voices talking over each other in one file. The memo is per tab
- * for exactly this case, and this plan is the one that measures it.
+ * keyed on the line alone ("already spoke this") gives it no beat at all, so the
+ * cue is only as long as the step was: the shortest cue a reader can follow
+ * (`MIN_CUE_MS`, 1.2 s) instead of the 1.9 s the line needs. The subtitle falls
+ * away before the sentence does, and the run warns that the line runs past its
+ * step. The memo is per tab for exactly this case, and this plan measures it.
  */
 test('a line repeated on a second tab is paced again, not treated as already spoken', async (t) => {
   const ffmpeg = await findMuxFfmpeg();
@@ -786,10 +791,11 @@ test('a line repeated on a second tab is paced again, not treated as already spo
   });
   assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
   // `console.warn` writes to stderr, so both streams are read: a warning that
-  // lands in the stream nobody checks is a warning nobody sees.
+  // lands in the stream nobody checks is a warning nobody sees. The overrun
+  // warning is the one this plan can produce — each recording has a single cue,
+  // so `placeCues` has nothing to overlap.
   for (const stream of [res.stdout, res.stderr]) {
     assert.doesNotMatch(stream, /past its step/, 'the second tab waits for its own line');
-    assert.doesNotMatch(stream, /talk over each other/, 'the second tab does not start on top of a line');
   }
 
   // One recording per tab, each with its own subtitle file.
