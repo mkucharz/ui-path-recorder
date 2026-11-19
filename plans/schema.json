@@ -104,7 +104,8 @@
         { "required": ["pause"] },
         { "required": ["hold"] },
         { "required": ["expect"] },
-        { "required": ["shot"] }
+        { "required": ["shot"] },
+        { "required": ["say"] }
       ],
       "properties": {
         "name": { "type": "string", "description": "What this step does, shown in logs and evidence files." },
@@ -118,7 +119,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 400,
-          "description": "What the voice reads for this step, when the plan narrates. Defaults to `caption` — one text for the pill, the `.vtt` and the voice, so they cannot disagree. An explicit `say` may be longer: a spoken sentence takes 3–7 seconds and a subtitle is read at a glance. One line; each step's line is spoken once and the step waits for it."
+          "description": "What the voice reads for this step, when the plan narrates. Defaults to `caption` — one text for the pill, the `.vtt` and the voice, so they cannot disagree. An explicit `say` may be longer: a spoken sentence takes two to five seconds and a subtitle is read at a glance. One line; each line is spoken once, and the step that starts it waits for it to finish."
         },
         "check": {
           "type": "string",

@@ -5,6 +5,7 @@
   "locale": "en-US",
   "viewport": { "width": 900, "height": 700 },
   "colorScheme": "dark",
+  "video": { "narration": {} },
   "humanize": { "seed": "fixture-narration-v1", "shotHoldMs": 300 },
   "vars": {
     "adminEmail": { "literal": "admin@example.com" },
@@ -19,6 +20,18 @@
       "fill": { "selector": "#email", "value": "${adminEmail}" }
     },
     { "name": "the password is typed in", "caption": "Then the password.", "fill": { "selector": "#password", "value": "${password}" } },
-    { "name": "sign in", "caption": "Choose Sign in.", "click": "#submit" }
+    { "name": "sign in", "caption": "Choose Sign in.", "click": "#submit" },
+    {
+      "name": "the second screen is on display",
+      "caption": "Choose a target next.",
+      "say": "Choose a target next, then deploy.",
+      "waitFor": { "text": "Step 2 — choose a target" }
+    },
+    {
+      "name": "the target list is read",
+      "caption": "Choose a target next.",
+      "say": "Choose a target next, then deploy.",
+      "hold": 100
+    }
   ]
 }

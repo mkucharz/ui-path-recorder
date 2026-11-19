@@ -61,7 +61,7 @@
 import { access, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
-import { createVars, loadPlan, PlanError } from '../lib/plan.mjs';
+import { createVars, loadPlan, narrationCaptionWarnings, PlanError } from '../lib/plan.mjs';
 import { writeEvidence } from '../lib/evidence.mjs';
 import { writeReview } from '../lib/review.mjs';
 import { createHuman, resolveOptions } from '../lib/human.mjs';
@@ -271,6 +271,23 @@ const narrationSettings = resolveNarration({
   tailMs: narrationTailFlag === null ? null : Number(narrationTailFlag),
   plan,
 });
+// A plan that narrates is still a plan you can run for figures: the voice is a
+// property of the *recording*, and `video.intro`/`video.outro` are ignored the
+// same way without `--video`. An explicit `--narration` is a request, though, and
+// a request with nothing to record is a mistake worth stopping for.
+if (narrationSettings.enabled && !video) {
+  if (narrationFlag === true) {
+    console.error(
+      '\n  --narration needs --video: the voice is a track inside the recording, so a run with no recording has nothing to narrate\n',
+    );
+    process.exit(2);
+  }
+  console.warn(
+    '  warning: the plan asks for narration, but this run is not recording it — pass --video to include the voice, ' +
+      'or --no-narration to silence the plan. The figures are unaffected',
+  );
+  narrationSettings.enabled = false;
+}
 const narrationProblem = narrationRefusal({
   enabled: narrationSettings.enabled,
   video,
@@ -280,6 +297,11 @@ const narrationProblem = narrationRefusal({
 if (narrationProblem) {
   console.error(`\n  ${narrationProblem}\n`);
   process.exit(2);
+}
+// `validate` only sees the plan's own `video.narration`; when the flag is what
+// turned narration on, the same mismatch is still worth saying out loud.
+if (narrationSettings.enabled && !plan?.video?.narration) {
+  for (const warning of narrationCaptionWarnings(plan?.steps ?? [])) console.warn(`  warning: ${warning}`);
 }
 
 /** Last thing set up before the browser opens: the spoken lines, keyed by text. */
@@ -334,26 +356,33 @@ if (narrationSettings.enabled) {
   }
 }
 
+/** The last line actually given a beat, so a merged cue is paced once. */
+let lastSpokenLine = null;
+
 /**
  * How long this step has to stay on screen for its own line to finish.
  *
- * The cue's window *is* the step and the audio starts when the step starts, so a
+ * The cue's window *is* the step, and the audio starts when the cue starts, so a
  * step that spent two seconds clicking owes only the rest of the sentence.
  * `tailMs` is the silence after it, so the next screen never arrives on the last
- * word.
+ * word. Measured on the timeline's clock — the same one a step's `startMs` is on,
+ * not `Date.now()`.
  *
- * Measured on the timeline's clock, not `Date.now()`: a step's `startMs` is
- * relative to the run's start, and subtracting two different clocks is how this
- * silently returned 0 for every step.
+ * A line already spoken for the previous step owes nothing: consecutive steps
+ * that share a caption are one cue (see `lib/captions.mjs`), and their audio was
+ * placed at the *first* of them. Without this the second step sits in dead air
+ * for a sentence nobody is saying.
  */
 function narrationBeat(index, record) {
   if (!narrationAudio) return 0;
-  const audio = narrationAudio.get(narrationText(plan.steps[index]));
+  const spoken = narrationText(plan.steps[index]);
+  const audio = narrationAudio.get(spoken);
   if (!audio) return 0;
+  if (spoken === lastSpokenLine) return 0;
+  lastSpokenLine = spoken;
   const elapsed = Math.max(0, timeline.now() - record.startMs);
   return Math.max(0, audio.ms + narrationSettings.tailMs - elapsed);
 }
-
 
 /**
  * The intro and end cards, when the plan asks for any. They are recorded frames,
@@ -673,7 +702,7 @@ async function writeCaptions() {
   const json = timeline.toJSON();
   const written = [];
   for (const recording of videoFiles) {
-    const cues = cuesForRecording(json, recording);
+    const cues = cuesForRecording(json, recording, { narrated: Boolean(narrationAudio) });
     if (!cues.length) continue;
     cuesByRecording.set(recording.file, cues);
     const file = vttFor(recording.file);
@@ -739,7 +768,7 @@ async function writeNarration() {
       await muxNarration({ ffmpeg: narrationFfmpeg, video: videoPath, audio: wavPath, out: narratedPath });
       await rename(narratedPath, videoPath);
       recording.narrated = true;
-      written.push(`${recording.file} (${(pcmMs(pcm) / 1000).toFixed(1)}s of voice)`);
+      written.push(`${recording.file} (${(pcmMs(pcm) / 1000).toFixed(1)}s of track)`);
     } catch (error) {
       // A mux that fails is a silent recording, not a lost run: the figures,
       // the timeline and the original video are already on disk.

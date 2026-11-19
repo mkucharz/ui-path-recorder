@@ -145,11 +145,13 @@ each step with macOS `say` and muxes the voice into the recording. A step's `say
 defaults to its `caption`, so the pill, the `.vtt` and the voice agree; write a
 `say` when the heard sentence and the read line should differ, and the `.vtt`
 then transcribes the speech while the pill keeps the short caption. Narration is
-a two-pass run — lines are synthesized before the browser opens, and each step
-waits `max(hold, line + tailMs)` — which is why it needs `--video`, the humanizer
-and `--speed 1`. It also needs a system ffmpeg with libopus (Playwright's bundled
-one is video-only), and it refuses to run without one before opening a browser.
-`--no-narration` records a silent copy of a narrated plan; `--voice`, `--rate` and
+a two-pass run — lines are synthesized before the browser opens, and the step
+that starts a cue waits `max(hold, line + tailMs)` — which is why `--narration`
+needs `--video`, the humanizer and `--speed 1`. It also needs a system ffmpeg
+with libopus (Playwright's bundled one is video-only), and it refuses to run
+without one before opening a browser.
+`--no-narration` records a silent copy of a narrated plan (its `.vtt` falls back
+to the captions, since no voice was spoken); `--voice`, `--rate` and
 `--narration-tail` override the block. See `references/plan-format.md` → `say` and
 `video.narration`.
 

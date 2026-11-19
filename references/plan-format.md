@@ -312,7 +312,7 @@ The spoken line, used only when the plan narrates (see `video.narration` below).
 speaks every step, and the pill, the `.vtt` and the voice cannot disagree.
 
 Write one when the two should differ: a caption is read at a glance, a sentence is
-heard over three seconds. Then the split is deliberate and the artefacts follow
+heard over several seconds. Then the split is deliberate and the artefacts follow
 it — the pill keeps the short `caption`, and `video/01-main.vtt` transcribes the
 **`say`**, because a captions track has to be usable with the sound off.
 
@@ -327,9 +327,10 @@ Rules worth knowing:
   several seconds while the bottom of the frame is empty. The `say` may say more
   than the pill shows; it should not replace it.
 - **The step's beat is widened to fit the line** — `max(hold, line + tailMs)` —
-  so the next screen never arrives mid-sentence. A line that still overruns its
-  cue (a merged cue, a `when`-skipped step) is reported after the run rather than
-  cut silently.
+  so the next screen never arrives mid-sentence. Only the step that *starts* a
+  cue waits: consecutive steps sharing a line are one cue spoken once, so the
+  rest of the run does not repeat the sentence in silence. A line that still
+  overruns its cue is reported after the run rather than cut silently.
 
 ### `video.narration` — speak the walkthrough
 
@@ -344,15 +345,19 @@ Rules worth knowing:
 | `tailMs` | `400` | Silence after a line before the next step may start. |
 
 Its **presence is the plan asking for narration** — an empty object means "the
-defaults". `--no-narration` records a silent copy without editing the plan, and
-`--narration` turns it on for a plan that omits the block.
+defaults". `--no-narration` records a silent copy without editing the plan (its
+`.vtt` then transcribes each `caption`, since there is no voice to transcribe),
+and `--narration` turns it on for a plan that omits the block.
 
-It is refused, before a browser opens, without `--video` (there is no track), with
-`--no-humanize` (nothing to pace against) and with `--speed` other than 1 (the beat
-is scaled and the audio is not). It needs macOS `say` and a **system** ffmpeg with
-libopus — Playwright's bundled ffmpeg is video-only — and the mux copies the video
-stream rather than re-encoding it, so a failure leaves the recording silent but
-intact.
+A plan that asks for narration and a run that does not record is not an error: it
+is the tool's default figure mode, so the run warns and records the figures, the
+way `video.intro` and `video.outro` are ignored. An explicit `--narration` is a
+request, and is refused before a browser opens without `--video` (there is no
+track), with `--no-humanize` (nothing to pace against) and with `--speed` other
+than 1 (the beat is scaled and the audio is not). It needs macOS `say` and a
+**system** ffmpeg with libopus — Playwright's bundled ffmpeg is video-only — and
+the mux copies the video stream rather than re-encoding it, so a failure leaves
+the recording silent but intact.
 
 The caption section's example narrates as it stands — `say` falls back to each
 `caption`:

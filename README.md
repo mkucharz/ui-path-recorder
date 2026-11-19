@@ -350,8 +350,10 @@ macOS `say` and muxes the voice into the recording.
 ```
 
 `video.narration` is the plan asking for narration, and its presence is enough:
-`--narration` forces it on for a plan that omits the block, `--no-narration`
-records a silent copy of a narrated plan without editing the file.
+`--narration` forces it on for a plan that omits the block, and `--no-narration`
+records a silent copy of a narrated plan without editing the file — silence, so
+its `.vtt` falls back to the `caption`s rather than transcribing a voice nobody
+hears.
 
 **One text does both jobs unless you split it.** A step's `say` defaults to its
 `caption`, so the pill, the `.vtt` and the voice say the same thing and cannot
@@ -361,19 +363,19 @@ glance — and then the `.vtt` transcribes the **speech**, because a captions tr
 that says something other than the voice is a track nobody can use with the sound
 off. The pill keeps the short `caption`.
 
-**The picture waits for the sentence.** A spoken line runs 1–3 s and a step is
-often shorter, so narration is a *two-pass* run: every line is synthesized before
-the browser opens, and each step's beat becomes `max(hold, line + tail)` — the
-step owes only the part of its sentence it has not already spent, and `tailMs`
-(400 ms) is the silence after it so the next screen never arrives on the last
-word:
+**The picture waits for the sentence.** A spoken line runs two to five seconds
+and a step is often shorter, so narration is a *two-pass* run: every line is
+synthesized before the browser opens, and each step's beat becomes
+`max(hold, line + tail)` — the step owes only the part of its sentence it has
+not already spent, and `tailMs` (400 ms) is the silence after it so the next
+screen never arrives on the last word:
 
 ```
   narration: 6 lines, voice Ava @ 180 wpm, 400ms tail
     spoke   1/6  2.2s  "Open the sign-in page for your workspace."
     spoke   2/6  2.8s  "Sign in with the address and password you already use."
   captions: video/01-main.vtt (6 cues)
-  narration: video/01-main.webm (13.4s of voice)
+  narration: video/01-main.webm (13.4s of track)
 ```
 
 Two warnings cover the plan shapes that still drift, and both name the step:
@@ -385,8 +387,9 @@ Two warnings cover the plan shapes that still drift, and both name the step:
 
 The audio is placed **by cue, not by step** — the same cues the `.vtt` is built
 from — so consecutive steps sharing a caption are spoken once, at their first
-frame. Lines are cached by content (`sha256` of voice, rate and text, in
-`~/.cache/ui-path-recorder/narration`, or `UI_PATH_RECORDER_CACHE_DIR`), so
+frame, and the later steps do not wait a second time for a sentence that has
+already been said. Lines are cached by content (`sha256` of voice, rate and text,
+in `~/.cache/ui-path-recorder/narration`, or `UI_PATH_RECORDER_CACHE_DIR`), so
 re-recording after editing one caption re-speaks one line.
 
 **What it needs, and what it refuses.** `say` is the engine because it is part of
@@ -406,7 +409,10 @@ downloads is video-only (it encodes png and vp9 and has no audio codec at all).
 It also refuses the three runs in which the voice could not stay in step: without
 `--video` (nothing to narrate), with `--no-humanize` (the voice is paced by each
 step's beat, and the raw cut has none), and with `--speed` other than 1 (the beat
-is scaled and the recording is not, so anything else drifts the two apart).
+is scaled and the recording is not, so anything else drifts the two apart). The
+first of those is a refusal only for an explicit `--narration`: a plan that
+carries `video.narration` in a figure run warns and records the figures, the way
+`video.intro` is ignored there.
 
 The mux copies rather than re-encodes, so a failure leaves the original file
 untouched and only costs the sound:

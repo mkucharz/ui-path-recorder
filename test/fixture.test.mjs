@@ -636,8 +636,8 @@ test('--narration paces each step to its own line, and muxes it in', async (t) =
 
   // The run said what it spoke, and did not warn that a line outran its step —
   // the warning this feature exists to make unnecessary.
-  assert.match(res.stdout, /narration: 4 lines, voice system default @ 200 wpm, 400ms tail/);
-  assert.equal(/spoke\s+4\/4/.test(res.stdout), true, 'every line was synthesized before the browser opened');
+  assert.match(res.stdout, /narration: 5 lines, voice system default @ 200 wpm, 400ms tail/);
+  assert.equal(/spoke\s+5\/5/.test(res.stdout), true, 'every line was synthesized before the browser opened');
   assert.doesNotMatch(res.stdout, /past its step/, 'a step must wait for its own line');
   assert.doesNotMatch(res.stdout, /talk over each other/, 'two lines must never overlap');
 
@@ -660,23 +660,94 @@ test('--narration paces each step to its own line, and muxes it in', async (t) =
   // The subtitle transcribes the *speech* — a captions track with the pill's
   // shorter line would be a track nobody can use with the sound off.
   const vtt = await readFile(path.join(out, 'video', '01-main.vtt'), 'utf8');
-  assert.match(vtt, /fixture-narration · 4 cue\(s\)/);
+  assert.match(vtt, /fixture-narration · 5 cue\(s\)/);
   assert.match(vtt, /Type the operator's email address, then continue\./);
   assert.doesNotMatch(vtt, /^Type the email\.$/m, 'the pill keeps the caption; the .vtt follows the voice');
 
   // The claim, from the file a player reads: every cue is at least as long as
   // the line plus its tail (1.5 s + 0.4 s), give or take a frame of jitter.
+  // Longer is allowed — a step that types a value spends time doing it — so the
+  // upper bound belongs to the *shared* cue alone, whose two steps have nothing
+  // to do but wait: if the second one repeated the line's beat, that cue would
+  // sit in dead air for a sentence nobody is saying.
   const windows = [...vtt.matchAll(/(\d\d):(\d\d):(\d\d)\.(\d\d\d) --> (\d\d):(\d\d):(\d\d)\.(\d\d\d)/g)].map((m) => {
     const ms = (h, m2, s, f) => Number(h) * 3_600_000 + Number(m2) * 60_000 + Number(s) * 1_000 + Number(f);
     return ms(m[5], m[6], m[7], m[8]) - ms(m[1], m[2], m[3], m[4]);
   });
-  assert.equal(windows.length, 4);
+  assert.equal(windows.length, 5, 'a caption repeated across steps is one cue');
   for (const window of windows) assert.ok(window >= 1_800, `a cue held ${window}ms of a 1.9s line`);
+  assert.ok(windows[4] <= 2_600, `the shared cue held ${windows[4]}ms of a 1.9s line — dead air after the voice`);
+  assert.equal(
+    vtt.match(/Choose a target next, then deploy\./g).length,
+    1,
+    'the shared line is written once, so it cannot blink between the two steps',
+  );
 
   // And the run is marked as narrated where a reviewer looks.
   const timeline = JSON.parse(await readFile(path.join(out, '.timeline.json'), 'utf8'));
   assert.equal(timeline.videos[0].narrated, true);
   assert.match(await readFile(path.join(out, 'review.html'), 'utf8'), /· narrated/);
+});
+
+/**
+ * A plan that narrates is still a plan you can run for figures.
+ *
+ * `video.intro`/`video.outro` are ignored without `--video` for the same reason:
+ * they describe the recording, and a figure run has none. An explicit
+ * `--narration` is a request and is refused; the plan's own block only warns.
+ */
+test('a figure run of a narrated plan warns and records nothing, rather than failing', async () => {
+  const out = path.join(tmp, 'narrated-figures');
+  const res = await run([PLAN('fixture-narration.plan.json'), '--out', out, '--speed', '20']);
+  assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
+  assert.match(res.stderr, /the plan asks for narration, but this run is not recording it/);
+  assert.match(res.stderr, /pass --video to include the voice, or --no-narration to silence the plan/);
+  assert.doesNotMatch(res.stdout, /narration:/, 'nothing was synthesized for a run with no recording');
+  assert.equal(existsSync(path.join(out, 'video')), false, 'a figure run writes no track');
+
+  // The flag is the difference: asked for explicitly, it stops before a browser
+  // opens instead of silently dropping the voice.
+  const refused = await run([PLAN('fixture-narration.plan.json'), '--out', path.join(tmp, 'narrated-refused'), '--narration']);
+  assert.equal(refused.code, 2);
+  assert.match(refused.stderr, /--narration needs --video/);
+  assert.equal(existsSync(path.join(tmp, 'narrated-refused')), false);
+});
+
+test('--no-narration records a silent copy whose subtitles are the caption', async (t) => {
+  // The same plan, recorded without a voice: the `.vtt` must transcribe what is
+  // on screen, not a `say` nobody hears. Speed 20 keeps it cheap — narration is
+  // off, so there is no beat to scale.
+  const out = path.join(tmp, 'silent-copy');
+  const res = await run([PLAN('fixture-narration.plan.json'), '--out', out, '--video', '--no-narration', '--speed', '20']);
+  if (res.code !== 0 && FFMPEG_HINT.test(res.stderr)) return t.skip('Playwright ffmpeg is not installed here');
+  assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
+  assert.doesNotMatch(res.stdout, /narration:/, 'nothing was spoken');
+
+  const vtt = await readFile(path.join(out, 'video', '01-main.vtt'), 'utf8');
+  assert.match(vtt, /^Type the email\.$/m);
+  assert.doesNotMatch(vtt, /Type the operator's email address/, 'the silent copy has no voice to transcribe');
+
+  // And the file really is silent: the mux never ran, so there is no audio stream.
+  const ffmpeg = await findMuxFfmpeg();
+  if (ffmpeg) {
+    const probe = JSON.parse(
+      (
+        await runCommand(ffmpeg.replace(/ffmpeg$/, 'ffprobe'), [
+          '-v', 'error',
+          '-show_entries', 'stream=codec_type',
+          '-of', 'json',
+          path.join(out, 'video', '01-main.webm'),
+        ])
+      ).stdout,
+    );
+    assert.equal(
+      probe.streams.some((stream) => stream.codec_type === 'audio'),
+      false,
+      'a --no-narration recording has no voice track',
+    );
+  }
+  const timeline = JSON.parse(await readFile(path.join(out, '.timeline.json'), 'utf8'));
+  assert.notEqual(timeline.videos[0].narrated, true);
 });
 
 test('humanizing changes the pacing, not the picture — and replays the same path', async (t) => {

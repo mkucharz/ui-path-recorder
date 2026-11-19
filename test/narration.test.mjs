@@ -309,9 +309,18 @@ test('a cue list in the wrong order is composed by start, not by array position'
 
 test('say is invoked with the text in a file, so no caption can be a shell problem', () => {
   const args = sayArgs({ textFile: '/tmp/t.txt', outFile: '/tmp/o.wav', voice: 'Ava', rate: 190 });
-  assert.deepEqual(args, ['-f', '/tmp/t.txt', '-o', '/tmp/o.wav', '--data-format=LEI16@48000', '-v', 'Ava', '-r', '190']);
+  assert.deepEqual(args, [
+    '-f', '/tmp/t.txt',
+    '-o', '/tmp/o.wav',
+    // The container is named: the reader parses PCM, so it must not depend on
+    // `say` inferring WAVE from the extension.
+    '--file-format=WAVE',
+    '--data-format=LEI16@48000',
+    '-v', 'Ava',
+    '-r', '190',
+  ]);
   // No voice pinned means the system default: `-v ""` would be an error.
-  assert.deepEqual(sayArgs({ textFile: 't', outFile: 'o' }), ['-f', 't', '-o', 'o', '--data-format=LEI16@48000']);
+  assert.deepEqual(sayArgs({ textFile: 't', outFile: 'o' }), ['-f', 't', '-o', 'o', '--file-format=WAVE', '--data-format=LEI16@48000']);
 });
 
 test('synthesis writes a WAV, caches it by content, and reports its length', async () => {
@@ -543,4 +552,37 @@ test('a narrated step subtitles the speech, and leaves the pill its own caption'
   // A step with no `say` is unchanged: the cue is its caption, escaped.
   assert.equal(cues[1].text, 'Check the box &amp; continue.');
   assert.equal(cues[1].spoken, 'Check the box & continue.');
+});
+
+test('a silent copy subtitles the caption, not a line nobody says', () => {
+  const timeline = {
+    tutorial: 'demo',
+    seed: 'unit',
+    steps: [
+      { index: 1, page: 1, startMs: 0, endMs: 4_000, caption: 'Sign in.', say: 'Sign in with the account you already have.' },
+      { index: 2, page: 1, startMs: 4_000, endMs: 8_000, caption: 'Check the box & continue.' },
+    ],
+    videos: [{ file: 'video/01-main.webm', page: 1, recordingStartMs: 0 }],
+  };
+  // `--no-narration` produces a silent recording, so its captions have to be the
+  // text on screen: a `.vtt` transcribing a `say` that was never spoken is a
+  // track that lies about the audio.
+  const cues = cuesForRecording(timeline, { page: 1, recordingStartMs: 0 }, { narrated: false });
+  assert.equal(cues[0].text, 'Sign in.');
+  assert.equal(cues[0].spoken, null);
+  assert.equal(cues[1].text, 'Check the box &amp; continue.');
+  // The narrated reading of the same timeline is still the voice, so the two
+  // modes are a flag apart rather than two code paths.
+  assert.equal(cuesForRecording(timeline, { page: 1, recordingStartMs: 0 })[0].text, 'Sign in with the account you already have.');
+});
+
+test('the shipped schema allows a `say`-only step, like the validator does', async () => {
+  // The two descriptions of the plan are read by different tools: the runtime
+  // accepts a step whose only job is to speak, and an editor validating against
+  // `plans/schema.json` must not call that same plan invalid.
+  const schema = JSON.parse(await readFile(new URL('../plans/schema.json', import.meta.url), 'utf8'));
+  const required = schema.$defs.step.anyOf.map((branch) => branch.required?.[0]);
+  assert.ok(required.includes('say'), `the step anyOf lists action keys, and "say" is missing: ${required.join(', ')}`);
+  // Both descriptions must also agree that `caption` alone is not an action.
+  assert.equal(required.includes('caption'), false);
 });
