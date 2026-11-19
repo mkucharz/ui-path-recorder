@@ -13,6 +13,13 @@ node_modules/
 *.log
 .DS_Store
 
+# Local secrets: the ElevenLabs key lives in `.env` and nowhere near a commit.
+# `.env.example` is the documented shape and holds no value, so it is the one
+# exception — patterns are ordered, and the helper is the file a reader copies.
+.env
+.env.*
+!.env.example
+
 # Playwright artefacts that are large and per-run.
 trace.zip
 video/

@@ -38,6 +38,7 @@ import {
   muxArgs,
   muxNarration,
   narrationKey,
+  narrationCopyWarnings,
   narrationRefusal,
   narrationText,
   pcmMs,
@@ -114,6 +115,10 @@ test('the spoken line is one line, because it is synthesized to one utterance', 
 
 test('the plan turns narration on, and the flags win over it', () => {
   const plan = { video: { narration: { voice: 'Ava', rate: 200, tailMs: 250 } } };
+  // Delivery settings are `null` until something sets them: "the engine's own
+  // default" and "0.5" are different statements, and only the engine knows its
+  // default.
+  const noDelivery = { stability: null, similarityBoost: null, style: null, speakerBoost: null };
   assert.deepEqual(resolveNarration({ plan }), {
     enabled: true,
     engine: 'say',
@@ -121,6 +126,8 @@ test('the plan turns narration on, and the flags win over it', () => {
     voice: 'Ava',
     rate: 200,
     tailMs: 250,
+    fit: 'hold',
+    voiceSettings: noDelivery,
   });
 
   // No block, no narration — the feature is never on by surprise.
@@ -131,6 +138,8 @@ test('the plan turns narration on, and the flags win over it', () => {
     voice: null,
     rate: DEFAULT_RATE,
     tailMs: DEFAULT_TAIL_MS,
+    fit: 'hold',
+    voiceSettings: noDelivery,
   };
   assert.deepEqual(resolveNarration({ plan: { video: {} } }), off);
   assert.deepEqual(resolveNarration({ plan: null }), off);
@@ -147,6 +156,8 @@ test('the plan turns narration on, and the flags win over it', () => {
     voice: 'Daniel',
     rate: 160,
     tailMs: 0,
+    fit: 'hold',
+    voiceSettings: noDelivery,
   });
 
   // The engine is chosen, never sniffed: a plan that names none gets `say`, and
@@ -157,6 +168,34 @@ test('the plan turns narration on, and the flags win over it', () => {
   assert.equal(resolveNarration({ plan: eleven }).model, 'eleven_turbo_v2_5');
   assert.equal(resolveNarration({ plan: eleven, engine: 'say' }).engine, 'say');
   assert.equal(resolveNarration({ plan: { video: { narration: { engine: 'elevenlabs' } } } }).model, null);
+});
+
+test('pacing and delivery are plan settings, read from the same block as the voice', () => {
+  const plan = {
+    video: {
+      narration: {
+        engine: 'elevenlabs',
+        fit: 'line',
+        stability: 0.35,
+        similarityBoost: 0.6,
+        style: 0.15,
+        speakerBoost: false,
+      },
+    },
+  };
+  const resolved = resolveNarration({ plan });
+  assert.equal(resolved.fit, 'line');
+  assert.deepEqual(resolved.voiceSettings, {
+    stability: 0.35,
+    similarityBoost: 0.6,
+    style: 0.15,
+    speakerBoost: false,
+  });
+
+  // `false` is a value: a plan that turns the speaker boost off must not fall
+  // back to the engine default through a `||`.
+  assert.equal(resolveNarration({ plan: { video: { narration: { speakerBoost: false } } } }).voiceSettings.speakerBoost, false);
+  assert.equal(resolveNarration({ plan: null }).fit, 'hold');
 });
 
 test('narration refuses the runs that would put the voice out of step', () => {
@@ -196,6 +235,74 @@ test('a plan may carry a spoken line and a narration block', () => {
   assert.throws(() => validate(plan({ video: { narration: { voice: '' } } })), /voice/);
   assert.throws(() => validate(plan({ video: { narration: { rate: 0 } } })), /rate/);
   assert.throws(() => validate(plan({ video: { narration: { tailMs: -1 } } })), /tailMs/);
+});
+
+test('the delivery and pacing keys are validated, and the ones `say` cannot use are flagged', () => {
+  const plan = (narration, over = {}) => ({
+    baseUrl: 'https://example.test',
+    video: { narration },
+    steps: [{ click: '#go', caption: 'Tap Go.' }],
+    ...over,
+  });
+
+  assert.doesNotThrow(() =>
+    validate(
+      plan({
+        engine: 'elevenlabs',
+        fit: 'line',
+        stability: 0.4,
+        style: 0,
+        similarityBoost: 1,
+        speakerBoost: false,
+      }),
+    ),
+  );
+
+  assert.throws(() => validate(plan({ fit: 'sentence' })), /"video\.narration\.fit" must be one of hold, line/);
+  assert.throws(() => validate(plan({ stability: 1.5 })), /stability.*0 to 1/);
+  assert.throws(() => validate(plan({ style: -0.1 })), /style.*0 to 1/);
+  assert.throws(() => validate(plan({ similarityBoost: 'high' })), /similarityBoost/);
+  assert.throws(() => validate(plan({ speakerBoost: 'yes' })), /speakerBoost.*true or false/);
+
+  // A delivery knob on a `say` plan is inert. Warning, not refusal: the plan is
+  // valid, it just does nothing, and saying nothing is what makes it confusing.
+  const { warnings } = validate(plan({ stability: 0.4 }));
+  assert.ok(
+    warnings.some((warning) => /stability.*only the elevenlabs engine reads/.test(warning)),
+    `expected a delivery warning, got ${JSON.stringify(warnings)}`,
+  );
+  const withEngine = validate(plan({ engine: 'elevenlabs', stability: 0.4 }));
+  assert.equal(
+    withEngine.warnings.some((warning) => /only the elevenlabs engine reads/.test(warning)),
+    false,
+    'naming the engine is the fix, so it must silence the warning',
+  );
+});
+
+test('copy that reads like a caption is warned about, never refused', () => {
+  const steps = [
+    { click: '#a', caption: 'Choose Sign in.' },
+    { click: '#b', caption: 'Select the account you signed up with.' },
+    { click: '#c', caption: "Press Sign in when you're ready and the workspace opens." },
+    { click: '#d', caption: 'And you land in your workspace, signed in.' },
+  ];
+  const warnings = narrationCopyWarnings(steps);
+
+  // Two shapes: a label, and a bare instruction to a control.
+  assert.ok(warnings.some((warning) => /step #1 .*a label, not a sentence/.test(warning)), warnings.join('\n'));
+  assert.ok(warnings.some((warning) => /step #2 .*instruction to a control/.test(warning)), warnings.join('\n'));
+  // A line with room for a reason is left alone.
+  assert.equal(warnings.some((warning) => /step #3/.test(warning)), false);
+  // So is a long one that already has a connective.
+  assert.equal(warnings.some((warning) => /step #4/.test(warning)), false);
+
+  // Delivery tags are directions to the model, not words: `[warmly] Go.` is still
+  // a two-word line.
+  assert.match(narrationCopyWarnings([{ caption: '[warmly] Go.' }])[0], /a label/);
+  assert.deepEqual(narrationCopyWarnings([{ caption: 'You land in your workspace, already signed in.' }]), []);
+  // A verb-plus-clause is a spoken sentence, not an instruction: this is the copy
+  // the example plan uses, and it must not be flagged.
+  assert.deepEqual(narrationCopyWarnings([{ caption: "Press Sign in when you're ready." }]), []);
 });
 
 test('an over-long spoken line is refused, and a narrated step with no caption is flagged', () => {
