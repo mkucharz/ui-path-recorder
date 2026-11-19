@@ -97,7 +97,7 @@ const COPIES = {
   },
   tagged: {
     title: 'D — C with delivery tags',
-    why: 'v3/v4 audio tags. Are they performed, or read out loud?',
+    why: 'v3 audio tags. Are they performed, or read out loud?',
     lines: [
       "[warmly] First, let's open the sign-in page for your workspace.",
       "You'll use the same email and password as always — nothing new to remember.",
@@ -133,9 +133,12 @@ const VARIANTS = [
 
 const dotenv = await loadDotEnv();
 if (dotenv.loaded) process.stdout.write(`  env: loaded ${path.basename(dotenv.loaded)}\n`);
-// The one reason worth printing: a Node too old to read the file at all would
-// otherwise report "no key" about a `.env` that is sitting right there.
-else if (dotenv.reason?.includes('process.loadEnvFile')) process.stderr.write(`  env: ${dotenv.reason}\n`);
+// Every reason that is not simply "there is none" or "already exported": an old
+// Node cannot read a `.env` at all and a malformed one is not loaded, and both
+// would otherwise be reported below as a missing key — about a file that is there.
+else if (dotenv.reason && !['no .env', 'ELEVENLABS_API_KEY is already set'].includes(dotenv.reason)) {
+  process.stderr.write(`  env: ${dotenv.reason}\n`);
+}
 const key = (process.env.ELEVENLABS_API_KEY ?? '').trim();
 if (!key) {
   console.error('voice-audition needs ELEVENLABS_API_KEY — put it in .env (see .env.example) or export it');
@@ -227,9 +230,11 @@ ${variants
 `;
 
 /**
- * v3 and v4 refuse `previous_text`/`next_text` outright ("not yet supported with
- * the 'eleven_v3' model", HTTP 400), so stitching is per-model rather than
- * per-variant: asking for it anyway would fail every line of the run.
+ * The `eleven_v3` family refuses `previous_text`/`next_text` outright ("not yet
+ * supported with the 'eleven_v3' model", HTTP 400), so stitching is per-model
+ * rather than per-variant: asking for it anyway would fail every line of the run.
+ * `eleven_v4` accepts them — the repository's own predicate is the authority, not
+ * a list written here, so this asks it rather than guessing.
  */
 const stitches = (variant, model) => Boolean(variant.stitch) && elevenLabsSupportsStitching(model);
 
