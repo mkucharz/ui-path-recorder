@@ -1,0 +1,24 @@
+{
+  "tutorial": "fixture-narration",
+  "description": "Self-test for narration: the shortest walkthrough whose every step is spoken, so the test can assert that each step really waited for its own line instead of letting the next screen arrive mid-sentence.",
+  "baseUrl": "${FIXTURE_URL}",
+  "locale": "en-US",
+  "viewport": { "width": 900, "height": 700 },
+  "colorScheme": "dark",
+  "humanize": { "seed": "fixture-narration-v1", "shotHoldMs": 300 },
+  "vars": {
+    "adminEmail": { "literal": "admin@example.com" },
+    "password": { "env": "FIXTURE_PASSWORD" }
+  },
+  "steps": [
+    { "name": "open the app", "caption": "Open the app.", "goto": "/" },
+    {
+      "name": "the operator's email is typed in",
+      "caption": "Type the email.",
+      "say": "Type the operator's email address, then continue.",
+      "fill": { "selector": "#email", "value": "${adminEmail}" }
+    },
+    { "name": "the password is typed in", "caption": "Then the password.", "fill": { "selector": "#password", "value": "${password}" } },
+    { "name": "sign in", "caption": "Choose Sign in.", "click": "#submit" }
+  ]
+}

@@ -301,6 +301,67 @@ Rules worth knowing:
 
 The shipped example is `plans/examples/signin-captions.plan.json`.
 
+### `say` — what the voice reads for this step
+
+```json
+{ "caption": "Sign in.", "say": "Sign in with the account you already use — the installer runs against your own workspace.", "goto": "/signin" }
+```
+
+The spoken line, used only when the plan narrates (see `video.narration` below).
+**It defaults to `caption`**, so a narrated plan that never writes `say` still
+speaks every step, and the pill, the `.vtt` and the voice cannot disagree.
+
+Write one when the two should differ: a caption is read at a glance, a sentence is
+heard over three seconds. Then the split is deliberate and the artefacts follow
+it — the pill keeps the short `caption`, and `video/01-main.vtt` transcribes the
+**`say`**, because a captions track has to be usable with the sound off.
+
+Rules worth knowing:
+
+- **One line, under 400 characters.** Longer than a caption on purpose, but a
+  step is one or two sentences: a narrated walkthrough is not an audiobook.
+- **A step with only `say` is allowed** — a spoken beat, where the previous screen
+  stays up while the voice finishes. (A step with only `caption` is still
+  refused: a subtitle over nothing.)
+- **A narrated step with no `caption` is warned about**: the voice talks for
+  several seconds while the bottom of the frame is empty. The `say` may say more
+  than the pill shows; it should not replace it.
+- **The step's beat is widened to fit the line** — `max(hold, line + tailMs)` —
+  so the next screen never arrives mid-sentence. A line that still overruns its
+  cue (a merged cue, a `when`-skipped step) is reported after the run rather than
+  cut silently.
+
+### `video.narration` — speak the walkthrough
+
+```json
+"video": { "narration": { "voice": "Ava", "rate": 180, "tailMs": 400 } }
+```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `voice` | the system voice | A `say -v` name (`Ava`, `Daniel`, …). Pinning it is what makes a re-record sound like the last one. |
+| `rate` | `180` | Words per minute (`say -r`). 180 is conversational; slower reads as instruction. |
+| `tailMs` | `400` | Silence after a line before the next step may start. |
+
+Its **presence is the plan asking for narration** — an empty object means "the
+defaults". `--no-narration` records a silent copy without editing the plan, and
+`--narration` turns it on for a plan that omits the block.
+
+It is refused, before a browser opens, without `--video` (there is no track), with
+`--no-humanize` (nothing to pace against) and with `--speed` other than 1 (the beat
+is scaled and the audio is not). It needs macOS `say` and a **system** ffmpeg with
+libopus — Playwright's bundled ffmpeg is video-only — and the mux copies the video
+stream rather than re-encoding it, so a failure leaves the recording silent but
+intact.
+
+The caption section's example narrates as it stands — `say` falls back to each
+`caption`:
+
+```bash
+SIGNIN_URL=http://127.0.0.1:8100 \
+  node scripts/path-shots.mjs plans/examples/signin-captions.plan.json --video --narration
+```
+
 ### `check` — the checklist row this step ticks
 
 ```json
@@ -350,6 +411,7 @@ that records.
 | `cardMs` | `2200` | How long each card is held, divided by `humanize.speed` like every other delay. |
 | `theme` | — | Name of a preset in `themes/` (`memory`, `dracula`, `catppuccin-mocha`), applied to the panel and the cards. |
 | `tokens` | — | Chrome palette overrides by CSS custom property, on top of `theme`. |
+| `narration` | — | `{ voice?, rate?, tailMs? }` — speak the walkthrough with macOS `say` and mux the voice in. See `video.narration` above. |
 
 ### `video.checklist`
 

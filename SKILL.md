@@ -140,6 +140,19 @@ video editor, it is a claim nobody checks. `--no-humanize` has no overlay to dra
 with, so it writes the track only and warns; see `references/plan-format.md` →
 `caption`, and `plans/examples/signin-captions.plan.json`.
 
+And it can **speak**: `--narration` (or `"video.narration"` in the plan) reads
+each step with macOS `say` and muxes the voice into the recording. A step's `say`
+defaults to its `caption`, so the pill, the `.vtt` and the voice agree; write a
+`say` when the heard sentence and the read line should differ, and the `.vtt`
+then transcribes the speech while the pill keeps the short caption. Narration is
+a two-pass run — lines are synthesized before the browser opens, and each step
+waits `max(hold, line + tailMs)` — which is why it needs `--video`, the humanizer
+and `--speed 1`. It also needs a system ffmpeg with libopus (Playwright's bundled
+one is video-only), and it refuses to run without one before opening a browser.
+`--no-narration` records a silent copy of a narrated plan; `--voice`, `--rate` and
+`--narration-tail` override the block. See `references/plan-format.md` → `say` and
+`video.narration`.
+
 A recording can also **tick a checklist off beside it**: `"check": "…"` on a step
 adds that row to a small panel, ticked the moment the step starts. The rows are
 the steps — there is no list in the plan to drift — and the panel is hidden with
@@ -190,7 +203,8 @@ plan from that, not from a description of the page.
 
 Other useful flags: `--trace` (open with `npx playwright-core show-trace`),
 `--profile <dir>` (see step 6), `--video-fps`, `--video-size <WxH>`,
-`--poster <shot-id>`.
+`--poster <shot-id>`, `--narration` / `--no-narration` and `--voice`, `--rate`,
+`--narration-tail`.
 
 ### 5. Sign off, then ingest
 
@@ -293,6 +307,7 @@ scripts/check-panel-theme.mjs  presets: shape, and drift against a product's app
 lib/human.mjs               how a recorded run is driven: pointer, travel, typing
 lib/recorder.mjs            how a recording is made: frames, resampling, ffmpeg
 lib/captions.mjs            a step's subtitle → the pill in the picture and its .vtt
+lib/narration.mjs           a step's line → speech, its place on the track, and the mux
 lib/checklist.mjs           the rows a recording ticks: derived from steps, drawn by human.mjs
 lib/cards.mjs               the intro and end cards: a whole screen of HTML, checklist included
 lib/theme.mjs               the chrome palette: the --pc-* vocabulary, defaults, presets
@@ -312,6 +327,11 @@ regenerate it.
   speed you can tolerate. A recording is the one artefact whose defects are
   invisible in a still: a pointer that rests on the wrong control, a step whose
   scrolling took the point off screen, a `pause` that reads as a freeze.
+- If it was narrated, **the sound was listened to**: every line is audible and
+  finishes before its screen changes. A line that is cut off, or that starts
+  before the screen it describes, is reported by the run as a warning — read the
+  log, then fix the plan (a shorter `say`, a bigger `hold`, a neighbour to fold
+  the guard into) rather than re-recording and hoping.
 - The run directory is *outside* the document tree until someone approves it.
 - `node lib/ingest.mjs` ran, and the document renders the figure at its CSS size
   (a 4x capture shown at 1x is a waste; shown at 4x it is blurry).

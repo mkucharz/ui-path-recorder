@@ -334,6 +334,97 @@ out from the recording:
 
 `plans/examples/signin-captions.plan.json` is the shipped example.
 
+### Spoken narration
+
+A walkthrough a person watches on a phone, in a taxi, on a train: the screen
+explains the *steps*, and nothing says why. `--narration` speaks each step with
+macOS `say` and muxes the voice into the recording.
+
+```json
+{
+  "video": { "narration": { "voice": "Ava", "rate": 180 } },
+  "steps": [
+    { "caption": "Sign in.", "say": "Sign in with the account you already use — this walkthrough installs into your own workspace.", "goto": "/signin" }
+  ]
+}
+```
+
+`video.narration` is the plan asking for narration, and its presence is enough:
+`--narration` forces it on for a plan that omits the block, `--no-narration`
+records a silent copy of a narrated plan without editing the file.
+
+**One text does both jobs unless you split it.** A step's `say` defaults to its
+`caption`, so the pill, the `.vtt` and the voice say the same thing and cannot
+disagree. Write a `say` when the spoken sentence and the on-screen line should
+differ — a sentence is *heard* over three seconds, a subtitle is *read* at a
+glance — and then the `.vtt` transcribes the **speech**, because a captions track
+that says something other than the voice is a track nobody can use with the sound
+off. The pill keeps the short `caption`.
+
+**The picture waits for the sentence.** A spoken line runs 1–3 s and a step is
+often shorter, so narration is a *two-pass* run: every line is synthesized before
+the browser opens, and each step's beat becomes `max(hold, line + tail)` — the
+step owes only the part of its sentence it has not already spent, and `tailMs`
+(400 ms) is the silence after it so the next screen never arrives on the last
+word:
+
+```
+  narration: 6 lines, voice Ava @ 180 wpm, 400ms tail
+    spoke   1/6  2.2s  "Open the sign-in page for your workspace."
+    spoke   2/6  2.8s  "Sign in with the address and password you already use."
+  captions: video/01-main.vtt (6 cues)
+  narration: video/01-main.webm (13.4s of voice)
+```
+
+Two warnings cover the plan shapes that still drift, and both name the step:
+
+```
+  warning: video/01-main.webm: the line at 4.2s runs 1.1s past its step, so the next screen arrives mid-sentence
+  warning: video/01-main.webm: the line at 9.7s starts 0.6s before the one before it ends, in video/01-main.webm — they will talk over each other
+```
+
+The audio is placed **by cue, not by step** — the same cues the `.vtt` is built
+from — so consecutive steps sharing a caption are spoken once, at their first
+frame. Lines are cached by content (`sha256` of voice, rate and text, in
+`~/.cache/ui-path-recorder/narration`, or `UI_PATH_RECORDER_CACHE_DIR`), so
+re-recording after editing one caption re-speaks one line.
+
+**What it needs, and what it refuses.** `say` is the engine because it is part of
+macOS: no install, no key, no network. The mux is a **second ffmpeg pass** that
+copies the video stream and adds Opus — which must be a *system* ffmpeg, because
+the build Playwright downloads is video-only (`ffmpeg-1011`/`ffmpeg-1013` expose
+`png`, `libvpx` and `libvpx-vp9` and no audio codec at all). A run that asks for
+narration without the pieces fails before the browser opens, naming the fix:
+
+```
+  narration needs a system ffmpeg with libopus: the bundled one Playwright
+downloads is video-only (it encodes png and vp9 and has no audio codec at all).
+
+  macOS: brew install ffmpeg      Linux: apt-get install ffmpeg
+```
+
+It also refuses the three runs in which the voice could not stay in step: without
+`--video` (nothing to narrate), with `--no-humanize` (the voice is paced by each
+step's beat, and the raw cut has none), and with `--speed` other than 1 (the beat
+is scaled and the recording is not, so anything else drifts the two apart).
+
+The mux copies rather than re-encodes, so a failure leaves the original file
+untouched and only costs the sound:
+
+```
+  warning: video/01-main.webm: narration was not muxed (…) — the video is silent
+```
+
+`say`'s audio is **not byte-reproducible across macOS releases**, so a narrated
+recording is re-shootable but not byte-identical: pin `voice` and `rate`, and
+expect the cache to return the same audio rather than to promise a fresh line
+would match it. The video-only path is untouched by any of this — a run without
+narration produces the file it always did.
+
+`--voice <name>` and `--rate <wpm>` override the block, `--narration-tail <ms>`
+overrides the tail. Any captioned plan narrates as it stands:
+`plans/examples/signin-captions.plan.json` is the one to try.
+
 ### The checklist ticks itself off beside the video
 
 A subtitle says what the step is doing; nothing yet says what is left. A small
