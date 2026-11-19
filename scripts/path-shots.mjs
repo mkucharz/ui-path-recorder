@@ -356,8 +356,16 @@ if (narrationSettings.enabled) {
   }
 }
 
-/** The last line actually given a beat, so a merged cue is paced once. */
-let lastSpokenLine = null;
+/**
+ * The last line each tab has already been given a beat for.
+ *
+ * Cues merge per *recording*, not per plan (see `lib/captions.mjs`, which keeps
+ * one `.vtt` per tab), so the memo is per tab too: a `clickNewPage` step whose
+ * line repeats the one before it opens a tab with its own track and its own cue,
+ * and that cue has to wait for its own audio. Keyed on the line alone, it got no
+ * beat at all — a 103 ms cue for a 1.5 s line, with two voices over each other.
+ */
+const lastSpokenByPage = new Map();
 
 /**
  * How long this step has to stay on screen for its own line to finish.
@@ -368,18 +376,19 @@ let lastSpokenLine = null;
  * word. Measured on the timeline's clock — the same one a step's `startMs` is on,
  * not `Date.now()`.
  *
- * A line already spoken for the previous step owes nothing: consecutive steps
- * that share a caption are one cue (see `lib/captions.mjs`), and their audio was
- * placed at the *first* of them. Without this the second step sits in dead air
- * for a sentence nobody is saying.
+ * A line already spoken on this tab owes nothing: consecutive steps that share a
+ * caption are one cue (see `lib/captions.mjs`), and their audio was placed at the
+ * *first* of them. Without this the second step sits in dead air for a sentence
+ * nobody is saying.
  */
 function narrationBeat(index, record) {
   if (!narrationAudio) return 0;
   const spoken = narrationText(plan.steps[index]);
   const audio = narrationAudio.get(spoken);
   if (!audio) return 0;
-  if (spoken === lastSpokenLine) return 0;
-  lastSpokenLine = spoken;
+  const page = record.page ?? 1;
+  if (lastSpokenByPage.get(page) === spoken) return 0;
+  lastSpokenByPage.set(page, spoken);
   const elapsed = Math.max(0, timeline.now() - record.startMs);
   return Math.max(0, audio.ms + narrationSettings.tailMs - elapsed);
 }

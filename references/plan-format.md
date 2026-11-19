@@ -329,8 +329,11 @@ Rules worth knowing:
 - **The step's beat is widened to fit the line** — `max(hold, line + tailMs)` —
   so the next screen never arrives mid-sentence. Only the step that *starts* a
   cue waits: consecutive steps sharing a line are one cue spoken once, so the
-  rest of the run does not repeat the sentence in silence. A line that still
-  overruns its cue is reported after the run rather than cut silently.
+  rest of the run does not repeat the sentence in silence. That is per **tab**,
+  because each tab is its own recording and its own `.vtt`: a `clickNewPage` step
+  that repeats the previous line opens a cue that has to wait for its own audio.
+  A line that still overruns its cue is reported after the run rather than cut
+  silently.
 
 ### `video.narration` — speak the walkthrough
 

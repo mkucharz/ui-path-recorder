@@ -591,6 +591,40 @@ test('--video-size is validated before anything else runs', async () => {
 });
 
 /**
+ * A `say` that is not macOS `say`, installed on PATH for one run.
+ *
+ * The engine, as the pipeline finds it: a binary called `say` that honours the
+ * flags and writes the WAV it is asked for. Detection is by binary rather than
+ * by `process.platform`, which is what lets a Linux host drive the real
+ * pipeline. It writes 1.5 s of tone — a length the test knows, so "did the step
+ * wait?" is a comparison rather than an eyeball.
+ *
+ * @param {string} dir A directory owned by the test.
+ * @param {string} ffmpeg The ffmpeg that can write PCM.
+ * @returns {Promise<string>} the directory to prepend to PATH.
+ */
+async function stubSay(dir, ffmpeg) {
+  const bin = path.join(dir, 'bin');
+  await mkdir(bin, { recursive: true });
+  await writeFile(
+    path.join(bin, 'say'),
+    [
+      '#!/bin/sh',
+      'out=""',
+      'while [ $# -gt 0 ]; do',
+      '  case "$1" in',
+      '    -o) out="$2"; shift 2 ;;',
+      '    *) shift ;;',
+      '  esac',
+      'done',
+      `exec "${ffmpeg}" -loglevel error -y -f lavfi -i "sine=frequency=440:sample_rate=48000:duration=1.5" -ac 1 -c:a pcm_s16le "$out"`,
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+  return bin;
+}
+
+/**
  * Narration, end to end, with a `say` that is not macOS `say`.
  *
  * A stub on PATH writes a fixed 1.5 s WAV, which makes the pacing arithmetic
@@ -604,28 +638,7 @@ test('--narration paces each step to its own line, and muxes it in', async (t) =
   if (!ffmpeg) return t.skip('narration needs a system ffmpeg with libopus');
   if (!(await probeOpus({ ffmpeg }))) return t.skip('the system ffmpeg has no libopus encoder');
 
-  // The engine, as the pipeline finds it: a binary called `say` on PATH that
-  // honours the flags and writes the WAV it is asked for. Not a platform check.
-  const bin = path.join(tmp, 'bin');
-  await mkdir(bin, { recursive: true });
-  const say = path.join(bin, 'say');
-  await writeFile(
-    say,
-    [
-      '#!/bin/sh',
-      'out=""',
-      'while [ $# -gt 0 ]; do',
-      '  case "$1" in',
-      '    -o) out="$2"; shift 2 ;;',
-      '    *) shift ;;',
-      '  esac',
-      'done',
-      // 1.5 s of tone: a length the test knows, so "did the step wait?" is a
-      // comparison rather than an eyeball.
-      `exec "${ffmpeg}" -loglevel error -y -f lavfi -i "sine=frequency=440:sample_rate=48000:duration=1.5" -ac 1 -c:a pcm_s16le "$out"`,
-    ].join('\n'),
-    { mode: 0o755 },
-  );
+  const bin = await stubSay(tmp, ffmpeg);
 
   const out = path.join(tmp, 'narrated');
   const res = await run([PLAN('fixture-narration.plan.json'), '--out', out, '--video', '--review', '--narration', '--rate', '200'], {
@@ -748,6 +761,64 @@ test('--no-narration records a silent copy whose subtitles are the caption', asy
   }
   const timeline = JSON.parse(await readFile(path.join(out, '.timeline.json'), 'utf8'));
   assert.notEqual(timeline.videos[0].narrated, true);
+});
+
+/**
+ * Narration across a `clickNewPage` boundary.
+ *
+ * Cues merge per *recording* — there is one `.vtt` per tab — so a line repeated
+ * on the second tab is a separate cue that has to wait for its own audio. A memo
+ * keyed on the line alone ("already spoke this") gives it no beat at all: the
+ * second tab's cue held 103 ms for a 1.5 s line and the next line was placed on
+ * top of it, two voices talking over each other in one file. The memo is per tab
+ * for exactly this case, and this plan is the one that measures it.
+ */
+test('a line repeated on a second tab is paced again, not treated as already spoken', async (t) => {
+  const ffmpeg = await findMuxFfmpeg();
+  if (!ffmpeg) return t.skip('narration needs a system ffmpeg with libopus');
+  if (!(await probeOpus({ ffmpeg }))) return t.skip('the system ffmpeg has no libopus encoder');
+
+  const bin = await stubSay(tmp, ffmpeg);
+  const out = path.join(tmp, 'narrated-tabs');
+  const res = await run([PLAN('fixture-narration-tabs.plan.json'), '--out', out, '--video', '--narration', '--rate', '200'], {
+    PATH: `${bin}${path.delimiter}${process.env.PATH}`,
+    UI_PATH_RECORDER_CACHE_DIR: path.join(tmp, 'narration-cache-tabs'),
+  });
+  assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
+  // `console.warn` writes to stderr, so both streams are read: a warning that
+  // lands in the stream nobody checks is a warning nobody sees.
+  for (const stream of [res.stdout, res.stderr]) {
+    assert.doesNotMatch(stream, /past its step/, 'the second tab waits for its own line');
+    assert.doesNotMatch(stream, /talk over each other/, 'the second tab does not start on top of a line');
+  }
+
+  // One recording per tab, each with its own subtitle file.
+  assert.deepEqual(
+    (await readdir(path.join(out, 'video'))).sort(),
+    ['01-main.vtt', '01-main.webm', '02-tab-2.vtt', '02-tab-2.webm'],
+  );
+
+  const windowsIn = (vtt) =>
+    [...vtt.matchAll(/(\d\d):(\d\d):(\d\d)\.(\d\d\d) --> (\d\d):(\d\d):(\d\d)\.(\d\d\d)/g)].map((m) => {
+      const ms = (h, m2, s, f) => Number(h) * 3_600_000 + Number(m2) * 60_000 + Number(s) * 1_000 + Number(f);
+      return ms(m[5], m[6], m[7], m[8]) - ms(m[1], m[2], m[3], m[4]);
+    });
+
+  // The first tab's three steps share the line, so it is one cue spoken once and
+  // paced once — the merged-cue rule, unchanged.
+  const main = windowsIn(await readFile(path.join(out, 'video', '01-main.vtt'), 'utf8'));
+  assert.equal(main.length, 1, 'the three first-tab steps share one cue');
+
+  // The second tab repeats the same words, but in its own file and its own cue:
+  // it has to wait for its own audio, or the sentence is cut off mid-word.
+  const tab = windowsIn(await readFile(path.join(out, 'video', '02-tab-2.vtt'), 'utf8'));
+  assert.ok(tab.length >= 1, 'the second tab subtitled its own steps');
+  assert.ok(tab[0] >= 1_800, `the repeated line held ${tab[0]}ms on the second tab, not a beat`);
+  assert.ok(tab[0] <= 2_600, `the repeated line held ${tab[0]}ms — dead air after the voice`);
+
+  const timeline = JSON.parse(await readFile(path.join(out, '.timeline.json'), 'utf8'));
+  assert.equal(timeline.videos.length, 2, 'the new tab is a second recording');
+  assert.ok(timeline.videos.every((video) => video.narrated === true), 'both files carry the voice');
 });
 
 test('humanizing changes the pacing, not the picture — and replays the same path', async (t) => {
