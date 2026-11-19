@@ -104,7 +104,8 @@
         { "required": ["pause"] },
         { "required": ["hold"] },
         { "required": ["expect"] },
-        { "required": ["shot"] }
+        { "required": ["shot"] },
+        { "required": ["say"] }
       ],
       "properties": {
         "name": { "type": "string", "description": "What this step does, shown in logs and evidence files." },
@@ -113,6 +114,12 @@
           "minLength": 1,
           "maxLength": 160,
           "description": "The subtitle for this step: drawn in the page for the step's whole duration and written beside the recording as a WebVTT file. One line, a sentence a viewer reads while watching — an empty or over-long caption is refused."
+        },
+        "say": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400,
+          "description": "What the voice reads for this step, when the plan narrates. Defaults to `caption` — one text for the pill, the `.vtt` and the voice, so they cannot disagree. An explicit `say` may be longer: a spoken sentence takes two to five seconds and a subtitle is read at a glance. One line; each line is spoken once, and the step that starts it waits for it to finish."
         },
         "check": {
           "type": "string",
@@ -302,7 +309,31 @@
         "outro": { "$ref": "#/$defs/card", "description": "The end card the video closes on, shown after the last step. It carries the same checklist the panel ticked, all N ticked." },
         "cardMs": { "type": "number", "minimum": 0, "default": 2200, "description": "How long each card is held in the recording, divided by humanize.speed like every other delay. Long enough to read twice." },
         "theme": { "type": "string", "description": "Name of a preset in `themes/` (\"memory\", \"dracula\", \"catppuccin-mocha\"), applied to the checklist panel and the cards. A preset holds literal values, so it renders on a page that defines no CSS of its own. Values are overridable with `tokens`." },
-        "tokens": { "type": "object", "propertyNames": { "enum": ["--pc-surface", "--pc-surface-strong", "--pc-border", "--pc-border-soft", "--pc-shadow", "--pc-shadow-soft", "--pc-text", "--pc-text-body", "--pc-muted", "--pc-muted-soft", "--pc-done", "--pc-mark", "--pc-accent", "--pc-ring", "--pc-radius", "--pc-font-family"] }, "additionalProperties": { "type": "string" }, "description": "Chrome palette overrides, keyed by CSS custom property. Setting one wins over `theme`. A value may name the recorded app's own token — `{ \"--pc-accent\": \"var(--color-primary)\" }` adopts the app's palette — which is why this is not limited to literal colours. The names are a closed set (`--pc-surface`, `--pc-surface-strong`, `--pc-border`, `--pc-border-soft`, `--pc-shadow`, `--pc-shadow-soft`, `--pc-text`, `--pc-text-body`, `--pc-muted`, `--pc-muted-soft`, `--pc-done`, `--pc-mark`, `--pc-accent`, `--pc-ring`, `--pc-radius`, `--pc-font-family`): an unknown custom property would be inherited silently and draw nothing different." }
+        "tokens": { "type": "object", "propertyNames": { "enum": ["--pc-surface", "--pc-surface-strong", "--pc-border", "--pc-border-soft", "--pc-shadow", "--pc-shadow-soft", "--pc-text", "--pc-text-body", "--pc-muted", "--pc-muted-soft", "--pc-done", "--pc-mark", "--pc-accent", "--pc-ring", "--pc-radius", "--pc-font-family"] }, "additionalProperties": { "type": "string" }, "description": "Chrome palette overrides, keyed by CSS custom property. Setting one wins over `theme`. A value may name the recorded app's own token — `{ \"--pc-accent\": \"var(--color-primary)\" }` adopts the app's palette — which is why this is not limited to literal colours. The names are a closed set (`--pc-surface`, `--pc-surface-strong`, `--pc-border`, `--pc-border-soft`, `--pc-shadow`, `--pc-shadow-soft`, `--pc-text`, `--pc-text-body`, `--pc-muted`, `--pc-muted-soft`, `--pc-done`, `--pc-mark`, `--pc-accent`, `--pc-ring`, `--pc-radius`, `--pc-font-family`): an unknown custom property would be inherited silently and draw nothing different." },
+        "narration": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Speak each step with macOS `say` and mux the audio into the recording. Its presence turns narration on for the plan; `--no-narration` overrides it without editing the file. Needs `--video`, `--speed 1`, the humanizer, a `say` on PATH and a system ffmpeg with libopus.",
+          "properties": {
+            "voice": {
+              "type": "string",
+              "minLength": 1,
+              "description": "A `say -v` voice name, e.g. `Ava` or `Daniel`. Omit it for the system default. Pinning it is what makes a re-record sound like the last one."
+            },
+            "rate": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 180,
+              "description": "Speaking rate in words per minute (`say -r`). 180 is conversational; slower reads as instruction, faster as an advert."
+            },
+            "tailMs": {
+              "type": "number",
+              "minimum": 0,
+              "default": 400,
+              "description": "Silence after a line before the next step may start, so a screen never changes on the last word. Each step's hold is widened to its line plus this."
+            }
+          }
+        }
       }
     },
     "card": {

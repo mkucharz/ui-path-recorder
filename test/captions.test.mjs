@@ -50,8 +50,8 @@ test('a cue starts and ends with its step', () => {
     { page: 1, recordingStartMs: 0 },
   );
   assert.deepEqual(cues, [
-    { startMs: 0, endMs: 900, text: 'Open the sign-in page.' },
-    { startMs: 900, endMs: 2_400, text: 'Type the email address.' },
+    { startMs: 0, endMs: 900, text: 'Open the sign-in page.', spoken: 'Open the sign-in page.' },
+    { startMs: 900, endMs: 2_400, text: 'Type the email address.', spoken: 'Type the email address.' },
   ]);
 });
 
@@ -86,8 +86,8 @@ test('a caption repeated across steps is one cue, not a blink', () => {
     { page: 1 },
   );
   assert.deepEqual(cues, [
-    { startMs: 0, endMs: 2_000, text: 'Same words.' },
-    { startMs: 2_000, endMs: 3_600, text: 'Other.' },
+    { startMs: 0, endMs: 2_000, text: 'Same words.', spoken: 'Same words.' },
+    { startMs: 2_000, endMs: 3_600, text: 'Other.', spoken: 'Other.' },
   ]);
 });
 
@@ -126,7 +126,7 @@ test('cue times are relative to the recording, not to the run', () => {
     { page: 2, recordingStartMs: 4_500 },
     { minMs: 0 },
   );
-  assert.deepEqual(cues, [{ startMs: 500, endMs: 1_500, text: 'In the second tab.' }]);
+  assert.deepEqual(cues, [{ startMs: 500, endMs: 1_500, text: 'In the second tab.', spoken: 'In the second tab.' }]);
 
   // The writer holds the raw file list, not the timeline's computed videos, so
   // the offset is also looked up by file name — a cue must not depend on which of
@@ -139,7 +139,7 @@ test('cue times are relative to the recording, not to the run', () => {
     { file: 'video/02-tab-2.webm', page: 2 },
     { minMs: 0 },
   );
-  assert.deepEqual(byFile, [{ startMs: 500, endMs: 1_500, text: 'In the second tab.' }]);
+  assert.deepEqual(byFile, [{ startMs: 500, endMs: 1_500, text: 'In the second tab.', spoken: 'In the second tab.' }]);
 });
 
 test('cue text is one line, and cannot break the file it is written into', () => {
@@ -153,8 +153,8 @@ test('cue text is one line, and cannot break the file it is written into', () =>
 
 test('the WebVTT file starts with its header, carries the cues, and names the run', () => {
   const cues = [
-    { startMs: 0, endMs: 1_500, text: 'Open the sign-in page.' },
-    { startMs: 1_500, endMs: 4_250, text: 'Type the email address.' },
+    { startMs: 0, endMs: 1_500, text: 'Open the sign-in page.', spoken: 'Open the sign-in page.' },
+    { startMs: 1_500, endMs: 4_250, text: 'Type the email address.', spoken: 'Type the email address.' },
   ];
   const vtt = buildVtt(cues, { note: 'signin-captions · 2 cues · seed signin-captions-v1' });
 

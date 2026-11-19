@@ -60,6 +60,34 @@ jobs:
             console.log("plans parse; schema is draft 2020-12");
           '
 
+      - name: narration has the pieces its tests need
+        # The narration tests skip themselves when there is no system ffmpeg with
+        # libopus (the one Playwright downloads is video-only), and a skip is not
+        # a pass on the only machine that runs this suite: the mux, and every
+        # pacing assertion, would go untested forever. ubuntu-latest moved to
+        # 26.04, which ships no ffmpeg at all, so it is installed here — and then
+        # asserted, so an image that loses it fails loudly instead of skipping.
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+          node -e '
+            const { execFileSync } = require("node:child_process");
+            let encoders = "";
+            try {
+              encoders = execFileSync("ffmpeg", ["-hide_banner", "-encoders"], { encoding: "utf8" });
+            } catch (error) {
+              console.error("narration: no ffmpeg on PATH — the mux would be untested\n  apt-get install ffmpeg");
+              process.exit(1);
+            }
+            if (!/^\s*A\S*\s+libopus\s/m.test(encoders)) {
+              console.error("narration: this ffmpeg has no libopus encoder — the mux would be untested\n  apt-get install ffmpeg");
+              process.exit(1);
+            }
+            console.log("narration: system ffmpeg has libopus");
+          '
+
       - name: capture the fixture end to end
         # No network, no account: the fixture is served on localhost by the test.
         run: npm test

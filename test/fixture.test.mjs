@@ -9,12 +9,13 @@
  */
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
 import { validate } from '../lib/plan.mjs';
+import { findMuxFfmpeg, probeOpus, runCommand } from '../lib/narration.mjs';
 import { startStaticServer } from '../lib/serve.mjs';
 import { startFixtureServer } from './serve.mjs';
 
@@ -587,6 +588,243 @@ test('--video-size is validated before anything else runs', async () => {
   const bad = await run([PLAN('fixture-video.plan.json'), '--out', path.join(tmp, 'video-bad-size'), '--video', '--video-size', '1080p']);
   assert.equal(bad.code, 2);
   assert.match(bad.stderr, /--video-size must be <width>x<height>/);
+});
+
+/**
+ * A `say` that is not macOS `say`, installed on PATH for one run.
+ *
+ * The engine, as the pipeline finds it: a binary called `say` that honours the
+ * flags and writes the WAV it is asked for. Detection is by binary rather than
+ * by `process.platform`, which is what lets a Linux host drive the real
+ * pipeline. It writes 1.5 s of tone — a length the test knows, so "did the step
+ * wait?" is a comparison rather than an eyeball.
+ *
+ * @param {string} dir A directory owned by the test.
+ * @param {string} ffmpeg The ffmpeg that can write PCM.
+ * @returns {Promise<string>} the directory to prepend to PATH.
+ */
+async function stubSay(dir, ffmpeg) {
+  const bin = path.join(dir, 'bin');
+  await mkdir(bin, { recursive: true });
+  await writeFile(
+    path.join(bin, 'say'),
+    [
+      '#!/bin/sh',
+      'out=""',
+      'while [ $# -gt 0 ]; do',
+      '  case "$1" in',
+      '    -o) out="$2"; shift 2 ;;',
+      '    *) shift ;;',
+      '  esac',
+      'done',
+      `exec "${ffmpeg}" -loglevel error -y -f lavfi -i "sine=frequency=440:sample_rate=48000:duration=1.5" -ac 1 -c:a pcm_s16le "$out"`,
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+  return bin;
+}
+
+/**
+ * Narration, end to end, with a `say` that is not macOS `say`.
+ *
+ * A stub on PATH writes a fixed 1.5 s WAV, which makes the pacing arithmetic
+ * assertable to the millisecond: every captioned step must stay on screen for at
+ * least that line plus the tail, or the next screen arrives mid-sentence. That
+ * invariant is what the unit tests cannot check — they can place samples, but
+ * only a real run shows whether the *step* waited.
+ */
+test('--narration paces each step to its own line, and muxes it in', async (t) => {
+  const ffmpeg = await findMuxFfmpeg();
+  if (!ffmpeg) return t.skip('narration needs a system ffmpeg with libopus');
+  if (!(await probeOpus({ ffmpeg }))) return t.skip('the system ffmpeg has no libopus encoder');
+
+  const bin = await stubSay(tmp, ffmpeg);
+
+  const out = path.join(tmp, 'narrated');
+  const res = await run([PLAN('fixture-narration.plan.json'), '--out', out, '--video', '--review', '--narration', '--rate', '200'], {
+    PATH: `${bin}${path.delimiter}${process.env.PATH}`,
+    UI_PATH_RECORDER_CACHE_DIR: path.join(tmp, 'narration-cache'),
+  });
+  assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
+
+  // The run said what it spoke, and did not warn that a line outran its step —
+  // the warning this feature exists to make unnecessary. `console.warn` writes
+  // to stderr, so both streams are read: an assertion against the stream the
+  // warning never reaches passes no matter what the run did.
+  assert.match(res.stdout, /narration: 5 lines, voice system default @ 200 wpm, 400ms tail/);
+  assert.equal(/spoke\s+5\/5/.test(res.stdout), true, 'every line was synthesized before the browser opened');
+  for (const stream of [res.stdout, res.stderr]) {
+    assert.doesNotMatch(stream, /past its step/, 'a step must wait for its own line');
+    assert.doesNotMatch(stream, /talk over each other/, 'two lines must never overlap');
+  }
+
+  // Both artefacts beside the recording, and the sound really in the file.
+  assert.deepEqual((await readdir(path.join(out, 'video'))).sort(), ['01-main.vtt', '01-main.webm']);
+  const probe = JSON.parse(
+    (
+      await runCommand(ffmpeg.replace(/ffmpeg$/, 'ffprobe'), [
+        '-v', 'error',
+        '-show_entries', 'stream=codec_type,codec_name',
+        '-of', 'json',
+        path.join(out, 'video', '01-main.webm'),
+      ])
+    ).stdout,
+  );
+  const kinds = probe.streams.map((stream) => `${stream.codec_type}:${stream.codec_name}`);
+  assert.ok(kinds.includes('audio:opus'), `the recording carries the voice (${kinds.join(', ')})`);
+  assert.ok(kinds.includes('video:vp9'), `the picture was copied, not re-encoded (${kinds.join(', ')})`);
+
+  // The subtitle transcribes the *speech* — a captions track with the pill's
+  // shorter line would be a track nobody can use with the sound off.
+  const vtt = await readFile(path.join(out, 'video', '01-main.vtt'), 'utf8');
+  assert.match(vtt, /fixture-narration · 5 cue\(s\)/);
+  assert.match(vtt, /Type the operator's email address, then continue\./);
+  assert.doesNotMatch(vtt, /^Type the email\.$/m, 'the pill keeps the caption; the .vtt follows the voice');
+
+  // The claim, from the file a player reads: every cue is at least as long as
+  // the line plus its tail (1.5 s + 0.4 s), give or take a frame of jitter.
+  // Longer is allowed — a step that types a value spends time doing it — so the
+  // upper bound belongs to the *shared* cue alone, whose two steps have nothing
+  // to do but wait: if the second one repeated the line's beat, that cue would
+  // sit in dead air for a sentence nobody is saying.
+  const windows = [...vtt.matchAll(/(\d\d):(\d\d):(\d\d)\.(\d\d\d) --> (\d\d):(\d\d):(\d\d)\.(\d\d\d)/g)].map((m) => {
+    const ms = (h, m2, s, f) => Number(h) * 3_600_000 + Number(m2) * 60_000 + Number(s) * 1_000 + Number(f);
+    return ms(m[5], m[6], m[7], m[8]) - ms(m[1], m[2], m[3], m[4]);
+  });
+  assert.equal(windows.length, 5, 'a caption repeated across steps is one cue');
+  for (const window of windows) assert.ok(window >= 1_800, `a cue held ${window}ms of a 1.9s line`);
+  assert.ok(windows[4] <= 2_600, `the shared cue held ${windows[4]}ms of a 1.9s line — dead air after the voice`);
+  assert.equal(
+    vtt.match(/Choose a target next, then deploy\./g).length,
+    1,
+    'the shared line is written once, so it cannot blink between the two steps',
+  );
+
+  // And the run is marked as narrated where a reviewer looks.
+  const timeline = JSON.parse(await readFile(path.join(out, '.timeline.json'), 'utf8'));
+  assert.equal(timeline.videos[0].narrated, true);
+  assert.match(await readFile(path.join(out, 'review.html'), 'utf8'), /· narrated/);
+});
+
+/**
+ * A plan that narrates is still a plan you can run for figures.
+ *
+ * `video.intro`/`video.outro` are ignored without `--video` for the same reason:
+ * they describe the recording, and a figure run has none. An explicit
+ * `--narration` is a request and is refused; the plan's own block only warns.
+ */
+test('a figure run of a narrated plan warns and records nothing, rather than failing', async () => {
+  const out = path.join(tmp, 'narrated-figures');
+  const res = await run([PLAN('fixture-narration.plan.json'), '--out', out, '--speed', '20']);
+  assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
+  assert.match(res.stderr, /the plan asks for narration, but this run is not recording it/);
+  assert.match(res.stderr, /pass --video to include the voice, or --no-narration to silence the plan/);
+  assert.doesNotMatch(res.stdout, /narration:/, 'nothing was synthesized for a run with no recording');
+  assert.equal(existsSync(path.join(out, 'video')), false, 'a figure run writes no track');
+
+  // The flag is the difference: asked for explicitly, it stops before a browser
+  // opens instead of silently dropping the voice.
+  const refused = await run([PLAN('fixture-narration.plan.json'), '--out', path.join(tmp, 'narrated-refused'), '--narration']);
+  assert.equal(refused.code, 2);
+  assert.match(refused.stderr, /--narration needs --video/);
+  assert.equal(existsSync(path.join(tmp, 'narrated-refused')), false);
+});
+
+test('--no-narration records a silent copy whose subtitles are the caption', async (t) => {
+  // The same plan, recorded without a voice: the `.vtt` must transcribe what is
+  // on screen, not a `say` nobody hears. Speed 20 keeps it cheap — narration is
+  // off, so there is no beat to scale.
+  const out = path.join(tmp, 'silent-copy');
+  const res = await run([PLAN('fixture-narration.plan.json'), '--out', out, '--video', '--no-narration', '--speed', '20']);
+  if (res.code !== 0 && FFMPEG_HINT.test(res.stderr)) return t.skip('Playwright ffmpeg is not installed here');
+  assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
+  assert.doesNotMatch(res.stdout, /narration:/, 'nothing was spoken');
+
+  const vtt = await readFile(path.join(out, 'video', '01-main.vtt'), 'utf8');
+  assert.match(vtt, /^Type the email\.$/m);
+  assert.doesNotMatch(vtt, /Type the operator's email address/, 'the silent copy has no voice to transcribe');
+
+  // And the file really is silent: the mux never ran, so there is no audio stream.
+  const ffmpeg = await findMuxFfmpeg();
+  if (ffmpeg) {
+    const probe = JSON.parse(
+      (
+        await runCommand(ffmpeg.replace(/ffmpeg$/, 'ffprobe'), [
+          '-v', 'error',
+          '-show_entries', 'stream=codec_type',
+          '-of', 'json',
+          path.join(out, 'video', '01-main.webm'),
+        ])
+      ).stdout,
+    );
+    assert.equal(
+      probe.streams.some((stream) => stream.codec_type === 'audio'),
+      false,
+      'a --no-narration recording has no voice track',
+    );
+  }
+  const timeline = JSON.parse(await readFile(path.join(out, '.timeline.json'), 'utf8'));
+  assert.notEqual(timeline.videos[0].narrated, true);
+});
+
+/**
+ * Narration across a `clickNewPage` boundary.
+ *
+ * Cues merge per *recording* — there is one `.vtt` per tab — so a line repeated
+ * on the second tab is a separate cue that has to wait for its own audio. A memo
+ * keyed on the line alone ("already spoke this") gives it no beat at all, so the
+ * cue is only as long as the step was: the shortest cue a reader can follow
+ * (`MIN_CUE_MS`, 1.2 s) instead of the 1.9 s the line needs. The subtitle falls
+ * away before the sentence does, and the run warns that the line runs past its
+ * step. The memo is per tab for exactly this case, and this plan measures it.
+ */
+test('a line repeated on a second tab is paced again, not treated as already spoken', async (t) => {
+  const ffmpeg = await findMuxFfmpeg();
+  if (!ffmpeg) return t.skip('narration needs a system ffmpeg with libopus');
+  if (!(await probeOpus({ ffmpeg }))) return t.skip('the system ffmpeg has no libopus encoder');
+
+  const bin = await stubSay(tmp, ffmpeg);
+  const out = path.join(tmp, 'narrated-tabs');
+  const res = await run([PLAN('fixture-narration-tabs.plan.json'), '--out', out, '--video', '--narration', '--rate', '200'], {
+    PATH: `${bin}${path.delimiter}${process.env.PATH}`,
+    UI_PATH_RECORDER_CACHE_DIR: path.join(tmp, 'narration-cache-tabs'),
+  });
+  assert.equal(res.code, 0, `exit ${res.code}\n${res.stderr}`);
+  // `console.warn` writes to stderr, so both streams are read: a warning that
+  // lands in the stream nobody checks is a warning nobody sees. The overrun
+  // warning is the one this plan can produce — each recording has a single cue,
+  // so `placeCues` has nothing to overlap.
+  for (const stream of [res.stdout, res.stderr]) {
+    assert.doesNotMatch(stream, /past its step/, 'the second tab waits for its own line');
+  }
+
+  // One recording per tab, each with its own subtitle file.
+  assert.deepEqual(
+    (await readdir(path.join(out, 'video'))).sort(),
+    ['01-main.vtt', '01-main.webm', '02-tab-2.vtt', '02-tab-2.webm'],
+  );
+
+  const windowsIn = (vtt) =>
+    [...vtt.matchAll(/(\d\d):(\d\d):(\d\d)\.(\d\d\d) --> (\d\d):(\d\d):(\d\d)\.(\d\d\d)/g)].map((m) => {
+      const ms = (h, m2, s, f) => Number(h) * 3_600_000 + Number(m2) * 60_000 + Number(s) * 1_000 + Number(f);
+      return ms(m[5], m[6], m[7], m[8]) - ms(m[1], m[2], m[3], m[4]);
+    });
+
+  // The first tab's three steps share the line, so it is one cue spoken once and
+  // paced once — the merged-cue rule, unchanged.
+  const main = windowsIn(await readFile(path.join(out, 'video', '01-main.vtt'), 'utf8'));
+  assert.equal(main.length, 1, 'the three first-tab steps share one cue');
+
+  // The second tab repeats the same words, but in its own file and its own cue:
+  // it has to wait for its own audio, or the sentence is cut off mid-word.
+  const tab = windowsIn(await readFile(path.join(out, 'video', '02-tab-2.vtt'), 'utf8'));
+  assert.ok(tab.length >= 1, 'the second tab subtitled its own steps');
+  assert.ok(tab[0] >= 1_800, `the repeated line held ${tab[0]}ms on the second tab, not a beat`);
+  assert.ok(tab[0] <= 2_600, `the repeated line held ${tab[0]}ms — dead air after the voice`);
+
+  const timeline = JSON.parse(await readFile(path.join(out, '.timeline.json'), 'utf8'));
+  assert.equal(timeline.videos.length, 2, 'the new tab is a second recording');
+  assert.ok(timeline.videos.every((video) => video.narrated === true), 'both files carry the voice');
 });
 
 test('humanizing changes the pacing, not the picture — and replays the same path', async (t) => {

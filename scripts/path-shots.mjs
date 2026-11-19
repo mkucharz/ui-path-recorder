@@ -58,10 +58,10 @@
  * hidden before every figure and every piece of evidence, and `--no-humanize`
  * records the raw machine-speed cut instead.
  */
-import { access, mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
-import { createVars, loadPlan, PlanError } from '../lib/plan.mjs';
+import { createVars, loadPlan, narrationCaptionWarnings, PlanError } from '../lib/plan.mjs';
 import { writeEvidence } from '../lib/evidence.mjs';
 import { writeReview } from '../lib/review.mjs';
 import { createHuman, resolveOptions } from '../lib/human.mjs';
@@ -70,12 +70,31 @@ import { cardFitWarning, cardHtml, cardOptions } from '../lib/cards.mjs';
 import { NARROW_VIEWPORT, checklistOptions, checklistReserve } from '../lib/checklist.mjs';
 import { createRecorder } from '../lib/recorder.mjs';
 import { actionOf, createTimeline } from '../lib/timeline.mjs';
+import {
+  NarrationError,
+  NARRATION_FFMPEG_HINT,
+  SAY_HINT,
+  defaultCacheDir,
+  findMuxFfmpeg,
+  findSay,
+  muxNarration,
+  narrationRefusal,
+  narrationText,
+  pcmMs,
+  placeCues,
+  probeOpus,
+  resolveNarration,
+  synthesizeSay,
+  writeWav,
+} from '../lib/narration.mjs';
 
 const USAGE = `usage:
   node scripts/path-shots.mjs <plan.json> [--only <shot-id>] [--out <dir>] [--review]
                                         [--profile <dir>] [--video] [--trace]
                                         [--humanize] [--no-humanize] [--seed <s>] [--speed <n>]
                                         [--video-fps <n>] [--video-size <WxH>] [--poster <shot-id>]
+                                        [--narration] [--no-narration] [--voice <name>] [--rate <wpm>]
+                                        [--narration-tail <ms>]
                                         [--vars-out <file>] [--no-trim] [--headed] [--channel <name>]
   node scripts/path-shots.mjs --login --login-url <url> [--profile <dir>] [--login-done-file <path>]
 
@@ -97,6 +116,13 @@ const USAGE = `usage:
                     viewport's shape and be no larger than it: Playwright never
                     scales a recording up, it pads the canvas with a band
   --poster <id>     figure to show in the player before play (default: the first frame)
+  --narration       speak each step with macOS say and mux the audio into the recording
+                    (implies the humanizer, needs --video and --speed 1; a plan turns it
+                    on by carrying "video.narration")
+  --no-narration    record silently even when the plan carries "video.narration"
+  --voice <name>    say -v voice, e.g. "Ava" (default: the system voice)
+  --rate <wpm>      words per minute for say -r (default: 180)
+  --narration-tail <ms>  silence after each line before the next step (default: 400)
   --trace           write <out>/trace.zip (open it with: npx playwright-core show-trace)
   --vars-out <file> keep values read by setVar (default: <out>/.vars.json, mode 600)
   --no-trim         do not crop dead space (needs no sharp)
@@ -119,6 +145,9 @@ const VALUE_FLAGS = new Set([
   '--video-fps',
   '--video-size',
   '--poster',
+  '--voice',
+  '--rate',
+  '--narration-tail',
 ]);
 
 const argv = process.argv.slice(2);
@@ -148,6 +177,12 @@ const speedFlag = flag('--speed');
 const videoFps = Number(flag('--video-fps') ?? 25);
 const videoSizeFlag = flag('--video-size');
 const posterFlag = flag('--poster');
+// null means "the plan decides": `--narration` turns it on, `--no-narration`
+// turns it off, and a plan carrying `video.narration` turns it on by itself.
+const narrationFlag = has('--no-narration') ? false : has('--narration') ? true : null;
+const voiceFlag = flag('--voice');
+const rateFlag = flag('--rate');
+const narrationTailFlag = flag('--narration-tail');
 
 if (has('--help') || has('-h')) {
   console.log(USAGE);
@@ -167,6 +202,14 @@ if (speedFlag !== null && (!Number.isFinite(Number(speedFlag)) || Number(speedFl
 }
 if (!Number.isFinite(videoFps) || videoFps <= 0) {
   console.error(`--video-fps must be a positive number (got ${JSON.stringify(flag('--video-fps'))})`);
+  process.exit(2);
+}
+if (rateFlag !== null && (!Number.isFinite(Number(rateFlag)) || Number(rateFlag) <= 0)) {
+  console.error(`--rate must be a positive number of words per minute (got ${JSON.stringify(rateFlag)})`);
+  process.exit(2);
+}
+if (narrationTailFlag !== null && (!Number.isFinite(Number(narrationTailFlag)) || Number(narrationTailFlag) < 0)) {
+  console.error(`--narration-tail must be a number of milliseconds >= 0 (got ${JSON.stringify(narrationTailFlag)})`);
   process.exit(2);
 }
 
@@ -215,6 +258,141 @@ const humanizeOn = humanizeFlag ?? (video || plan?.humanize?.enabled === true);
 const humanOptions = resolveOptions(plan?.humanize ?? {}, { speed: speedFlag === null ? plan?.humanize?.speed : Number(speedFlag) });
 // Logged, never inferred: a run you cannot replay is a video you cannot re-shoot.
 const humanSeed = seedFlag ?? plan?.humanize?.seed ?? `run-${stamp}`;
+
+/**
+ * Narration: the plan's `video.narration` block turns it on, the flags override
+ * it. Resolved here because the refusal below has to see the humanizer's own
+ * decision — the voice is paced by `hold`, and there is no `hold` without it.
+ */
+const narrationSettings = resolveNarration({
+  enabled: narrationFlag,
+  voice: voiceFlag,
+  rate: rateFlag === null ? null : Number(rateFlag),
+  tailMs: narrationTailFlag === null ? null : Number(narrationTailFlag),
+  plan,
+});
+// A plan that narrates is still a plan you can run for figures: the voice is a
+// property of the *recording*, and `video.intro`/`video.outro` are ignored the
+// same way without `--video`. An explicit `--narration` is a request, though, and
+// a request with nothing to record is a mistake worth stopping for.
+if (narrationSettings.enabled && !video) {
+  if (narrationFlag === true) {
+    console.error(
+      '\n  --narration needs --video: the voice is a track inside the recording, so a run with no recording has nothing to narrate\n',
+    );
+    process.exit(2);
+  }
+  console.warn(
+    '  warning: the plan asks for narration, but this run is not recording it — pass --video to include the voice, ' +
+      'or --no-narration to silence the plan. The figures are unaffected',
+  );
+  narrationSettings.enabled = false;
+}
+const narrationProblem = narrationRefusal({
+  enabled: narrationSettings.enabled,
+  video,
+  humanized: humanizeOn,
+  speed: humanOptions.speed,
+});
+if (narrationProblem) {
+  console.error(`\n  ${narrationProblem}\n`);
+  process.exit(2);
+}
+// `validate` only sees the plan's own `video.narration`; when the flag is what
+// turned narration on, the same mismatch is still worth saying out loud.
+if (narrationSettings.enabled && !plan?.video?.narration) {
+  for (const warning of narrationCaptionWarnings(plan?.steps ?? [])) console.warn(`  warning: ${warning}`);
+}
+
+/** Last thing set up before the browser opens: the spoken lines, keyed by text. */
+let narrationAudio = null;
+let narrationFfmpeg = null;
+if (narrationSettings.enabled) {
+  const sayPath = await findSay();
+  if (!sayPath) {
+    console.error(`\n  ${SAY_HINT}\n`);
+    process.exit(2);
+  }
+  narrationFfmpeg = await findMuxFfmpeg();
+  if (!narrationFfmpeg) {
+    console.error(`\n  ${NARRATION_FFMPEG_HINT}\n`);
+    process.exit(2);
+  }
+  if (!(await probeOpus({ ffmpeg: narrationFfmpeg }).catch(() => false))) {
+    console.error(`\n  ${NARRATION_FFMPEG_HINT}\n  (found ${narrationFfmpeg}, but it has no libopus encoder)\n`);
+    process.exit(2);
+  }
+
+  // One line per distinct text: two steps that say the same thing are one cue,
+  // and speaking it twice would be a stutter the pacing cannot undo.
+  const lines = [...new Set((plan?.steps ?? []).map(narrationText).filter(Boolean))];
+  if (!lines.length) {
+    console.warn('  warning: narration is on but no step carries a "caption" or "say" — the recording stays silent');
+  } else {
+    const cacheDir = defaultCacheDir();
+    console.log(
+      `  narration: ${lines.length} line${lines.length === 1 ? '' : 's'}` +
+        `, voice ${narrationSettings.voice ?? 'system default'} @ ${narrationSettings.rate} wpm,` +
+        ` ${narrationSettings.tailMs}ms tail`,
+    );
+    narrationAudio = new Map();
+    for (const [n, text] of lines.entries()) {
+      const line = await synthesizeSay({
+        say: sayPath,
+        text,
+        voice: narrationSettings.voice,
+        rate: narrationSettings.rate,
+        dir: cacheDir,
+      }).catch((error) => {
+        console.error(`\n  cannot speak line ${n + 1} of ${lines.length}: ${error.message}\n  ${JSON.stringify(text)}\n`);
+        process.exit(2);
+      });
+      narrationAudio.set(text, { pcm: line.pcm, ms: line.ms });
+      console.log(
+        `    ${line.cached ? 'cached' : 'spoke '} ${String(n + 1).padStart(2)}/${lines.length}` +
+          `  ${(line.ms / 1000).toFixed(1)}s  ${JSON.stringify(text.length > 56 ? `${text.slice(0, 53)}…` : text)}`,
+      );
+    }
+  }
+}
+
+/**
+ * The last line each tab has already been given a beat for.
+ *
+ * Cues merge per *recording*, not per plan (see `lib/captions.mjs`, which keeps
+ * one `.vtt` per tab), so the memo is per tab too: a `clickNewPage` step whose
+ * line repeats the one before it opens a tab with its own track and its own cue,
+ * and that cue has to wait for its own audio. Keyed on the line alone, it got no
+ * beat at all — the cue lasted only as long as the step, one `MIN_CUE_MS` floor
+ * short of the sentence, and the words were cut off.
+ */
+const lastSpokenByPage = new Map();
+
+/**
+ * How long this step has to stay on screen for its own line to finish.
+ *
+ * The cue's window *is* the step, and the audio starts when the cue starts, so a
+ * step that spent two seconds clicking owes only the rest of the sentence.
+ * `tailMs` is the silence after it, so the next screen never arrives on the last
+ * word. Measured on the timeline's clock — the same one a step's `startMs` is on,
+ * not `Date.now()`.
+ *
+ * A line already spoken on this tab owes nothing: consecutive steps that share a
+ * caption are one cue (see `lib/captions.mjs`), and their audio was placed at the
+ * *first* of them. Without this the second step sits in dead air for a sentence
+ * nobody is saying.
+ */
+function narrationBeat(index, record) {
+  if (!narrationAudio) return 0;
+  const spoken = narrationText(plan.steps[index]);
+  const audio = narrationAudio.get(spoken);
+  if (!audio) return 0;
+  const page = record.page ?? 1;
+  if (lastSpokenByPage.get(page) === spoken) return 0;
+  lastSpokenByPage.set(page, spoken);
+  const elapsed = Math.max(0, timeline.now() - record.startMs);
+  return Math.max(0, audio.ms + narrationSettings.tailMs - elapsed);
+}
 
 /**
  * The intro and end cards, when the plan asks for any. They are recorded frames,
@@ -507,6 +685,14 @@ async function logVideo() {
 }
 
 /**
+ * The cues each recording produced, by file.
+ *
+ * Kept beside the run rather than on the `videoFiles` entry: those entries are
+ * serialized into `.timeline.json` verbatim, and a cue carries a PCM buffer.
+ */
+const cuesByRecording = new Map();
+
+/**
  * The subtitles, written beside the recordings.
  *
  * A step's `caption` is drawn in the page, which makes the recording explain
@@ -517,14 +703,18 @@ async function logVideo() {
  *
  * Written after the run (including a run that failed late, whose video is still
  * worth watching), because a cue's end is the next step's start.
+ *
+ * Narrated, the cue body is the *spoken* line — see lib/captions.mjs — so the
+ * track transcribes the voice while the pill keeps the shorter caption.
  */
 async function writeCaptions() {
   if (!video || !videoFiles.length) return;
   const json = timeline.toJSON();
   const written = [];
   for (const recording of videoFiles) {
-    const cues = cuesForRecording(json, recording);
+    const cues = cuesForRecording(json, recording, { narrated: Boolean(narrationAudio) });
     if (!cues.length) continue;
+    cuesByRecording.set(recording.file, cues);
     const file = vttFor(recording.file);
     const note = [json.tutorial ?? json.plan, `${cues.length} cue(s)`, json.seed ? `seed ${json.seed}` : null]
       .filter(Boolean)
@@ -535,6 +725,70 @@ async function writeCaptions() {
     written.push(`${file} (${cues.length} cue${cues.length === 1 ? '' : 's'})`);
   }
   if (written.length) console.log(`  captions: ${written.join(', ')}`);
+}
+
+/**
+ * The voice, muxed into the recordings it belongs to.
+ *
+ * One track per recording, built from the same cues the `.vtt` was: each line is
+ * placed at its cue's start, so the voice and the subtitles cannot drift. The
+ * mux is a second ffmpeg pass that copies the video stream, which is what keeps
+ * this decoupled from the encoder — and what lets a failure here leave the
+ * original file untouched instead of half-rewritten.
+ *
+ * Runs after the recording, because a cue's window is only known then.
+ */
+async function writeNarration() {
+  if (!narrationAudio || !videoFiles.length) return;
+  const written = [];
+  for (const recording of videoFiles) {
+    const cues = cuesByRecording.get(recording.file) ?? [];
+    // Match on the unescaped line, which is what was synthesized. A cue with no
+    // audio is a step whose text changed after synthesis — impossible in one run
+    // — or a recording whose cues were merged.
+    const spoken = cues
+      .map((cue) => ({ startMs: cue.startMs, endMs: cue.endMs, spoken: cue.spoken, audio: narrationAudio.get(cue.spoken) }))
+      .filter((cue) => cue.audio);
+    if (!spoken.length) continue;
+
+    for (const cue of spoken) {
+      const overrunMs = cue.startMs + cue.audio.ms - cue.endMs;
+      if (overrunMs > 0) {
+        console.warn(
+          `  warning: ${recording.file}: the line at ${(cue.startMs / 1000).toFixed(1)}s runs ` +
+            `${(overrunMs / 1000).toFixed(1)}s past its step, so the next screen arrives mid-sentence`,
+        );
+      }
+    }
+
+    const { pcm, warnings } = placeCues(
+      spoken.map((cue) => ({ startMs: cue.startMs, pcm: cue.audio.pcm })),
+      { label: recording.file },
+    );
+    for (const warning of warnings) console.warn(`  warning: ${recording.file}: ${warning}`);
+
+    const stem = recording.file.replace(/\.[^./\\]+$/, '');
+    const wavFile = `${stem}.narration.wav`;
+    const narratedFile = `${stem}.narrated.webm`;
+    const wavPath = path.join(OUT, wavFile);
+    const videoPath = path.join(OUT, recording.file);
+    const narratedPath = path.join(OUT, narratedFile);
+    try {
+      await writeFile(wavPath, writeWav(pcm));
+      await muxNarration({ ffmpeg: narrationFfmpeg, video: videoPath, audio: wavPath, out: narratedPath });
+      await rename(narratedPath, videoPath);
+      recording.narrated = true;
+      written.push(`${recording.file} (${(pcmMs(pcm) / 1000).toFixed(1)}s of track)`);
+    } catch (error) {
+      // A mux that fails is a silent recording, not a lost run: the figures,
+      // the timeline and the original video are already on disk.
+      console.warn(`  warning: ${recording.file}: narration was not muxed (${error.message}) — the video is silent`);
+      await rm(narratedPath, { force: true }).catch(() => {});
+    } finally {
+      await rm(wavPath, { force: true }).catch(() => {});
+    }
+  }
+  if (written.length) console.log(`  narration: ${written.join(', ')}`);
 }
 
 /** Artefacts to link from the review sheet beyond the figures themselves. */
@@ -831,6 +1085,7 @@ try {
       name: step.name ?? null,
       action: actionOf(step),
       caption: step.caption ?? null,
+      say: step.say ?? null,
       check: step.check ? step.check.replace(/\s+/g, ' ').trim() : null,
     });
     // Which tab this step runs in. A `clickNewPage` flow continues in a second
@@ -931,7 +1186,11 @@ try {
     // the step is to find out what appeared.
     if (step.pause) await human.hold(step.pause);
     // A beat of stillness a viewer can read. `--only` replays are unaffected.
-    if (step.hold) await human.hold(step.hold);
+    // Narrated, the beat is also what keeps the screen up until the line is
+    // spoken: `hold` is the only lever the runner has over "how long this step
+    // lasts", and the cue's window is the step.
+    const beatMs = Math.max(step.hold ?? 0, narrationBeat(i, record.record));
+    if (beatMs > 0) await human.hold(beatMs);
     // Read a value off the page into a plan variable. An installer that
     // generates a first password and shows it once cannot be driven from an
     // environment variable: the plan reads it from the page it was printed on.
@@ -1173,6 +1432,7 @@ try {
   // Before the timeline is written, so `.timeline.json` names the `.vtt` beside
   // each recording: the two files are copied around together.
   await writeCaptions().catch(() => {});
+  await writeNarration().catch(() => {});
   if (video || human.enabled) await timeline.write(OUT).catch(() => {});
   // A plan that fails late has still banked every figure before the failure, and
   // those are exactly what a reviewer needs to see next to the evidence.
@@ -1203,6 +1463,7 @@ timeline.close();
 await writeFile(metaPath, JSON.stringify(shotMeta, null, 2) + '\n');
 await writeVars();
 await writeCaptions();
+await writeNarration();
 if (video || human.enabled) await timeline.write(OUT);
 const extras = await collectExtras();
 if (review && (shots.length || videoFiles.length)) {
