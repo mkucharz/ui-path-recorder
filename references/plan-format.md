@@ -338,13 +338,15 @@ Rules worth knowing:
 ### `video.narration` — speak the walkthrough
 
 ```json
-"video": { "narration": { "voice": "Ava", "rate": 180, "tailMs": 400 } }
+"video": { "narration": { "engine": "elevenlabs", "voice": "pNInz6obpgDQGcFmaJgB", "rate": 180, "tailMs": 400 } }
 ```
 
 | Key | Default | Meaning |
 |---|---|---|
-| `voice` | the system voice | A `say -v` name (`Ava`, `Daniel`, …). Pinning it is what makes a re-record sound like the last one. |
-| `rate` | `180` | Words per minute (`say -r`). 180 is conversational; slower reads as instruction. |
+| `engine` | `say` | `say` (macOS's own voice: no install, no key, no network) or `elevenlabs` (HTTPS, needs `ELEVENLABS_API_KEY` in the environment — **never in the plan**). |
+| `model` | the engine's own | The `elevenlabs` model id, e.g. `eleven_multilingual_v2` (the default) or `eleven_turbo_v2_5`. Ignored by `say`. |
+| `voice` | the engine default | A `say -v` name (`Ava`, `Daniel`, …) for `say`; an ElevenLabs voice name or 20-character id for `elevenlabs`. Pinning it is what makes a re-record sound like the last one. A name is resolved against the voices the key can see, which needs the `voices_read` permission — an id is used as given, so a key scoped to text-to-speech alone works. |
+| `rate` | `180` | Words per minute (`say -r`). 180 is conversational; slower reads as instruction. ElevenLabs maps it to `voice_settings.speed` (`180` → `1.0`) and clamps to the `0.7`–`1.2` the API accepts, warning when that happens. |
 | `tailMs` | `400` | Silence after a line before the next step may start. |
 
 Its **presence is the plan asking for narration** — an empty object means "the
@@ -357,17 +359,23 @@ is the tool's default figure mode, so the run warns and records the figures, the
 way `video.intro` and `video.outro` are ignored. An explicit `--narration` is a
 request, and is refused before a browser opens without `--video` (there is no
 track), with `--no-humanize` (nothing to pace against) and with `--speed` other
-than 1 (the beat is scaled and the audio is not). It needs macOS `say` and a
-**system** ffmpeg with libopus — Playwright's bundled ffmpeg is video-only — and
-the mux copies the video stream rather than re-encoding it, so a failure leaves
-the recording silent but intact.
+than 1 (the beat is scaled and the audio is not). It needs a **system** ffmpeg
+with libopus — Playwright's bundled ffmpeg is video-only — and the chosen engine:
+macOS `say` on PATH (the default), or `ELEVENLABS_API_KEY` for `elevenlabs`. The
+mux copies the video stream rather than re-encoding it, so a failure leaves the
+recording silent but intact.
 
-The caption section's example narrates as it stands — `say` falls back to each
+The caption section's example narrates as it stands — the engine falls back to each
 `caption`:
 
 ```bash
 SIGNIN_URL=http://127.0.0.1:8100 \
   node scripts/path-shots.mjs plans/examples/signin-captions.plan.json --video --narration
+
+# the same run with the other engine
+ELEVENLABS_API_KEY=... \
+  node scripts/path-shots.mjs plans/examples/signin-captions.plan.json --video --narration \
+    --narration-engine elevenlabs --voice pNInz6obpgDQGcFmaJgB
 ```
 
 ### `check` — the checklist row this step ticks
@@ -419,7 +427,7 @@ that records.
 | `cardMs` | `2200` | How long each card is held, divided by `humanize.speed` like every other delay. |
 | `theme` | — | Name of a preset in `themes/` (`memory`, `dracula`, `catppuccin-mocha`), applied to the panel and the cards. |
 | `tokens` | — | Chrome palette overrides by CSS custom property, on top of `theme`. |
-| `narration` | — | `{ voice?, rate?, tailMs? }` — speak the walkthrough with macOS `say` and mux the voice in. See `video.narration` above. |
+| `narration` | — | `{ engine?, model?, voice?, rate?, tailMs? }` — speak the walkthrough and mux the voice in, with macOS `say` (the default) or `elevenlabs`. See `video.narration` above. |
 
 ### `video.checklist`
 

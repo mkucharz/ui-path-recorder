@@ -271,7 +271,8 @@ git clone https://github.com/mkucharz/ui-path-recorder \
           <tbody>
             <tr><td><code>--review</code></td><td>write <code>review.html</code> into the run directory</td></tr>
             <tr><td><code>--video</code></td><td>record the walkthrough and drive it like a person (needs <code>ffmpeg</code>)</td></tr>
-            <tr><td><code>--narration</code></td><td>speak every step with macOS <code>say</code>, muxed in (needs a system <code>ffmpeg</code> with libopus)</td></tr>
+            <tr><td><code>--narration</code></td><td>speak every step, muxed in (needs a system <code>ffmpeg</code> with libopus)</td></tr>
+            <tr><td><code>--narration-engine</code></td><td><code>say</code> (macOS, the default) or <code>elevenlabs</code> (needs <code>ELEVENLABS_API_KEY</code>)</td></tr>
             <tr><td><code>--out &lt;dir&gt;</code></td><td>the run directory (default <code>captures/&lt;tutorial&gt;-&lt;timestamp&gt;</code>)</td></tr>
             <tr><td><code>--only &lt;id&gt;</code></td><td>replay up to that figure and stop</td></tr>
             <tr><td><code>--profile &lt;dir&gt;</code></td><td>keep a signed-in session on this host, for flows behind a login</td></tr>

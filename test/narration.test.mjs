@@ -114,28 +114,49 @@ test('the spoken line is one line, because it is synthesized to one utterance', 
 
 test('the plan turns narration on, and the flags win over it', () => {
   const plan = { video: { narration: { voice: 'Ava', rate: 200, tailMs: 250 } } };
-  assert.deepEqual(resolveNarration({ plan }), { enabled: true, voice: 'Ava', rate: 200, tailMs: 250 });
+  assert.deepEqual(resolveNarration({ plan }), {
+    enabled: true,
+    engine: 'say',
+    model: null,
+    voice: 'Ava',
+    rate: 200,
+    tailMs: 250,
+  });
 
   // No block, no narration — the feature is never on by surprise.
-  assert.deepEqual(resolveNarration({ plan: { video: {} } }), {
+  const off = {
     enabled: false,
+    engine: 'say',
+    model: null,
     voice: null,
     rate: DEFAULT_RATE,
     tailMs: DEFAULT_TAIL_MS,
-  });
-  assert.deepEqual(resolveNarration({ plan: null }), {
-    enabled: false,
-    voice: null,
-    rate: DEFAULT_RATE,
-    tailMs: DEFAULT_TAIL_MS,
-  });
+  };
+  assert.deepEqual(resolveNarration({ plan: { video: {} } }), off);
+  assert.deepEqual(resolveNarration({ plan: null }), off);
 
   // `--no-narration` beats the plan, which is how a silent copy is made from a
   // narrated plan without editing it.
   assert.equal(resolveNarration({ enabled: false, plan }).enabled, false);
   // And a flag overrides the block it duplicates.
   const overridden = resolveNarration({ plan, voice: 'Daniel', rate: 160, tailMs: 0 });
-  assert.deepEqual(overridden, { enabled: true, voice: 'Daniel', rate: 160, tailMs: 0 });
+  assert.deepEqual(overridden, {
+    enabled: true,
+    engine: 'say',
+    model: null,
+    voice: 'Daniel',
+    rate: 160,
+    tailMs: 0,
+  });
+
+  // The engine is chosen, never sniffed: a plan that names none gets `say`, and
+  // a flag naming another one wins over the plan. An unset model is `null` —
+  // each engine's own default is applied where the engine is, not here.
+  const eleven = { video: { narration: { engine: 'elevenlabs', model: 'eleven_turbo_v2_5' } } };
+  assert.equal(resolveNarration({ plan: eleven }).engine, 'elevenlabs');
+  assert.equal(resolveNarration({ plan: eleven }).model, 'eleven_turbo_v2_5');
+  assert.equal(resolveNarration({ plan: eleven, engine: 'say' }).engine, 'say');
+  assert.equal(resolveNarration({ plan: { video: { narration: { engine: 'elevenlabs' } } } }).model, null);
 });
 
 test('narration refuses the runs that would put the voice out of step', () => {

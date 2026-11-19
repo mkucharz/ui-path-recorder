@@ -141,19 +141,22 @@ with, so it writes the track only and warns; see `references/plan-format.md` →
 `caption`, and `plans/examples/signin-captions.plan.json`.
 
 And it can **speak**: `--narration` (or `"video.narration"` in the plan) reads
-each step with macOS `say` and muxes the voice into the recording. A step's `say`
-defaults to its `caption`, so the pill, the `.vtt` and the voice agree; write a
-`say` when the heard sentence and the read line should differ, and the `.vtt`
-then transcribes the speech while the pill keeps the short caption. Narration is
-a two-pass run — lines are synthesized before the browser opens, and the step
-that starts a cue waits `max(hold, line + tailMs)` — which is why `--narration`
-needs `--video`, the humanizer and `--speed 1`. It also needs a system ffmpeg
-with libopus (Playwright's bundled one is video-only), and it refuses to run
-without one before opening a browser.
+each step aloud and muxes the voice into the recording. Two engines speak it:
+macOS `say` by default (no install, no key, no network), or ElevenLabs over HTTPS
+with `--narration-engine elevenlabs` and `ELEVENLABS_API_KEY` in the environment —
+never in the plan. A step's `say` defaults to its `caption`, so the pill, the
+`.vtt` and the voice agree; write a `say` when the heard sentence and the read
+line should differ, and the `.vtt` then transcribes the speech while the pill
+keeps the short caption. Narration is a two-pass run — lines are synthesized
+before the browser opens, and the step that starts a cue waits
+`max(hold, line + tailMs)` — which is why `--narration` needs `--video`, the
+humanizer and `--speed 1`. It also needs a system ffmpeg with libopus
+(Playwright's bundled one is video-only), and it refuses to run without one
+before opening a browser.
 `--no-narration` records a silent copy of a narrated plan (its `.vtt` falls back
-to the captions, since no voice was spoken); `--voice`, `--rate` and
-`--narration-tail` override the block. See `references/plan-format.md` → `say` and
-`video.narration`.
+to the captions, since no voice was spoken); `--narration-engine`,
+`--narration-model`, `--voice`, `--rate` and `--narration-tail` override the
+block. See `references/plan-format.md` → `say` and `video.narration`.
 
 A recording can also **tick a checklist off beside it**: `"check": "…"` on a step
 adds that row to a small panel, ticked the moment the step starts. The rows are
@@ -205,8 +208,8 @@ plan from that, not from a description of the page.
 
 Other useful flags: `--trace` (open with `npx playwright-core show-trace`),
 `--profile <dir>` (see step 6), `--video-fps`, `--video-size <WxH>`,
-`--poster <shot-id>`, `--narration` / `--no-narration` and `--voice`, `--rate`,
-`--narration-tail`.
+`--poster <shot-id>`, `--narration` / `--no-narration`, `--narration-engine`,
+`--narration-model`, `--voice`, `--rate`, `--narration-tail`.
 
 ### 5. Sign off, then ingest
 
@@ -309,7 +312,7 @@ scripts/check-panel-theme.mjs  presets: shape, and drift against a product's app
 lib/human.mjs               how a recorded run is driven: pointer, travel, typing
 lib/recorder.mjs            how a recording is made: frames, resampling, ffmpeg
 lib/captions.mjs            a step's subtitle → the pill in the picture and its .vtt
-lib/narration.mjs           a step's line → speech, its place on the track, and the mux
+lib/narration.mjs           a step's line → speech (say or ElevenLabs), its place on the track, and the mux
 lib/checklist.mjs           the rows a recording ticks: derived from steps, drawn by human.mjs
 lib/cards.mjs               the intro and end cards: a whole screen of HTML, checklist included
 lib/theme.mjs               the chrome palette: the --pc-* vocabulary, defaults, presets
