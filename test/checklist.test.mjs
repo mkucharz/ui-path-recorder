@@ -72,6 +72,11 @@ test('the panel defaults are a preference, not a requirement', () => {
   assert.equal(overridden.side, 'left');
   assert.equal(overridden.width, 320);
   assert.equal(overridden.accent, '#0f0');
+  assert.equal(overridden.containFixed, false);
+  assert.equal(
+    checklistOptions({ ...PLAN, video: { checklist: { layout: 'dock', containFixed: true } } }).containFixed,
+    true,
+  );
 
   // No items and no block: nothing to draw, so the overlay is not told about a
   // panel at all.
@@ -166,6 +171,15 @@ test('a plan refuses a checklist it cannot draw', () => {
   // The docked layout is valid, and validating it must not need a wider viewport:
   // whether the app has room left is a warning the run prints, not a typo.
   assert.deepEqual(validate(withVideo({ checklist: { layout: 'dock' } })).warnings, []);
+  assert.deepEqual(validate(withVideo({ checklist: { layout: 'dock', containFixed: true } })).warnings, []);
+  assert.throws(
+    () => validate(withVideo({ checklist: { containFixed: true } })),
+    /containFixed" needs "layout": "dock"/,
+  );
+  assert.throws(
+    () => validate(withVideo({ checklist: { layout: 'dock', containFixed: 'yes' } })),
+    /containFixed" must be true or false/,
+  );
   assert.throws(() => validate(withVideo({ checklist: { accent: 'blue' } })), /accent" must be a #rgb or #rrggbb colour/);
   assert.throws(() => validate(withVideo({ checklist: { title: 7 } })), /title" must be a string/);
   // The second line is a glance under the heading: a string, one line, short.
@@ -519,6 +533,62 @@ test('a docked panel takes a column of the page instead of covering it', async (
     assert.equal(drawn.column, 1440);
     assert.equal(drawn.shift, '', 'so it publishes no shift');
     assert.ok(Math.abs(drawn.pill.centre - 720) <= 1, `and its own subtitle is centred on the card (${drawn.pill.centre} vs 720)`);
+  } finally {
+    await context.close();
+    await browser.close();
+  }
+});
+
+test('containFixed centres a fixed dialog in the app column, not the frame', async (t) => {
+  const browser = await launch();
+  if (!browser) return t.skip('no browser to draw with');
+
+  const APP = `<!doctype html><html><head><style>
+    html,body{margin:0;height:100%}body{background:#111}main{height:100%;background:#1b2130}
+    #dialog{position:fixed;top:50%;left:50%;width:400px;height:200px;transform:translate(-50%,-50%);background:#fff}
+  </style></head><body><main id="app"></main><div id="dialog">Dialog</div></body></html>`;
+
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  try {
+    await context.route('http://contain.test/**', (route) =>
+      route.fulfill({ contentType: 'text/html', body: APP }),
+    );
+    const page = await context.newPage();
+    const human = createHuman({
+      context,
+      page,
+      plan: {
+        viewport: { width: 1440, height: 900 },
+        humanize: { seed: 'contain', loadFade: 0 },
+        video: {
+          checklist: { title: 'Setup', layout: 'dock', width: 360, containFixed: true },
+        },
+        steps: [{ goto: '/', check: 'Open the installer' }],
+      },
+      speed: 200,
+    });
+    human.attachInit();
+    await page.goto('http://contain.test/');
+    await human.begin();
+    await waitForPanel(page);
+    await settled(page);
+
+    const drawn = await page.evaluate(() => {
+      const rect = document.getElementById('dialog').getBoundingClientRect();
+      return {
+        contains: document.documentElement.hasAttribute('data-pc-contain'),
+        transform: getComputedStyle(document.body).transform,
+        column: Math.round(document.body.getBoundingClientRect().width),
+        dialogCentre: Math.round(rect.left + rect.width / 2),
+        appCentre: Math.round(document.body.getBoundingClientRect().width / 2),
+      };
+    });
+
+    assert.equal(drawn.contains, true, 'the dock opts into the containing block');
+    assert.match(drawn.transform, /matrix|translate/, 'body establishes a containing block for fixed descendants');
+    assert.equal(drawn.column, 1080);
+    assert.equal(drawn.dialogCentre, 540, 'the dialog centres on the app column, not the 1440px frame');
+    assert.equal(drawn.dialogCentre, drawn.appCentre);
   } finally {
     await context.close();
     await browser.close();

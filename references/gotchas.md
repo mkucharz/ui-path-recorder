@@ -299,8 +299,11 @@ recording is a true 16:9 composition. Three things bite:
   the one that shows: centred on the frame it sits under the middle of page +
   list, which reads as shifted off the screen it is captioning. It is centred on
   the app column (`--pc-dock-shift`) and bounded by it, and a card — which
-  reserves nothing — still centres on the whole frame. A new fixed, centred
-  overlay should do the same, or it will look off by half the panel.
+  reserves nothing — still centres on the whole frame. A fixed, centred overlay
+  in the app has the same problem: `"containFixed": true` makes the page column
+  the containing block for fixed descendants of `body` (dialogs, sheets,
+  portals), so they follow the app column too. It is opt-in — the body transform
+  changes fixed-position behaviour — and only valid with `"layout": "dock"`.
 
 **A hard navigation takes the panel with the document.** Like the caption, the
 list is redrawn by the first `arrive()`/`hold`/`settle()` after a `goto`. It is
